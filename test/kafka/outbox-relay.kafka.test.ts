@@ -40,12 +40,18 @@ describe('outbox relay', () => {
   });
 
   async function seedEvents(programs: readonly string[], perProgram: number): Promise<void> {
-    // Interleaved insert order: only program_seq decides the delivery order within a program.
+    // Interleaved insert order with ids that run BACKWARD relative to program_seq, so only the
+    // program_seq column can deliver per-program order (the FR-13 property under test).
+    let counter = 0;
     for (let seq = 1; seq <= perProgram; seq += 1) {
       for (const programId of programs) {
+        counter += 1;
+        const id = `00000000-0000-4000-8000-${(1_000_000 - counter)
+          .toString(16)
+          .padStart(12, '0')}`;
         await sql`
-          INSERT INTO outbox_event (tenant_id, program_id, program_seq, type, payload)
-          VALUES ('bank-a', ${programId}, ${seq}, 'ReservationCreated',
+          INSERT INTO outbox_event (id, tenant_id, program_id, program_seq, type, payload)
+          VALUES (${id}, 'bank-a', ${programId}, ${seq}, 'ReservationCreated',
                   ${JSON.stringify({ programId, seq })}::jsonb)`.execute(persistence.db);
       }
     }
