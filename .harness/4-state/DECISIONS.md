@@ -19,15 +19,15 @@ decisions about how the work is run.
 | 009 | Transactional outbox with a single relay under a TTL lease with epoch fencing | planned (0004) |
 | 010 | Append-only ledger plus projection instead of event sourcing | planned (0002) |
 | 011 | AuthN and AuthZ: JWKS, scopes, tenant-scoped keys, internal ops port | planned (0002) |
-| 012 | Data access with Kysely and SQL migrations | planned (0001) |
+| 012 | Data access with Kysely and SQL migrations | [012-kysely-sql-migrations](../../docs/adr/012-kysely-sql-migrations.md) |
 | 013 | OpenTelemetry instead of `@nestjs/observe` | planned (0004) |
 | 014 | API conventions: `/v1`, problem types, cursor pagination, `ETag` | planned (0002) |
 | 015 | Contracts and compatibility: zod to OpenAPI, AsyncAPI, `oasdiff`; no Pact until the first split | planned (0002) |
-| 016 | Testing strategy: Testcontainers, property tests, AC-named tests | planned (0001) |
+| 016 | Testing strategy: Testcontainers, property tests, AC-named tests | [016-testing-strategy](../../docs/adr/016-testing-strategy.md) |
 | 017 | Out of scope and why: GraphQL, gateway, event sourcing, Saga, CDC, Kubernetes, AWS emulation | planned (0004) |
-| 018 | Architecture: hexagonal, vertical slices, tactical DDD; no monorepo tooling | planned (0001) |
+| 018 | Architecture: hexagonal, vertical slices, tactical DDD; no monorepo tooling | [018-hexagonal-architecture](../../docs/adr/018-hexagonal-architecture.md) |
 | 019 | Aggregate design: `Program` root, reservations loaded one at a time | planned (0002) |
-| 020 | Ubiquitous language and naming rules | planned (0001) |
+| 020 | Ubiquitous language and naming rules | [020-ubiquitous-language](../../docs/adr/020-ubiquitous-language.md) |
 | 021 | Evolution path: split triggers T1–T4 and the order of the split | planned (0004) |
 
 ---

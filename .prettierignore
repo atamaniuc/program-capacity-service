@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+package-lock.json
+.omc
+.codegraph
+.harness
+.claude
+specs
+docs
+test/architecture/fixtures
+*.md

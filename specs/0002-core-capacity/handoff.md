@@ -43,11 +43,10 @@ concurrency or idempotency, so `architect` reviews it with a fresh context befor
 
 ## Depends on
 
-- skeleton
 
 ## State
 
-Not started; waits on 0001.
+Not started. Lane 0001 closed (see specs/TRACKS-LOG.md): Nest bootstrap in `src/platform/bootstrap/`, Kysely pool in `src/capacity/adapters/out/postgres/db.ts`, migration runner `migrate.ts` applies `migrations/*.sql` in order, Testcontainers PG18 helper `test/support/postgres.ts`. `zod-openapi` is not installed yet. JWT audience is `capacity-service`; mock OAuth issuer `http://localhost:8081/default` (compose).
 
 ## Decisions taken
 

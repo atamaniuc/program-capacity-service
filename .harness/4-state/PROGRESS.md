@@ -4,8 +4,8 @@ State carried between sessions. Read this first; update it before you stop.
 
 ## Now
 
-Lane 0001 (skeleton, M0). Harness, PRD edits and all lane specs are written; the Node
-project, compose stack and CI are next. Nothing is waiting on a human.
+Lane 0002 (core capacity, M1). M0 closed at 28 minutes. Nothing is waiting on a human
+except the locked-baseline commit (below).
 
 ## Done
 
@@ -18,15 +18,18 @@ project, compose stack and CI are next. Nothing is waiting on a human.
   tolerance in invoice currency, snapshot cap), D6 (composite `(tenant_id, id)` key), D7
   (DLQ dedup, lease TTL, `make dlq-replay`), D9 (no broken embeds; `release-ref-mismatch`).
 - Lanes 0001–0005 written with ACs copied from the PRD and proof markers per task.
+- M0: lane 0001 closed — tooling, layer rules, config validation, ops port, PG18 migrations,
+  compose stack (postgres, kafka, oauth, migrate, api, worker), token CLI, CI/CodeQL/Dependabot,
+  glossary, ADRs 012/016/018/020. Distillate in specs/TRACKS-LOG.md.
 
 ## Next
 
-1. 0001 T1–T8 (skeleton) → lane gate → commit.
-2. 0002 core capacity (M1), AC-01 first.
-3. 0003 and 0004 in parallel once 0002's domain and ports exist (Owns do not overlap).
+1. 0002 core capacity (M1), AC-01 first; architect review before the gate.
+2. 0003 and 0004 in parallel once 0002's domain and ports exist (Owns do not overlap).
 
 ## Open questions for the human
 
-- None blocking. The CTO questions live in PRD §14.
+- Set `.harness/3-environment/locked-baseline` (suggested: bootstrap commit 611505b) — a human act.
+- CTO questions live in PRD §14.
 
 _Last updated: 2026-10-28_

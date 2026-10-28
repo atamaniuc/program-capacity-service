@@ -1,0 +1,22 @@
+{
+  "interactiveLogin": false,
+  "httpServer": "NettyWrapper",
+  "tokenCallbacks": [
+    {
+      "issuerId": "default",
+      "tokenExpiry": 3600,
+      "requestMappings": [
+        {
+          "requestParam": "client_id",
+          "match": "*",
+          "claims": {
+            "sub": "${client_id}",
+            "aud": ["capacity-service"],
+            "tenant_id": "${client_id}",
+            "scope": "${scope}"
+          }
+        }
+      ]
+    }
+  ]
+}

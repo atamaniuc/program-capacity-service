@@ -4,11 +4,11 @@ Real-time credit capacity for supply chain finance programs: reserve on invoice 
 release on repayment, reconcile against the bank's treasury, never over-reserve.
 Take-home for a senior Node.js role; requirements in [docs/PRD.md](docs/PRD.md). <!-- proof: docs/PRD.md -->
 
-> **Status: M0 in progress.** This README states only what exists. Sections marked
+> **Status: M0 done, M1 in progress.** This README states only what exists. Sections marked
 > _planned_ describe the target from the PRD and become claims, with proof markers, as the
 > lanes in [specs/TRACKS.md](specs/TRACKS.md) close. <!-- proof: specs/TRACKS.md -->
 
-## Quick start (planned, lane 0001)
+## Quick start (`make up` and `make token` work; seed and demo arrive with lane 0003)
 
 ```bash
 make up      # PostgreSQL 18, Kafka 4 (KRaft), mock OAuth2, migrate, api, worker
@@ -30,6 +30,7 @@ make demo    # every critical-path scenario against the running stack
 | Area | State |
 | --- | --- |
 | PRD, review edits, lanes 0001–0005 | written |
+| Skeleton: tooling, layer rules, config validation, ops port, migrations, compose, CI | built <!-- proof: test/architecture/layers.test.ts#SK-02 --> <!-- proof: test/e2e/ops.e2e.test.ts#SK-04 --> |
 | Everything else | not built yet; see `specs/TRACKS.md` |
 
 Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md`. Cut order when

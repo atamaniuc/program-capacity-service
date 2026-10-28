@@ -10,8 +10,9 @@ k8s) → OTel profile → invariant job (FR-15) → list endpoints (FR-12) → o
 | --- | --- | --- |
 | 2026-10-28T13:58Z | start: read PRD, review, bootstrap | 0 |
 | 2026-10-28T14:08Z | bootstrap gate: git init, harnessimo, PRD edits (FR-16, Evolution, budget, contracts, dated facts), harness files, lanes 0001–0005; commit 611505b | 10 |
+| 2026-10-28T14:27Z | M0 gate: lane 0001 closed (make verify, test:int 5/5, make up healthy, make token); JWT aud aligned to PRD; queue m0-skeleton passing | 28 |
 
-current lane: 0001-skeleton
-last green command: `npx harnessimo check`
-exact next action: implement 0001 T1 (package.json, tsconfig, ESLint, Vitest, dependency-cruiser) — see specs/0001-skeleton/handoff.md "First step"
+current lane: 0002-core-capacity
+last green command: `npx harnessimo queue verify m0-skeleton` (make verify && npm run test:int)
+exact next action: lane 0002 — write test/integration/reserve-concurrency.int.test.ts `AC-01 …`, then T1 schema migration (specs/0002-core-capacity/handoff.md "First step")
 resume command: `claude` in the repo root, then `make status`
