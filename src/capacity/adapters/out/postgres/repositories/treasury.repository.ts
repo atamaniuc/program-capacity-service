@@ -7,6 +7,7 @@ import type {
   ReconciliationDiffRow,
   ReservationOverwrite,
   SnapshotRow,
+  SnapshotStage,
   TreasuryChange,
   TreasuryProgramRepository,
   TreasuryReservationRepository,
@@ -139,18 +140,17 @@ export class PgTreasuryReservationRepository implements TreasuryReservationRepos
     }));
   }
 
-  async loadSnapshot(tenantId: string, programId: string, rows: readonly SnapshotRow[]) {
-    await sql`DELETE FROM reconcile_snapshot_row WHERE tenant_id = ${tenantId} AND program_id = ${programId}`.execute(
-      this.db,
-    );
+  async loadSnapshot(stage: SnapshotStage, rows: readonly SnapshotRow[]) {
     if (rows.length === 0) return;
     await sql`
       INSERT INTO reconcile_snapshot_row (
-        tenant_id, program_id, invoice_id, invoice_currency,
+        tenant_id, program_id, message_id, run_id, invoice_id, invoice_currency,
         outstanding_invoice_minor, outstanding_program_minor)
       SELECT * FROM unnest(
-        ${rows.map(() => tenantId)}::text[],
-        ${rows.map(() => programId)}::text[],
+        ${rows.map(() => stage.tenantId)}::text[],
+        ${rows.map(() => stage.programId)}::text[],
+        ${rows.map(() => stage.messageId)}::text[],
+        ${rows.map(() => stage.runId)}::text[],
         ${rows.map((row) => row.invoiceId)}::text[],
         ${rows.map((row) => row.invoiceCurrency)}::text[],
         ${rows.map((row) => text(row.outstandingInvoiceMinor))}::bigint[],
@@ -158,12 +158,21 @@ export class PgTreasuryReservationRepository implements TreasuryReservationRepos
       )`.execute(this.db);
   }
 
-  async diff(tenantId: string, programId: string): Promise<ReconciliationDiffRow[]> {
+  async clearSnapshot(stage: SnapshotStage) {
+    await sql`
+      DELETE FROM reconcile_snapshot_row
+       WHERE tenant_id = ${stage.tenantId} AND program_id = ${stage.programId}
+         AND message_id = ${stage.messageId} AND run_id = ${stage.runId}`.execute(this.db);
+  }
+
+  async diff(stage: SnapshotStage): Promise<ReconciliationDiffRow[]> {
+    const { tenantId, programId } = stage;
     const { rows } = await sql<DiffRow>`
       WITH snapshot AS (
         SELECT invoice_id, invoice_currency, outstanding_invoice_minor, outstanding_program_minor
           FROM reconcile_snapshot_row
          WHERE tenant_id = ${tenantId} AND program_id = ${programId}
+           AND message_id = ${stage.messageId} AND run_id = ${stage.runId}
       )
       SELECT 'both' AS side,
              r.id AS r_id, r.invoice_id AS r_invoice_id, r.invoice_currency AS r_invoice_currency,
@@ -195,6 +204,7 @@ export class PgTreasuryReservationRepository implements TreasuryReservationRepos
          AND NOT EXISTS (
              SELECT 1 FROM reconcile_snapshot_row s
               WHERE s.tenant_id = ${tenantId} AND s.program_id = ${programId}
+                AND s.message_id = ${stage.messageId} AND s.run_id = ${stage.runId}
                 AND s.invoice_id = r.invoice_id)
     `.execute(this.db);
     return rows.map((row): ReconciliationDiffRow => ({

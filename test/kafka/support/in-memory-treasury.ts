@@ -2,11 +2,15 @@ import type {
   OwnReservation,
   ReconciliationDiffRow,
   SnapshotRow,
+  SnapshotStage,
   TreasuryScope,
   TreasuryUnitOfWork,
 } from '#src/capacity/application/ports/index.js';
 import type { Program } from '#src/capacity/domain/index.js';
 import { InMemoryWorld } from '../../support/in-memory-ports.js';
+
+const stageKey = (stage: SnapshotStage) =>
+  `${stage.tenantId}/${stage.programId}/${stage.messageId}/${stage.runId}`;
 
 /** The unit-test stand-in for the treasury adapters, on top of the lane 0002 in-memory world. */
 export class InMemoryTreasuryWorld extends InMemoryWorld implements TreasuryUnitOfWork {
@@ -105,15 +109,20 @@ export class InMemoryTreasuryWorld extends InMemoryWorld implements TreasuryUnit
                 createdAt: r.createdAt,
               })),
           ),
-        loadSnapshot: (tenantId, programId, rows) => {
+        loadSnapshot: (stage, rows) => {
           world.snapshots.set(
-            `${tenantId}/${programId}`,
+            stageKey(stage),
             rows.map((row) => ({ ...row })),
           );
           return Promise.resolve();
         },
-        diff: (tenantId, programId) => {
-          const staged = world.snapshots.get(`${tenantId}/${programId}`) ?? [];
+        clearSnapshot: (stage) => {
+          world.snapshots.delete(stageKey(stage));
+          return Promise.resolve();
+        },
+        diff: (stage) => {
+          const { tenantId, programId } = stage;
+          const staged = world.snapshots.get(stageKey(stage)) ?? [];
           const reservations = [...world.state.reservations.values()].filter(
             (r) => r.tenantId === tenantId && r.programId === programId,
           );

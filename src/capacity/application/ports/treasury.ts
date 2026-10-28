@@ -67,6 +67,17 @@ export interface SnapshotRow {
 }
 
 /**
+ * Identifies one staged snapshot: the snapshot message and one execution of it, so two
+ * overlapping deliveries of the same message never share rows (AC-10).
+ */
+export interface SnapshotStage {
+  readonly tenantId: string;
+  readonly programId: string;
+  readonly messageId: string;
+  readonly runId: string;
+}
+
+/**
  * One row of the set-based comparison between the staged snapshot and the reservations.
  * `both` carries a reservation and its snapshot row, `snapshot-only` only the snapshot row,
  * `ours-only` only the reservation.
@@ -80,10 +91,12 @@ export interface ReconciliationDiffRow {
 export interface TreasuryReservationRepository {
   /** Plain read of every reservation of a program, no row locks. */
   listForProgram(tenantId: string, programId: string): Promise<readonly OwnReservation[]>;
-  /** Replaces the staged snapshot rows of a program with one set-based DELETE + INSERT. */
-  loadSnapshot(tenantId: string, programId: string, rows: readonly SnapshotRow[]): Promise<void>;
+  /** Stages one execution's snapshot rows with a single set-based INSERT. */
+  loadSnapshot(stage: SnapshotStage, rows: readonly SnapshotRow[]): Promise<void>;
   /** Set-based comparison of the staged snapshot with the reservations, outside the program lock. */
-  diff(tenantId: string, programId: string): Promise<readonly ReconciliationDiffRow[]>;
+  diff(stage: SnapshotStage): Promise<readonly ReconciliationDiffRow[]>;
+  /** Deletes the rows of one staged execution. */
+  clearSnapshot(stage: SnapshotStage): Promise<void>;
   /** One set-based UPDATE for every row, scoped to the locked program (PRD §8). */
   overwrite(
     tenantId: string,

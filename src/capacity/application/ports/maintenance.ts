@@ -18,6 +18,8 @@ export interface RetentionResult {
   readonly idempotencyKeys: number;
   readonly inboxMessages: number;
   readonly outboxEvents: number;
+  /** Reconciliation staging rows left by a crash between planning and apply. */
+  readonly stagedSnapshotRows: number;
 }
 
 /** Scheduled maintenance queries run by the worker role (FR-15, NFR-11). */

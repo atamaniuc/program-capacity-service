@@ -1,5 +1,11 @@
 import { type LedgerEntry, type Program, type Reservation } from '#src/capacity/domain/index.js';
-import type { Clock, IdGenerator, TreasuryScope, TreasuryUnitOfWork } from '../../ports/index.js';
+import type {
+  Clock,
+  IdGenerator,
+  SnapshotStage,
+  TreasuryScope,
+  TreasuryUnitOfWork,
+} from '../../ports/index.js';
 import {
   PermanentError,
   type MessageSource,
@@ -44,6 +50,7 @@ interface Prepared {
   readonly basedOnVersion: number;
   readonly plan: ReconcilePlan;
   readonly snapshot: Snapshot;
+  readonly stage: SnapshotStage;
 }
 
 const ACTOR = 'treasury';
@@ -69,6 +76,14 @@ export class ReconcileProgram {
         `${reservationCount} reservations exceed RECON_MAX_RESERVATIONS ${this.deps.maxReservations}`,
       );
     }
+    // Every execution stages its rows under its own run id, so a concurrent redelivery of the
+    // same snapshot message never collides with this one (AC-10).
+    const stage: SnapshotStage = {
+      tenantId: message.tenantId,
+      programId: message.programId,
+      messageId: message.messageId,
+      runId: this.deps.ids.next(),
+    };
     const prepared = await uow.run(async (tx): Promise<Prepared | Skipped> => {
       if (await tx.inbox.seen(source.consumer, message.messageId)) return { status: 'duplicate' };
       const program = await tx.treasuryPrograms.find(message.tenantId, message.programId);
@@ -81,16 +96,27 @@ export class ReconcileProgram {
       // Duplicate and stale checks precede the remaining payload validation (AC-09).
       const snapshot = this.snapshotOf(message);
       this.limitOf(message, program.currency);
-      const plan = await this.plan(tx, program, snapshot);
-      return { basedOnVersion: program.version, plan, snapshot };
+      await tx.treasuryReservations.loadSnapshot(stage, stagedRows(snapshot));
+      const plan = await this.plan(tx, program, snapshot, stage);
+      return { basedOnVersion: program.version, plan, snapshot, stage };
     });
     if (!('plan' in prepared)) return this.skipped(source, message, prepared);
 
-    await this.deps.betweenPlanAndLock?.();
-
-    const outcome = await uow.run((tx) =>
-      this.apply(tx, source, message, prepared.snapshot, prepared),
-    );
+    let outcome: ReconcileResult;
+    try {
+      await this.deps.betweenPlanAndLock?.();
+      // The apply transaction removes this execution's staged rows before it commits, on
+      // every path (applied, duplicate, stale).
+      outcome = await uow.run(async (tx) => {
+        const result = await this.apply(tx, source, message, prepared.snapshot, prepared);
+        await tx.treasuryReservations.clearSnapshot(stage);
+        return result;
+      });
+    } catch (error) {
+      // The apply transaction rolled back, and its delete with it: clean up on its own.
+      await uow.run((tx) => tx.treasuryReservations.clearSnapshot(stage)).catch(() => undefined);
+      throw error;
+    }
     if (outcome.status !== 'applied') return this.skipped(source, message, outcome);
     this.report(message, outcome.plan);
     return outcome;
@@ -110,7 +136,9 @@ export class ReconcileProgram {
     if (seq <= program.treasurySeq) return { status: 'stale', treasurySeq: program.treasurySeq };
 
     const recomputed = program.version !== prepared.basedOnVersion;
-    const plan = recomputed ? await this.plan(tx, program, snapshot) : prepared.plan;
+    const plan = recomputed
+      ? await this.plan(tx, program, snapshot, prepared.stage)
+      : prepared.plan;
     const limitMinor = this.limitOf(message, program.currency);
     const limitChanged = limitMinor !== program.creditLimitMinor;
     const capacityChanged =
@@ -300,20 +328,11 @@ export class ReconcileProgram {
     tx: TreasuryScope,
     program: Program,
     snapshot: Snapshot,
+    stage: SnapshotStage,
   ): Promise<ReconcilePlan> {
-    // The snapshot goes into the staging table and the set-based diff query partitions the
-    // reservations into matched, treasury-only and ours-only rows outside the program lock.
-    await tx.treasuryReservations.loadSnapshot(
-      program.tenantId,
-      program.id,
-      snapshot.reservations.map((entry) => ({
-        invoiceId: entry.invoiceId,
-        invoiceCurrency: entry.invoiceCurrency,
-        outstandingInvoiceMinor: entry.outstandingInvoiceMinor,
-        outstandingProgramMinor: entry.outstandingProgramMinor,
-      })),
-    );
-    const rows = await tx.treasuryReservations.diff(program.tenantId, program.id);
+    // The set-based diff query partitions the reservations into matched, treasury-only and
+    // ours-only rows against this execution's staged snapshot rows.
+    const rows = await tx.treasuryReservations.diff(stage);
     const ours = rows.filter((row) => row.reservation !== null).map((row) => row.reservation!);
     const theirs: SnapshotReservation[] = [];
     for (const row of rows) {
@@ -379,6 +398,15 @@ export class ReconcileProgram {
       );
     }
   }
+}
+
+function stagedRows(snapshot: Snapshot) {
+  return snapshot.reservations.map((entry) => ({
+    invoiceId: entry.invoiceId,
+    invoiceCurrency: entry.invoiceCurrency,
+    outstandingInvoiceMinor: entry.outstandingInvoiceMinor,
+    outstandingProgramMinor: entry.outstandingProgramMinor,
+  }));
 }
 
 function driftView(drift: Drift): Record<string, unknown> {

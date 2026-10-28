@@ -64,10 +64,16 @@ export class PgMaintenanceStore implements MaintenanceStore {
          AND published_at < now() - make_interval(secs => ${policy.outboxPublishedMaxAgeSeconds})`.execute(
       this.db,
     );
+    // A snapshot is planned and applied within seconds; an hour-old staged row is an orphan.
+    const staged = await sql`
+      DELETE FROM reconcile_snapshot_row WHERE staged_at < now() - interval '1 hour'`.execute(
+      this.db,
+    );
     return {
       idempotencyKeys: Number(idempotency.numAffectedRows ?? 0n),
       inboxMessages: Number(inbox.numAffectedRows ?? 0n),
       outboxEvents: Number(outbox.numAffectedRows ?? 0n),
+      stagedSnapshotRows: Number(staged.numAffectedRows ?? 0n),
     };
   }
 }

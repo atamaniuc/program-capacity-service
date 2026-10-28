@@ -63,6 +63,7 @@ export class RetentionCleanupJob {
     this.metrics?.addRetentionDeleted('idempotency_key', result.idempotencyKeys);
     this.metrics?.addRetentionDeleted('inbox_message', result.inboxMessages);
     this.metrics?.addRetentionDeleted('outbox_event', result.outboxEvents);
+    this.metrics?.addRetentionDeleted('reconcile_snapshot_row', result.stagedSnapshotRows);
     this.logger.info({ event: 'retention-cleanup', ...result }, 'retention cleanup finished');
     return result;
   }

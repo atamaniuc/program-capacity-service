@@ -145,6 +145,12 @@ The service handles SIGTERM: readiness turns false at once so the load balancer 
 requests finish, the relay hands back its lease, and the pool closes, all within 25 s (NFR-07).
 Set the orchestrator's termination grace period to at least 30 s.
 
+Migrations run as a one-shot job before `api` and `worker` start (compose `migrate`, Kubernetes
+`deploy/k8s/migrate.yaml`). Migration 0004 empties the reconciliation staging table; run it
+with the `worker` scaled to zero, so an old worker cannot lose the rows of a snapshot it is
+applying at that moment. A worker stopped mid-snapshot is safe: the Kafka message is redelivered
+and the inbox makes the second run idempotent.
+
 ## Worker and telemetry settings
 
 Read from the environment by `src/platform/telemetry/settings.ts`; defaults match PRD §8.

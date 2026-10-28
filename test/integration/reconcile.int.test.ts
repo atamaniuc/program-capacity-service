@@ -546,4 +546,23 @@ describe('reconciliation', () => {
     expect((await apply(reconcile, snap)).status).toBe('duplicate');
     expect(await ledgerKinds(programId)).toEqual(['LIMIT_SET']);
   });
+
+  it('AC-10 two concurrent deliveries of the same snapshot apply once and neither fails', async () => {
+    const programId = await newProgram();
+    const reservations = Array.from({ length: 200 }, (_, index) => ({
+      invoiceId: `inv-conc-${index}`,
+      outstandingInvoiceAmount: usd('10.00'),
+      outstandingReservedAmount: usd('10.00'),
+    }));
+    const snap = message(programId, 70, {
+      asOf: new Date(),
+      creditLimit: usd('9000000.00'),
+      platformWatermark: 0,
+      reservations,
+    });
+    const results = await Promise.all([apply(reconciler(), snap), apply(reconciler(), snap)]);
+    expect(results.map((result) => result.status).sort()).toEqual(['applied', 'duplicate']);
+    expect(await count(world, 'reconcile_snapshot_row')).toBe(0);
+    expect((await programRow(world, TENANT, programId)).reserved_minor).toBe('200000');
+  });
 });

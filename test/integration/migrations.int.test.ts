@@ -21,6 +21,7 @@ describe('migrations', () => {
       '0001_baseline.sql',
       '0002_core_schema.sql',
       '0003_treasury.sql',
+      '0004_reconcile_staging_by_message.sql',
     ]);
 
     const second = await migrate(postgres.url);
@@ -41,6 +42,7 @@ describe('migrations', () => {
         { filename: '0001_baseline.sql' },
         { filename: '0002_core_schema.sql' },
         { filename: '0003_treasury.sql' },
+        { filename: '0004_reconcile_staging_by_message.sql' },
       ]);
     } finally {
       await persistence.close();
@@ -52,7 +54,7 @@ describe('migrations', () => {
     try {
       const results = await Promise.all([migrate(empty.url), migrate(empty.url)]);
       const appliedCount = results.reduce((sum, result) => sum + result.applied.length, 0);
-      expect(appliedCount).toBe(3);
+      expect(appliedCount).toBe(4);
     } finally {
       await empty.stop();
     }

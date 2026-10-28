@@ -133,7 +133,7 @@ describe('scheduled jobs', () => {
     expect(loadRuntimeSettings({}).invariantCheckIntervalMs).toBe(5 * 60_000);
   });
 
-  it('NFR-11 retention removes idempotency keys older than 24 h and inbox and published outbox rows older than 7 days', async () => {
+  it('NFR-11 retention removes idempotency keys older than 24 h and inbox and published outbox rows older than 7 days, and orphaned reconciliation staging rows older than 1 hour', async () => {
     const db = persistence.db;
     await sql`INSERT INTO idempotency_key (tenant_id, key, fingerprint, status_code, response_body, created_at)
               VALUES ('bank-a', 'old', 'f', 200, '{}', now() - interval '25 hours'),
@@ -145,20 +145,31 @@ describe('scheduled jobs', () => {
               VALUES ('bank-a', 'x', 1, 'T', '{}', now() - interval '9 days', now() - interval '8 days'),
                      ('bank-a', 'x', 2, 'T', '{}', now() - interval '9 days', now() - interval '6 days'),
                      ('bank-a', 'x', 3, 'T', '{}', now() - interval '9 days', NULL)`.execute(db);
+    await sql`INSERT INTO reconcile_snapshot_row (tenant_id, program_id, invoice_id, invoice_currency,
+                outstanding_invoice_minor, outstanding_program_minor, message_id, run_id, staged_at)
+              VALUES ('bank-a', 'x', 'INV-OLD', 'USD', 1, 1, 'm', 'orphan', now() - interval '2 hours'),
+                     ('bank-a', 'x', 'INV-NEW', 'USD', 1, 1, 'm', 'live', now())`.execute(db);
 
     const result = await new RetentionCleanupJob(store, logger, DEFAULT_RETENTION).run();
-    expect(result).toMatchObject({ idempotencyKeys: 1, inboxMessages: 1, outboxEvents: 1 });
+    expect(result).toMatchObject({
+      idempotencyKeys: 1,
+      inboxMessages: 1,
+      outboxEvents: 1,
+      stagedSnapshotRows: 1,
+    });
 
     const left = await sql<{ what: string }>`
       SELECT 'key:' || key AS what FROM idempotency_key
       UNION ALL SELECT 'inbox:' || message_id FROM inbox_message
       UNION ALL SELECT 'outbox:' || program_seq FROM outbox_event WHERE program_id = 'x'
+      UNION ALL SELECT 'staged:' || run_id FROM reconcile_snapshot_row WHERE program_id = 'x'
       ORDER BY 1`.execute(db);
     expect(left.rows.map((row) => row.what)).toEqual([
       'inbox:fresh',
       'key:fresh',
       'outbox:2',
       'outbox:3',
+      'staged:live',
     ]);
     expect(infos.some((line) => line.fields['event'] === 'retention-cleanup')).toBe(true);
   });

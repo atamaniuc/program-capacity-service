@@ -54,15 +54,40 @@ stale, never parked (AC-09).
 
 The staging table has no foreign key to `program` or `reservation`: an immediate key would
 take `FOR KEY SHARE` on the program row before the program lock, breaking the lock order of
-ADR 003. The table is transient per program, and the use case validates tenant, program and
-invoice currency before loading it.
+ADR 003. The use case validates tenant and program before loading the snapshot; an invoice
+currency that differs between the snapshot and an existing reservation is detected on the
+joined rows, after the diff and before any write, and parks the message (`currency-mismatch`).
+
+### Why staging rows are keyed by message and run
+
+Staging rows are keyed `(tenant_id, program_id, message_id, run_id, invoice_id)`; `run_id` is a
+fresh id per execution of the use case (migration 0004). The first layout keyed them by
+`(tenant_id, program_id, invoice_id)` and failed like this:
+
+1. A consumer-group rebalance hands the same snapshot to two workers at once (Kafka is at
+   least once; nothing stops this).
+2. Both planning transactions run `DELETE` + `INSERT` for the same program. The second `INSERT`
+   waits on the first one's uncommitted rows, then fails with `23505 unique_violation` when the
+   first commits.
+3. The consumer classifies SQLSTATE class 23 as permanent, so a valid snapshot was parked in the
+   DLQ instead of being skipped as a duplicate.
+
+With a run id, each execution plans over its own rows and never touches another's. The inbox
+claim in the apply transaction still decides which one applies; the other returns
+`duplicate`. Each execution deletes its own rows inside the apply transaction on every outcome
+(applied, duplicate, stale) and in a best-effort cleanup if apply throws. Rows orphaned by a
+crash between planning and apply carry `staged_at` and are swept by the retention job after one
+hour. Proof: `AC-10 two concurrent deliveries of the same snapshot apply once and neither fails`
+(`test/integration/reconcile.int.test.ts`).
+
+Advisory locks and temporary tables were rejected for this fix: both pin a connection behind
+RDS Proxy, and the run key needs neither.
 
 ## Consequences
 
 - The program lock is held only for the version re-check and the set-based apply, not for
   parsing or comparing a large snapshot.
-- Staging rows of an applied snapshot stay until the next snapshot of that program replaces
-  them.
+- Staging rows live only for one execution; nothing accumulates.
 - Treasury wins wherever it has an opinion; where it is silent about something it should
   know, the service keeps the larger exposure (HOLD).
 
