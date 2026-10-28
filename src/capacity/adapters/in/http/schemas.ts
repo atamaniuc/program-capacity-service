@@ -61,7 +61,7 @@ export const CapacitySnapshot = z
   })
   .meta({ id: 'CapacitySnapshot' });
 
-const reservationFields = {
+export const reservationFields = {
   reservationId: z.uuid(),
   invoiceId: z.string(),
   status: z.enum(['ACTIVE', 'PARTIALLY_RELEASED', 'RELEASED']),

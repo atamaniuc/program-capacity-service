@@ -34,7 +34,7 @@ export const RELEASE_RESERVATION = Symbol('RELEASE_RESERVATION');
 export const GET_CAPACITY = Symbol('GET_CAPACITY');
 export const GET_RESERVATION = Symbol('GET_RESERVATION');
 
-function parse<T>(schema: ZodType<T>, input: unknown, what: string): T {
+export function parse<T>(schema: ZodType<T>, input: unknown, what: string): T {
   const result = schema.safeParse(input);
   if (!result.success) {
     const issue = result.error.issues[0];
@@ -65,7 +65,7 @@ function requestId(request: Request): string {
     : randomUUID();
 }
 
-function send(response: Response, outcome: Outcome<unknown>): void {
+export function send(response: Response, outcome: Outcome<unknown>): void {
   if (outcome.ok) {
     response.status(outcome.status).json(outcome.value);
   } else {
