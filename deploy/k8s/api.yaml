@@ -13,17 +13,28 @@ spec:
       labels:
         app: api
     spec:
+      # NFR-07: above the 25 s application shutdown deadline, so SIGKILL never cuts a drain.
+      terminationGracePeriodSeconds: 40
       containers:
         - name: api
           image: program-capacity-service:local
           envFrom:
             - configMapRef:
                 name: capacity-env
+            - secretRef:
+                name: capacity-database
           env:
             - name: APP_ROLE
               value: api
             - name: HTTP_PORT
               value: '3000'
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: '1'
+              memory: 512Mi
           ports:
             - containerPort: 3000
             - containerPort: 9464

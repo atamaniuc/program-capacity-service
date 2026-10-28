@@ -1,10 +1,11 @@
+# DATABASE_URL carries a password and lives in the capacity-database Secret (see examples/secret.example.yaml; create the real one
+# with kubectl create secret, never from a committed file).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: capacity-env
   namespace: capacity
 data:
-  DATABASE_URL: postgres://capacity:capacity@postgres:5432/capacity
   KAFKA_BROKERS: kafka:9092
   OAUTH_ISSUER: http://oauth:8080/default
   OAUTH_AUDIENCE: capacity-service
