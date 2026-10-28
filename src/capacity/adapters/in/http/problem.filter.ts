@@ -1,0 +1,105 @@
+import {
+  Catch,
+  HttpException,
+  Logger,
+  type ArgumentsHost,
+  type ExceptionFilter,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { HttpProblem, PROBLEM_CONTENT_TYPE, problemBody, type ProblemBody } from './problem.js';
+
+/** PostgreSQL conditions that mean "try again later", not "the request is wrong". */
+const TRANSIENT_PG_CODES = new Set(['55P03', '57014', '40001', '40P01', '57P01', '08006', '08001']);
+const TRANSIENT_NODE_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT']);
+
+function isTransient(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return (
+    typeof code === 'string' && (TRANSIENT_PG_CODES.has(code) || TRANSIENT_NODE_CODES.has(code))
+  );
+}
+
+function fromHttpException(exception: HttpException): ProblemBody {
+  const status = exception.getStatus();
+  if (status === 404) {
+    return problemBody({
+      type: 'not-found',
+      title: 'Not found',
+      status,
+      detail: 'Resource not found.',
+    });
+  }
+  if (status === 401) {
+    return problemBody({
+      type: 'unauthorized',
+      title: 'Unauthorized',
+      status,
+      detail: 'Authentication is required.',
+    });
+  }
+  if (status === 403) {
+    return problemBody({
+      type: 'forbidden',
+      title: 'Forbidden',
+      status,
+      detail: 'Access is denied.',
+    });
+  }
+  if (status < 500) {
+    return problemBody({
+      type: 'validation-error',
+      title: 'Validation error',
+      status,
+      detail:
+        status === 400 ? 'The request body is not valid JSON.' : 'The request cannot be processed.',
+    });
+  }
+  return problemBody({
+    type: 'internal-error',
+    title: 'Internal error',
+    status,
+    detail: 'The request failed.',
+  });
+}
+
+/** Every error leaves as `application/problem+json`; internals go to the log, never to the client. */
+@Catch()
+export class ProblemFilter implements ExceptionFilter {
+  private readonly logger = new Logger(ProblemFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const response = host.switchToHttp().getResponse<Response>();
+    let body: ProblemBody;
+    let headers: Readonly<Record<string, string>> = {};
+
+    if (exception instanceof HttpProblem) {
+      body = exception.problem;
+      headers = exception.headers;
+    } else if (exception instanceof HttpException) {
+      body = fromHttpException(exception);
+    } else if (isTransient(exception)) {
+      this.logger.warn(`transient failure: ${String(exception)}`);
+      body = problemBody({
+        type: 'service-unavailable',
+        title: 'Service unavailable',
+        status: 503,
+        detail: 'The service could not complete the request in time; retry later.',
+      });
+      headers = { 'Retry-After': '1' };
+    } else {
+      this.logger.error(
+        exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
+      );
+      body = problemBody({
+        type: 'internal-error',
+        title: 'Internal error',
+        status: 500,
+        detail: 'The request failed; retry later.',
+      });
+    }
+
+    response.status(body.status);
+    for (const [name, value] of Object.entries(headers)) response.setHeader(name, value);
+    response.type(PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
+  }
+}

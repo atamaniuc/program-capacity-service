@@ -4,7 +4,9 @@ import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { sql } from 'kysely';
 import { createPersistence } from '#src/capacity/adapters/out/postgres/db.js';
 import type { Config } from '../config/config.js';
+import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js';
 import { startOpsServer, type OpsServer } from '../health/ops-server.js';
+import { renderApiDocs } from '../health/api-docs.js';
 import { NestPinoLogger, type Logger } from '../logging/logger.js';
 import { AppModule } from './app.module.js';
 
@@ -19,9 +21,20 @@ export interface RunningApp {
 export async function startApp(config: Config, logger: Logger): Promise<RunningApp> {
   const persistence = createPersistence(config.databaseUrl);
   const nestLogger = new NestPinoLogger(logger);
-  const module = AppModule.register(persistence);
-
   const serveHttp = config.appRole === 'api' || config.appRole === 'all';
+  const module = AppModule.register(
+    persistence,
+    serveHttp
+      ? {
+          auth: {
+            issuer: config.oauthIssuer,
+            audience: config.oauthAudience,
+            jwksUrl: config.oauthJwksUrl,
+          },
+          fxMaxAgeSeconds: config.fxMaxAgeSeconds,
+        }
+      : undefined,
+  );
   let app: INestApplication | INestApplicationContext;
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
@@ -33,6 +46,7 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
 
   const ops: OpsServer = await startOpsServer({
     port: config.opsPort,
+    documents: serveHttp ? renderApiDocs(buildOpenApiDocument()) : {},
     checks: {
       db: async () => {
         await sql`select 1`.execute(persistence.db);

@@ -5,8 +5,15 @@ import { Registry, collectDefaultMetrics } from 'prom-client';
 /** One named dependency check; later lanes add the Kafka consumer state here. */
 export type ReadinessCheck = () => Promise<void>;
 
+/** A fixed GET document served on the ops port only, such as the API docs. */
+export interface OpsDocument {
+  readonly contentType: string;
+  readonly body: string;
+}
+
 export interface OpsServerOptions {
   readonly port: number;
+  readonly documents?: Readonly<Record<string, OpsDocument>>;
   readonly checks: Readonly<Record<string, ReadinessCheck>>;
   readonly registry?: Registry;
 }
@@ -51,6 +58,9 @@ export async function startOpsServer(options: OpsServerOptions): Promise<OpsServ
         }
         const healthy = !draining && Object.values(report).every((state) => state === 'up');
         sendJson(healthy ? 200 : 503, { status: healthy ? 'up' : 'down', ...report });
+      } else if (path !== undefined && options.documents?.[path] !== undefined) {
+        const document = options.documents[path];
+        send(200, document.contentType, document.body);
       } else if (path === '/metrics') {
         send(200, registry.contentType, await registry.metrics());
       } else {

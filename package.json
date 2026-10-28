@@ -22,7 +22,8 @@
     "seed": "tsx tools/not-implemented.ts seed 0002",
     "token": "tsx tools/token/token.ts",
     "demo": "tsx tools/not-implemented.ts demo 0004",
-    "contracts": "tsx tools/not-implemented.ts contracts 0002",
+    "contracts": "tsx tools/contracts/generate.ts",
+    "contracts:check": "tsx tools/contracts/generate.ts --check",
     "dlq-replay": "tsx tools/not-implemented.ts dlq-replay 0003",
     "load": "tsx tools/not-implemented.ts load 0004"
   },
@@ -37,7 +38,9 @@
     "prom-client": "15.1.3",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "zod": "4.6.7"
+    "yaml": "2.9.1",
+    "zod": "4.6.7",
+    "zod-openapi": "6.0.2"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -48,6 +51,8 @@
     "@types/pg": "8.23.1",
     "@types/supertest": "7.2.1",
     "@vitest/coverage-v8": "5.0.5",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "dependency-cruiser": "18.7.0",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",

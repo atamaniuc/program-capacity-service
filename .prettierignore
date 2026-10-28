@@ -10,3 +10,4 @@ specs
 docs
 test/architecture/fixtures
 *.md
+contracts

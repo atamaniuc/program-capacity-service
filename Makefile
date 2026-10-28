@@ -39,6 +39,7 @@ verify: ## lint, types, layer rules, unit and property tests
 	npm run lint
 	npm run typecheck
 	npm run depcruise
+	npm run contracts:check
 	npm run test:unit
 
 test: ## every test level, real containers via Testcontainers

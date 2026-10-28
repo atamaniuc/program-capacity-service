@@ -1,0 +1,614 @@
+openapi: 3.1.0
+info:
+  title: Program Capacity Service
+  version: 1.0.0
+  description: Real-time credit capacity of supply chain finance programs. Errors are RFC 9457
+    `application/problem+json`; clients branch on `type`. Amounts are decimal strings at the ISO
+    4217 scale.
+servers:
+  - url: http://localhost:3000
+security:
+  - bearerAuth: []
+paths:
+  /v1/programs/{programId}/capacity:
+    get:
+      operationId: getCapacity
+      summary: Current availability of a program
+      description: Scope `capacity:read`. `ETag` is the program version; `If-None-Match` answers 304.
+      parameters:
+        - in: path
+          name: programId
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: prg_grand_usd
+          required: true
+      responses:
+        "200":
+          description: Capacity
+          headers:
+            etag:
+              required: true
+              description: Program version, quoted.
+              schema:
+                type: string
+                description: Program version, quoted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capacity"
+        "304":
+          description: Not modified.
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: Unknown program, or a program of another tenant.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/programs/{programId}/reservations:
+    post:
+      operationId: reserveCapacity
+      summary: Reserve capacity for an invoice
+      description: "Scope `capacity:write`. One reservation per invoice. Send an optional
+        `Idempotency-Key`: the first outcome, including a business rejection, is stored and replayed
+        for that key; keys are kept at least 24 hours."
+      parameters:
+        - in: path
+          name: programId
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: prg_grand_usd
+          required: true
+        - in: header
+          name: idempotency-key
+          schema:
+            description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
+              24 hours.
+            example: 6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90
+            type: string
+            minLength: 1
+            maxLength: 255
+            pattern: ^[\x21-\x7e]+$
+          description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
+            24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveRequest"
+      responses:
+        "200":
+          description: The invoice already has this reservation (replay).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "201":
+          description: Reserved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "400":
+          description: "`validation-error`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: "`not-found`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "409":
+          description: "`reservation-conflict`: different terms for the invoice, or the invoice is fully
+            released."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: "`insufficient-capacity`, `program-over-limit`, `program-suspended`,
+            `fx-rate-unavailable` or `idempotency-key-mismatch`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/programs/{programId}/reservations/{reservationId}:
+    get:
+      operationId: getReservation
+      summary: One reservation with its releases
+      description: Scope `capacity:read`.
+      parameters:
+        - in: path
+          name: programId
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: prg_grand_usd
+          required: true
+        - in: path
+          name: reservationId
+          schema:
+            type: string
+            description: UUID of the reservation.
+          required: true
+          description: UUID of the reservation.
+      responses:
+        "200":
+          description: Reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationDetail"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: "`not-found`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/programs/{programId}/reservations/{reservationId}/releases:
+    post:
+      operationId: releaseReservation
+      summary: Release a reservation fully or partially
+      description: "Scope `capacity:write`. A partial release frees floor(reserved x repaid / invoice
+        amount); the release that completes the invoice takes the exact remainder. The same
+        `releaseRef` with the same body replays the result. Send an optional `Idempotency-Key`: the
+        first outcome, including a business rejection, is stored and replayed for that key; keys are
+        kept at least 24 hours."
+      parameters:
+        - in: path
+          name: programId
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: prg_grand_usd
+          required: true
+        - in: path
+          name: reservationId
+          schema:
+            type: string
+            description: UUID of the reservation.
+          required: true
+          description: UUID of the reservation.
+        - in: header
+          name: idempotency-key
+          schema:
+            description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
+              24 hours.
+            example: 6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90
+            type: string
+            minLength: 1
+            maxLength: 255
+            pattern: ^[\x21-\x7e]+$
+          description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
+            24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseRequest"
+      responses:
+        "200":
+          description: Released (or replayed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Release"
+        "400":
+          description: "`validation-error`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: "`not-found`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: "`release-exceeds-remaining`, `release-ref-mismatch` or `idempotency-key-mismatch`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+components:
+  schemas:
+    ReserveRequest:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: INV-1003
+        amount:
+          description: Invoice amount in invoice currency; greater than zero.
+          $ref: "#/components/schemas/Amount"
+      required:
+        - invoiceId
+        - amount
+      additionalProperties: false
+    Amount:
+      type: object
+      properties:
+        value:
+          type: string
+          description: Decimal string at the currency scale.
+          example: "1250.50"
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO 4217 code.
+          example: USD
+      required:
+        - value
+        - currency
+    ReleaseRequest:
+      type: object
+      properties:
+        releaseRef:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: repayment-2026-10-28-1
+        amount:
+          description: "Repaid amount in invoice currency. Omitted: the whole remainder."
+          $ref: "#/components/schemas/Amount"
+        reason:
+          type: string
+          enum:
+            - REPAID
+            - CANCELLED
+      required:
+        - releaseRef
+        - reason
+      additionalProperties: false
+    Capacity:
+      type: object
+      properties:
+        programId:
+          type: string
+        currency:
+          type: string
+        limit:
+          type: string
+        reserved:
+          type: string
+        available:
+          type: string
+          description: Never negative.
+        overLimitBy:
+          type: string
+          description: Zero unless a limit cut left reserved above limit.
+        utilization:
+          type: string
+          description: reserved / limit, four decimal places.
+          example: "0.7280"
+        version:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        treasurySeq:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+      required:
+        - programId
+        - currency
+        - limit
+        - reserved
+        - available
+        - overLimitBy
+        - utilization
+        - version
+        - treasurySeq
+      additionalProperties: false
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: https://errors.capacity.example/<problem>; clients branch on this, not on status.
+          example: https://errors.capacity.example/insufficient-capacity
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        detail:
+          type: string
+      required:
+        - type
+        - title
+        - status
+        - detail
+      additionalProperties: false
+    Reservation:
+      type: object
+      properties:
+        reservationId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        invoiceId:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - PARTIALLY_RELEASED
+            - RELEASED
+        invoiceAmount:
+          $ref: "#/components/schemas/AmountOutput"
+        reservedAmount:
+          description: In program currency, rounded up.
+          $ref: "#/components/schemas/AmountOutput"
+        releasedAmount:
+          description: In program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        remainingAmount:
+          description: In program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        fx:
+          type: object
+          properties:
+            rate:
+              type: string
+              example: "1.0800000000"
+            source:
+              type: string
+            asOf:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+          required:
+            - rate
+            - source
+            - asOf
+          additionalProperties: false
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+        capacity:
+          $ref: "#/components/schemas/CapacitySnapshot"
+      required:
+        - reservationId
+        - invoiceId
+        - status
+        - invoiceAmount
+        - reservedAmount
+        - releasedAmount
+        - remainingAmount
+        - fx
+        - createdAt
+        - capacity
+      additionalProperties: false
+    CapacitySnapshot:
+      type: object
+      properties:
+        limit:
+          type: string
+        reserved:
+          type: string
+        available:
+          type: string
+        version:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+      required:
+        - limit
+        - reserved
+        - available
+        - version
+      additionalProperties: false
+    ReservationDetail:
+      type: object
+      properties:
+        reservationId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        invoiceId:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - PARTIALLY_RELEASED
+            - RELEASED
+        invoiceAmount:
+          $ref: "#/components/schemas/AmountOutput"
+        reservedAmount:
+          description: In program currency, rounded up.
+          $ref: "#/components/schemas/AmountOutput"
+        releasedAmount:
+          description: In program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        remainingAmount:
+          description: In program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        fx:
+          type: object
+          properties:
+            rate:
+              type: string
+              example: "1.0800000000"
+            source:
+              type: string
+            asOf:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+          required:
+            - rate
+            - source
+            - asOf
+          additionalProperties: false
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+        releases:
+          type: array
+          items:
+            type: object
+            properties:
+              releaseRef:
+                type: string
+              reason:
+                type: string
+                enum:
+                  - REPAID
+                  - CANCELLED
+              invoiceAmount:
+                $ref: "#/components/schemas/AmountOutput"
+              releasedAmount:
+                $ref: "#/components/schemas/AmountOutput"
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+            required:
+              - releaseRef
+              - reason
+              - invoiceAmount
+              - releasedAmount
+              - createdAt
+            additionalProperties: false
+      required:
+        - reservationId
+        - invoiceId
+        - status
+        - invoiceAmount
+        - reservedAmount
+        - releasedAmount
+        - remainingAmount
+        - fx
+        - createdAt
+        - releases
+      additionalProperties: false
+    Release:
+      type: object
+      properties:
+        releaseRef:
+          type: string
+        reservationId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        reservationStatus:
+          type: string
+          enum:
+            - ACTIVE
+            - PARTIALLY_RELEASED
+            - RELEASED
+        reason:
+          type: string
+          enum:
+            - REPAID
+            - CANCELLED
+        invoiceAmount:
+          description: Repaid, in invoice currency.
+          $ref: "#/components/schemas/AmountOutput"
+        releasedAmount:
+          description: Capacity freed, in program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        remainingAmount:
+          description: Still held, in program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        capacity:
+          $ref: "#/components/schemas/CapacitySnapshot"
+      required:
+        - releaseRef
+        - reservationId
+        - reservationStatus
+        - reason
+        - invoiceAmount
+        - releasedAmount
+        - remainingAmount
+        - capacity
+      additionalProperties: false
+    AmountOutput:
+      type: object
+      properties:
+        value:
+          type: string
+          description: Decimal string at the currency scale.
+          example: "1250.50"
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO 4217 code.
+          example: USD
+      required:
+        - value
+        - currency
+      additionalProperties: false
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
