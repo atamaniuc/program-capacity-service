@@ -35,7 +35,7 @@ questions until T5.
 
 ## State
 
-Not started. Lanes 0001 and 0002 are closed (see specs/TRACKS-LOG.md). `@confluentinc/kafka-javascript` 1.11.0, `@testcontainers/kafka` 12.2.1 and the OpenTelemetry packages are pre-installed by the lead; do not run `npm install` — ask the lead for a new dependency. Lock-order rule for any new writer: claim the dedup row (inbox / idempotency / release_ref), then `program` FOR UPDATE, then reservation rows. The `reservation_release → reservation` FK is DEFERRABLE INITIALLY DEFERRED on purpose (ADR 003).
+T1 (NFR-06/NFR-07) and T2 (FR-13 relay) done and green. Relay: `src/capacity/adapters/out/kafka/outbox-relay.ts`, store `src/capacity/adapters/out/postgres/repositories/outbox-relay.repository.ts`, port `src/capacity/application/ports/outbox-relay.ts`; wired for the `worker`/`all` roles in `src/platform/bootstrap/worker.ts`. Worker tuning lives in `src/platform/telemetry/settings.ts` (not `Config`, to avoid colliding with lane 0003). Lock-order rule for any new writer: claim the dedup row, then `program` FOR UPDATE, then reservation rows. The `reservation_release -> reservation` FK is DEFERRABLE INITIALLY DEFERRED on purpose (ADR 003).
 
 ## Decisions taken
 
@@ -45,5 +45,4 @@ Not started. Lanes 0001 and 0002 are closed (see specs/TRACKS-LOG.md). `@conflue
 
 ## First step
 
-Write `test/fault/outage.fault.test.ts` with `NFR-06 the API answers while Kafka is down`;
-watch it fail; then T1.
+T3: write `test/e2e/queries.e2e.test.ts` (`FR-12 ...`), then the list reservations / ledger endpoints.

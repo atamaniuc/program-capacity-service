@@ -13,6 +13,9 @@ export interface Persistence {
 
 export function createPersistence(databaseUrl: string, maxConnections = 10): Persistence {
   const pool = new pg.Pool({ connectionString: databaseUrl, max: maxConnections });
+  // A database restart terminates idle pooled clients; without a listener that 'error' event
+  // would crash the process. The next query opens a fresh connection (NFR-06).
+  pool.on('error', () => undefined);
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
   return {
     db,

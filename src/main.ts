@@ -1,4 +1,5 @@
 import { loadConfig, ConfigError } from '#src/platform/config/config.js';
+import { closeWithin } from '#src/platform/bootstrap/shutdown.js';
 import { startApp } from '#src/platform/bootstrap/start.js';
 import { createLogger } from '#src/platform/logging/logger.js';
 
@@ -9,7 +10,7 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: string): void => {
     logger.info({ signal }, 'shutdown requested');
-    app.close().then(
+    closeWithin(app, logger).then(
       () => process.exit(0),
       (error: unknown) => {
         logger.error({ error: String(error) }, 'shutdown failed');
