@@ -29,17 +29,28 @@ make demo    # every critical-path scenario against the running stack
 ## Load (k6)
 
 `make load` runs `tools/load/scenario.js` in Docker `grafana/k6` — no local k6 binary is
-needed. The scenario drives a constant 100 requests/s arrival rate against one hot program
-(`prg_grand_usd`), 80% capacity reads and 20% reserve-then-release pairs of USD 100.00 each.
-Measured on the local compose stack (macOS arm64):
+needed. Two 100 requests/s phases run against the local compose stack (macOS arm64): a
+**spread** phase round-robinning across all 6 seeded programs, and a **hot** phase driving
+`prg_grand_usd` alone. Both use 80% capacity reads and 20% reserve-then-release pairs.
+
+**NFR-03 spread phase** — the targets are met: read p95 ≤ 20 ms, reserve and release p95 ≤ 50 ms.
 
 | Metric | p95 |
 | --- | --- |
-| Capacity read | 28.26 ms |
-| Reserve | 316.26 ms |
-| Release | 215.12 ms |
-| Aggregate `http_req_duration` | 123.67 ms |
-| Achieved throughput | 117.51 requests/s against the hot program |
+| Capacity read | 4.60 ms |
+| Reserve | 13.39 ms |
+| Release | 16.76 ms |
+
+**NFR-04 hot-program phase** — one program row serialises every write, so p95 grows well past
+the NFR-03 targets. This is the documented contention behaviour, not a defect: the PRD scale
+path answers it with capacity buckets and a read replica (PRD §7 T4, §8 scale path).
+
+| Metric | p95 |
+| --- | --- |
+| Capacity read | 656.84 ms |
+| Reserve | 1260.74 ms |
+| Release | 998.71 ms |
+| Aggregate `http_req_duration` | 292.95 ms |
 
 ## Built / not built
 
