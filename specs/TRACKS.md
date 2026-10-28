@@ -14,4 +14,4 @@ The shape of a line, kept in a fence so it is an example rather than a track:
 - **Retrieval quality (spec 0004)** — [handoff](specs/0004-retrieval/handoff.md) — active, next: T3 recall@5 eval on the held-out set
 ```
 
-- **Stretch (M4) (spec 0005)** — [handoff](specs/0005-stretch/handoff.md) — paused (after the M3 gate; first to cut), 2026-10-28, next: k6 scenario
+- **Stretch (M4) (spec 0005)** — [handoff](specs/0005-stretch/handoff.md) — active, 2026-10-28, next: k6 scenario

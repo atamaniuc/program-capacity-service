@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: capacity
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: program-capacity-service:local
+          command: ['node', 'src/capacity/adapters/out/postgres/migrate.js']
+          envFrom:
+            - configMapRef:
+                name: capacity-env

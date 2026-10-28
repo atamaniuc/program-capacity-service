@@ -1,0 +1,72 @@
+name: OWASP ZAP baseline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        run: docker build -t program-capacity-service:local .
+
+      - name: Create scan network
+        run: docker network create zap
+
+      - name: Start PostgreSQL
+        run: >
+          docker run -d --name postgres --network zap
+          -e POSTGRES_USER=capacity
+          -e POSTGRES_PASSWORD=capacity
+          -e POSTGRES_DB=capacity
+          postgres:18
+
+      - name: Wait for PostgreSQL
+        run: >
+          docker run --rm --network zap postgres:18
+          sh -c "until pg_isready -h postgres -U capacity; do sleep 2; done"
+
+      - name: Run migrations
+        run: >
+          docker run --rm --network zap
+          -e DATABASE_URL=postgres://capacity:capacity@postgres:5432/capacity
+          program-capacity-service:local
+          node src/capacity/adapters/out/postgres/migrate.js
+
+      - name: Start API
+        run: >
+          docker run -d --name api --network zap
+          -e APP_ROLE=api
+          -e HTTP_PORT=3000
+          -e OPS_PORT=9464
+          -e DATABASE_URL=postgres://capacity:capacity@postgres:5432/capacity
+          -e KAFKA_BROKERS=localhost:9092
+          -e OAUTH_ISSUER=http://localhost:8081/default
+          -e OAUTH_AUDIENCE=capacity-service
+          -e OAUTH_JWKS_URL=http://localhost:8081/default/jwks
+          program-capacity-service:local
+
+      - name: Wait for API readiness
+        run: >
+          docker run --rm --network zap curlimages/curl:latest
+          sh -c "until curl -sf http://api:9464/health/live; do sleep 2; done"
+
+      - name: OWASP ZAP baseline scan
+        run: >
+          docker run --rm --network zap
+          -v "${{ github.workspace }}:/zap/wrk:rw"
+          -t ghcr.io/zaproxy/zaproxy:stable
+          zap-baseline.py -t http://api:3000 -I -r /zap/wrk/zap-report.html
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report.html

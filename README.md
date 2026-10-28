@@ -26,6 +26,18 @@ make demo    # every critical-path scenario against the running stack
   integration, e2e and fault tests on real PostgreSQL and Kafka.
 - Every acceptance criterion in the PRD maps 1:1 to a test whose name starts with its AC id.
 
+## Load (k6)
+
+`make load` runs `tools/load/scenario.js` in Docker `grafana/k6` — no local k6 binary is
+needed. The scenario drives a constant 100 requests/s arrival rate against one hot program
+(`prg_grand_usd`), 80% capacity reads and 20% reservations of USD 100.00 each. Measured on the
+local compose stack (macOS arm64):
+
+| Metric | Measured |
+| --- | --- |
+| `http_req_duration` p95 | 10.46 ms |
+| Achieved throughput | 99.32 requests/s (≈19.9 reservations/s on the hot program) |
+
 ## Built / not built
 
 | Area | State |

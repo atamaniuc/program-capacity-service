@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: capacity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: program-capacity-service:local
+          envFrom:
+            - configMapRef:
+                name: capacity-env
+          env:
+            - name: APP_ROLE
+              value: api
+            - name: HTTP_PORT
+              value: '3000'
+          ports:
+            - containerPort: 3000
+            - containerPort: 9464
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9464
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9464
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
