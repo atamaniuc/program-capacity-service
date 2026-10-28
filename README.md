@@ -1,87 +1,190 @@
 # Program Capacity Service
 
-Real-time credit capacity for supply chain finance programs: reserve on invoice approval,
-release on repayment, reconcile against the bank's treasury, never over-reserve.
-Take-home for a senior Node.js role; requirements in [docs/PRD.md](docs/PRD.md). <!-- proof: docs/PRD.md -->
+A backend service that tracks, in real time, how much of a financing program's credit limit
+is still available, and **refuses any reservation that would exceed it**, even under heavy
+concurrency.
 
-> **Status: M0, M1, M2, M3 and M4 are done.**
-> This README states only what exists. <!-- proof: specs/TRACKS.md -->
+Built as the take-home for a senior Node.js role ([the assignment](docs/Backend-Developer-Test-Assignment.md)).
+Stack: Node.js 24, TypeScript, NestJS 12, PostgreSQL 18, Kafka 4.
+
+> **New here?** Read [docs/README.md](docs/README.md): a one-hour reading path through the
+> repository, from the business idea to the SQL.
+
+## The problem in one minute
+
+A bank opens a **program** for a buyer with a **credit limit**, say USD 10,000,000. Each
+supplier invoice the bank pays early **reserves** part of that limit; when the buyer repays,
+the amount is **released**. Limits, repayments, FX rates and periodic full **snapshots** also
+arrive from the bank's **treasury** system over Kafka. Programs and invoices can be in
+different currencies.
+
+The service must always answer "how much is available?" correctly, never let two
+simultaneous requests both take the last dollar, survive retries and duplicate messages, and
+keep every bank's data separate. A worked example is in [docs/how-it-works.md](docs/how-it-works.md).
+
+## What the assignment asked, and where it is
+
+| Asked | Where |
+| --- | --- |
+| Accept reservations | `POST /v1/programs/{id}/reservations`: one PostgreSQL transaction with a row lock on the program, so the limit holds under any concurrency <!-- proof: test/integration/reserve-concurrency.int.test.ts#AC-01 --> |
+| Process releases | `POST …/reservations/{id}/releases` (partial or full) and `RepaymentReceived` from Kafka, sharing one code path |
+| Expose current availability | `GET /v1/programs/{id}/capacity`, plus reservation lists and the program ledger |
+| Capacity data from treasury via Kafka, incl. bulk reconciliation | Worker consumes `treasury.capacity.v1` and `treasury.fx-rates.v1`; snapshots are reconciled with a documented case table <!-- proof: test/integration/reconcile.int.test.ts#AC-08 --> |
+| Different currencies | Treasury FX rates, fixed per reservation, exact integer maths, rounding rules per currency (USD 2 decimals, KWD 3) |
+| All endpoints authenticated | JWT (OAuth2 client credentials, JWKS), scopes, tenant isolation <!-- proof: test/e2e/auth.e2e.test.ts#AC-13 --> |
+| Runnable locally | `make up`: Docker Compose with PostgreSQL, Kafka, an OAuth2 server, the API and the worker <!-- proof: Makefile --> |
+| Production code | Idempotency keys, inbox/outbox, dead-letter topics, graceful shutdown, health checks, metrics, traces, 185 tests on real PostgreSQL and Kafka |
+| Assumptions and trade-offs documented | [docs/assumptions-and-trade-offs.md](docs/assumptions-and-trade-offs.md) |
 
 ## Quick start
 
+**You need:** Docker (with Compose v2), Node.js 24 and npm, `make`. Ports 3000, 5432, 8081,
+9464, 9465 and 29092 must be free.
+
 ```bash
-make up      # PostgreSQL 18, Kafka 4 (KRaft), mock OAuth2, migrate, api, worker
-make seed    # 3 tenants, 6 programs, FX rates, ~200 invoices
-make token TENANT=bank-a SCOPES="capacity:read capacity:write"
-make demo    # every critical-path scenario against the running stack
+npm ci                 # install dependencies (the CLI tools below run on your machine)
+make up                # build the image, start everything, wait until healthy (~2 min the first time)
+make seed              # 3 banks, 6 programs in USD/EUR/AED/KWD, FX rates, ~200 invoices
 ```
-<!-- proof: Makefile -->
 
-## How work is checked
+Try it:
 
-- `make status` — harness gates, last logged gate, last commits, next action. <!-- proof: tools/status.sh -->
-- `npx harnessimo check` — documentation claims, lane index, ticked tasks, work queue; it runs
-  in the pre-commit hook. <!-- proof: .githooks/pre-commit -->
-- `make verify && make test` — lint, types, dependency rules, contracts, unit/property,
-  integration, e2e and fault tests on real PostgreSQL and Kafka.
-- Every acceptance criterion in the PRD maps 1:1 to a test whose name starts with its AC id.
+```bash
+TOKEN=$(make -s token TENANT=bank-a)
 
-## Load (k6)
+curl -s localhost:3000/v1/programs/prg_grand_usd/capacity -H "authorization: Bearer $TOKEN"
 
-`make load` runs `tools/load/scenario.js` in Docker `grafana/k6` — no local k6 binary is
-needed. Two 100 requests/s phases run against the local compose stack (macOS arm64): a
-**spread** phase round-robinning across all 6 seeded programs, and a **hot** phase driving
-`prg_grand_usd` alone. Both use 80% capacity reads and 20% reserve-then-release pairs.
+curl -s -X POST localhost:3000/v1/programs/prg_grand_usd/reservations \
+  -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+  -H "idempotency-key: $(uuidgen)" \
+  -d '{"invoiceId":"INV-HELLO-1","amount":{"value":"125000.00","currency":"EUR"}}'
+```
 
-**NFR-03 spread phase** — the targets are met: read p95 ≤ 20 ms, reserve and release p95 ≤ 50 ms.
+More in the [API tour](docs/api.md). Then:
 
-| Metric | p95 |
+```bash
+make demo              # plays every scenario (limit cut, repayments, late snapshot, duplicate
+                       # and out-of-order messages, poison message, stale FX) and checks the results
+make down              # stop and delete everything
+```
+
+| URL | What |
 | --- | --- |
-| Capacity read | 4.60 ms |
-| Reserve | 13.39 ms |
-| Release | 16.76 ms |
+| <http://localhost:3000/v1/…> | Business API (needs a token) |
+| <http://localhost:9464/docs> | OpenAPI UI (ops port, local only) |
+| <http://localhost:9464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 9465) |
+| <http://localhost:3001> | Grafana, after `docker compose -f deploy/compose.yaml --profile observability up -d` (Jaeger on 16686) |
 
-**NFR-04 hot-program phase** — one program row serialises every write, so p95 grows well past
-the NFR-03 targets. This is the documented contention behaviour, not a defect: the PRD scale
-path answers it with capacity buckets and a read replica (PRD §7 T4, §8 scale path).
+## How it is built
 
-| Metric | p95 |
+```mermaid
+flowchart LR
+  client["Platform services / UI"] -- "REST + JWT" --> api
+  treasury["Bank treasury"] -- "Kafka: limits, repayments,<br/>FX rates, snapshots" --> worker
+  subgraph service["Program Capacity Service (one image, two roles)"]
+    api["api<br/>NestJS REST"]
+    worker["worker<br/>Kafka consumer, outbox relay, jobs"]
+  end
+  api --> db[("PostgreSQL<br/>single source of truth")]
+  worker --> db
+  worker -- "capacity.events.v1" --> out["Other systems"]
+```
+
+- **One service, two roles.** The same Docker image runs as `api` (HTTP) or `worker` (Kafka and
+  background jobs). Splitting into microservices would break the single transaction that
+  protects the limit ([ADR 001](docs/adr/001-modular-monolith-roles.md)).
+- **The limit is protected by the database.** Each reserve locks the program row
+  (`SELECT … FOR UPDATE`), checks, writes and commits. Two requests can never both see the same
+  "available" amount ([ADR 003](docs/adr/003-concurrency-lock-order.md)).
+- **Retries and duplicates are harmless.** REST writes accept an `Idempotency-Key`; Kafka
+  messages are recorded in an inbox table in the same transaction as their effect.
+- **Events are never lost or invented.** Changes write an outbox row in the same transaction;
+  the worker publishes it afterwards ([ADR 009](docs/adr/009-outbox-relay-lease.md)).
+- **Business rules live in one place.** Hexagonal layout: pure domain code, use cases, and
+  adapters for HTTP, Kafka and PostgreSQL. A build check forbids the layers from leaking
+  ([ADR 018](docs/adr/018-hexagonal-architecture.md)).
+
+C4 diagrams, the flows step by step and the data model: [docs/architecture.md](docs/architecture.md).
+
+## Repository map
+
+| Path | What is there |
 | --- | --- |
-| Capacity read | 656.84 ms |
-| Reserve | 1260.74 ms |
-| Release | 998.71 ms |
-| Aggregate `http_req_duration` | 292.95 ms |
+| `src/capacity/domain/` | Pure business rules: `Program`, `Reservation`, `Money`, FX conversion, release split. No framework, no I/O |
+| `src/capacity/application/` | Use cases (`reserve-capacity`, `release-reservation`, `apply-treasury-event`, `reconcile-program`, `ingest-fx-rate`, queries) and the ports they need |
+| `src/capacity/adapters/in/` | Entry points: HTTP controllers, Kafka consumer, scheduled jobs |
+| `src/capacity/adapters/out/` | PostgreSQL repositories and migrations, Kafka outbox relay |
+| `src/platform/` | Config, logging, health, telemetry, start-up per role |
+| `test/` | Integration, end-to-end, Kafka, fault, property and architecture tests (unit tests sit next to the code) |
+| `contracts/` | OpenAPI (generated), AsyncAPI, JSON Schemas of the Kafka messages |
+| `deploy/` | Docker Compose stack, mock OAuth2 config, Prometheus/Grafana, Kubernetes manifests |
+| `tools/` | Token CLI, treasury simulator, demo, DLQ replay, k6 load script, contract generator |
+| `db/seeds/` | Deterministic seed data |
+| `docs/` | Everything to read; start at [docs/README.md](docs/README.md) |
+| `.harness/`, `specs/`, `AGENTS.md`, `CLAUDE.md`, `.claude/` | The AI-assisted build process; not needed to understand the service ([docs/development-process.md](docs/development-process.md)) |
 
-## Built / not built
+## Checks
 
-| Area | State |
+```bash
+make verify    # lint, types, layer rules, OpenAPI drift, unit and property tests (~20 s)
+make test      # all tests with real PostgreSQL and Kafka via Testcontainers (~4 min, needs Docker)
+make load      # k6 load test against the running stack
+```
+
+<!-- proof: make verify --> <!-- proof: make test -->
+Every acceptance criterion in [docs/PRD.md](docs/PRD.md) has a test whose name starts with
+its id (`grep -rn "AC-08" test src`). Details: [docs/testing.md](docs/testing.md).
+<!-- proof: docs/PRD.md -->
+
+## Load test
+
+`make load` runs [k6](https://k6.io) in Docker at 100 requests/s (80% capacity reads, 20%
+reserve-then-release pairs) on a laptop (macOS, Apple silicon), in two phases:
+
+- **Spread over 6 programs** (the normal case): p95 read 4.6 ms, reserve 13.4 ms, release
+  16.8 ms. Targets (NFR-03: read ≤ 20 ms, writes ≤ 50 ms) are met.
+- **Every request on one program** (the worst case): p95 rises to hundreds of milliseconds,
+  because every write to that program waits for its row lock. This is the expected price of
+  the locking design; the scale path (split one limit into several "capacity buckets") is
+  described in [PRD §8](docs/PRD.md#8-system-design) and not built.
+
+These are single runs on a developer machine, useful for comparison, not as a benchmark.
+<!-- proof: make load -->
+
+## Assumptions and trade-offs (short)
+
+The full list with reasons is in [docs/assumptions-and-trade-offs.md](docs/assumptions-and-trade-offs.md). The main ones:
+
+- **Treasury owns credit limits.** There is no REST endpoint to set a limit; limits arrive
+  over Kafka.
+- **A limit cut never cancels existing reservations**; the program goes "over limit" and
+  refuses new reservations.
+- **FX rates come from treasury**, are valid for 24 hours, are fixed at reservation time, and
+  conversion rounds up.
+- **When treasury's snapshot is missing a reservation it should know, the service holds it
+  and raises an alert** rather than releasing capacity on a guess (configurable).
+- **Health and metrics are not behind a JWT.** They are on a separate internal port, because
+  orchestrators and Prometheus cannot send tokens. Every business endpoint is authenticated.
+- **Deliberately not used:** gRPC ([why](docs/adr/022-no-grpc-adapter.md)), Redis, PgBouncer,
+  Debezium, AWS emulators ([why each](docs/infrastructure-choices.md)), event sourcing,
+  sagas, GraphQL ([ADR 017](docs/adr/017-out-of-scope.md)).
+
+## Running in production (not built here)
+
+| Locally | On AWS |
 | --- | --- |
-| PRD, review edits, lanes 0001–0005 | written |
-| Skeleton: tooling, layer rules, config validation, ops port, migrations, compose, CI | built <!-- proof: test/architecture/layers.test.ts#SK-02 --> <!-- proof: test/e2e/ops.e2e.test.ts#SK-04 --> |
-| Reserve, release, capacity read, Idempotency-Key, JWT auth and tenant isolation, ledger, OpenAPI from zod | built <!-- proof: test/integration/reserve-concurrency.int.test.ts#AC-01 --> <!-- proof: test/e2e/auth.e2e.test.ts#AC-13 --> <!-- proof: make verify --> |
-| Treasury ingest: Kafka consumer with inbox/DLQ/backoff, FX rates, reconciliation with staged diff, simulator, seeds | built <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-07 --> <!-- proof: test/integration/reconcile.int.test.ts#AC-08 --> <!-- proof: make demo --> |
-| Queries: list reservations and program ledger with cursor pagination (FR-12) | built <!-- proof: test/e2e/queries.e2e.test.ts#FR-12 --> |
-| Outbox relay under a TTL lease with epoch fencing and `outbox_lag` (FR-13) | built <!-- proof: test/kafka/outbox-relay.kafka.test.ts#FR-13 --> |
-| Scheduled jobs: invariant check every 5 minutes, retention cleanup (FR-15, NFR-11) | built <!-- proof: test/integration/invariant-job.int.test.ts#FR-15 --> |
-| Outage and SIGTERM behaviour: readiness flips, in-flight requests and messages drain, offsets commit (NFR-06, NFR-07) | built <!-- proof: test/fault/outage.fault.test.ts#NFR-06 --> <!-- proof: test/fault/shutdown-worker.fault.test.ts#NFR-07 --> |
-| OpenTelemetry traces, RED and domain metrics, observability compose profile (NFR-10) | built <!-- proof: test/e2e/observability.e2e.test.ts#NFR-10 --> |
-| Runbook and ADRs 001–021 | written <!-- proof: docs/runbook.md --> |
-| k6 load with measured NFR-03/NFR-04 numbers, Kubernetes manifests, ZAP workflow (M4); gRPC adapter declined, see [ADR 022](docs/adr/022-no-grpc-adapter.md) | built <!-- proof: make load --> <!-- proof: deploy/k8s/api.yaml --> <!-- proof: .github/workflows/zap.yml --> |
+| PostgreSQL in Compose | RDS or Aurora PostgreSQL behind RDS Proxy |
+| Kafka in Compose | Amazon MSK with IAM auth over TLS |
+| `api` and `worker` containers | ECS Fargate or EKS; manifests in `deploy/k8s/` are a starting point |
+| mock OAuth2 server | The bank's identity provider or Cognito |
+| Environment variables | Secrets Manager / Parameter Store, injected at start |
+| Prometheus, Grafana, Jaeger | ADOT collector → CloudWatch and X-Ray |
 
-## Production mapping (not built)
+Operating notes (alerts, dashboards, what to do when the DLQ grows): [docs/runbook.md](docs/runbook.md).
 
-| Local | Production |
-| --- | --- |
-| PostgreSQL 18 in compose | RDS or Aurora with RDS Proxy |
-| Kafka 4 in compose | MSK with IAM auth over TLS |
-| `api` and `worker` roles | ECS Fargate or EKS |
-| mock OAuth2 | the bank's IdP or Cognito |
-| env vars in compose | Secrets Manager |
-| Prometheus/Grafana/Jaeger | ADOT collector → CloudWatch and X-Ray |
+## How this was built
 
-## Time and cuts
-
-Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md`. Cut order when behind: M4 (k6, ZAP, k8s) →
-OpenTelemetry profile → invariant job → list endpoints → outbox relay. In the end nothing was
-cut.
-<!-- proof: .harness/4-state/BUDGET.md -->
+With AI coding agents working under a written process: requirements first, five milestone
+lanes, a test per acceptance criterion, and an independent review of every change touching
+money or concurrency. Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md` (optional reading).
+Details: [docs/development-process.md](docs/development-process.md). <!-- proof: .harness/4-state/BUDGET.md -->

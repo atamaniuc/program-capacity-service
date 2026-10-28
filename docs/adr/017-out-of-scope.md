@@ -17,10 +17,11 @@ down avoids relitigating them.
 | API gateway in this repo | The platform owns routing; the service validates the JWT itself | A second public service needing shared policies |
 | Event sourcing | The append-only ledger plus a projection gives the audit trail without replay cost (ADR 010) | A requirement to rebuild state from history |
 | Saga, Temporal | One transaction holds the invariant; release is the compensating action | A multi-step flow across services |
-| CDC (Debezium) | Infrastructure for one table; a polling relay is enough (ADR 009) | Relay throughput becomes the limit |
+| CDC (Debezium) | Infrastructure for one table; a polling relay is enough (ADR 009, [infrastructure-choices](../infrastructure-choices.md#debezium--cdc-change-data-capture)) | Relay throughput becomes the limit |
 | Separate CQRS read store, Redis cache | Reads are primary-key lookups; a cache needs invalidation in the same transaction | Measured read load on the primary |
-| Kubernetes, Helm | No cluster in scope; probes, SIGTERM handling and env config keep the image ready | A target environment |
-| AWS emulation (LocalStack, Floci) | The service calls no AWS API; RDS and MSK speak plain PostgreSQL and Kafka | A direct AWS SDK dependency |
+| Helm, a real cluster, service mesh | No cluster in scope. Plain manifests in `deploy/k8s/` (validated with kubeconform, never applied), probes, SIGTERM handling and env config keep the image ready | A target environment |
+| AWS emulation (LocalStack, Floci) | The service calls no AWS API; RDS and MSK speak plain PostgreSQL and Kafka ([infrastructure-choices](../infrastructure-choices.md#floci--localstack-local-aws-emulators)) | A direct AWS SDK dependency |
+| Connection pooler (PgBouncer, RDS Proxy) in this repo | 20 connections locally; the code is already transaction-pooling safe ([infrastructure-choices](../infrastructure-choices.md#pgbouncer-connection-pooling)) | `replicas × pool size` near `max_connections`; RDS Proxy in production |
 | Pact, schema registry | One provider and no real consumer yet (ADR 015) | The first real split |
 | gRPC adapter | No client needs it; a second transport duplicates validation, auth and error mapping (ADR 022) | A real caller that REST and Kafka events do not serve |
 

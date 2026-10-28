@@ -31,6 +31,7 @@ truth, Kafka for treasury input and outbound events. The requirements live in
 
 | Need | Go to |
 | --- | --- |
+| Human docs: reading path, architecture (C4), API, trade-offs | `docs/README.md` |
 | Requirements, FR/AC/NFR, invariants I1–I8 | `docs/PRD.md` |
 | Hard rules and what enforces each | `.harness/1-instructions/CONSTRAINTS.md` |
 | Work lanes (spec, tasks, handoff) | `specs/NNNN-slug/` indexed by `specs/TRACKS.md` |
