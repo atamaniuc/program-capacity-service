@@ -58,7 +58,9 @@ export async function startApp(
   }
 
   const consumeTreasury = config.appRole === 'worker' || config.appRole === 'all';
-  const consumer = consumeTreasury ? createTreasuryConsumer(config, persistence, logger) : null;
+  const consumer = consumeTreasury
+    ? createTreasuryConsumer(config, persistence, logger, registry)
+    : null;
   await consumer?.start();
 
   // The api role never touches Kafka: only the worker role runs the relay and jobs (NFR-06).

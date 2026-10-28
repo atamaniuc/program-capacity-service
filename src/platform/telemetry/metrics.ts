@@ -45,3 +45,16 @@ export function createOperationalMetrics(registry: Registry): OperationalMetrics
     },
   };
 }
+
+/** Counter behind the DLQ alert: records parked in `<topic>.dlq`, by topic and error code. */
+export function createDlqMetrics(registry: Registry): (topic: string, reason: string) => void {
+  const parked = new Counter({
+    name: 'dlq_messages_total',
+    help: 'Records published to a dead-letter topic.',
+    labelNames: ['topic', 'reason'],
+    registers: [registry],
+  });
+  return (topic, reason) => {
+    parked.inc({ topic, reason });
+  };
+}

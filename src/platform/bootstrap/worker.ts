@@ -24,7 +24,7 @@ import { IngestFxRate } from '#src/capacity/application/use-cases/ingest-fx-rate
 import { ReconcileProgram } from '#src/capacity/application/use-cases/reconcile-program/reconcile-program.js';
 import type { Config } from '../config/config.js';
 import type { Logger } from '../logging/logger.js';
-import { createOperationalMetrics } from '../telemetry/metrics.js';
+import { createDlqMetrics, createOperationalMetrics } from '../telemetry/metrics.js';
 import type { RuntimeSettings } from '../telemetry/settings.js';
 
 /** Clock-skew margin of the no-watermark reconciliation fallback (PRD §8). */
@@ -35,6 +35,7 @@ export function createTreasuryConsumer(
   config: Config,
   persistence: Persistence,
   logger: Logger,
+  registry: Registry,
 ): TreasuryConsumerRunner {
   const uow = new PostgresTreasuryUnitOfWork(persistence);
   const handler = new TreasuryMessageHandler({
@@ -59,6 +60,7 @@ export function createTreasuryConsumer(
     topics: [TOPIC_CAPACITY, TOPIC_FX_RATES],
     handler,
     logger,
+    onDlq: createDlqMetrics(registry),
   });
 }
 

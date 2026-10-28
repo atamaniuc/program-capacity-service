@@ -1,4 +1,7 @@
+import { Registry } from 'prom-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDlqMetrics } from '#src/platform/telemetry/metrics.js';
+import { PermanentError } from '#src/capacity/application/shared/treasury-errors.js';
 import { TreasuryConsumerRunner } from './consumer-runner.js';
 import type { MessageHandler, RawMessage } from './treasury-handler.js';
 
@@ -52,6 +55,9 @@ describe('TreasuryConsumerRunner shutdown drain', () => {
     mocks.consumer.run.mockClear();
     mocks.consumer.commitOffsets.mockClear();
     mocks.producer.connect.mockClear();
+    mocks.producer.send.mockClear();
+    mocks.consumer.pause.mockClear();
+    mocks.consumer.resume.mockClear();
   });
 
   it('NFR-07 stop waits for the in-flight message to finish before disconnecting', async () => {
@@ -95,5 +101,31 @@ describe('TreasuryConsumerRunner shutdown drain', () => {
     expect(mocks.disconnect).toHaveBeenCalledTimes(1);
     expect(mocks.consumer.commitOffsets).toHaveBeenCalledTimes(1);
     await processing;
+  });
+
+  it('AC-11 counts a poison message in dlq_messages_total after the DLQ send succeeds', async () => {
+    const registry = new Registry();
+    const handler: MessageHandler = {
+      handle: () => Promise.reject(new PermanentError('schema-invalid', 'not json')),
+    };
+    const runner = new TreasuryConsumerRunner({
+      brokers: ['127.0.0.1:1'],
+      groupId: 'test-group',
+      topics: ['treasury.capacity.v1'],
+      handler,
+      logger: { info: vi.fn(), warn: vi.fn() },
+      onDlq: createDlqMetrics(registry),
+    });
+    await runner.start();
+    await mocks.getEachMessage()?.({
+      topic: 'treasury.capacity.v1',
+      partition: 0,
+      message: { offset: '5', key: Buffer.from('k'), value: Buffer.from('{bad') },
+    });
+    expect(mocks.producer.send).toHaveBeenCalledTimes(1);
+    expect(await registry.metrics()).toMatch(
+      /^dlq_messages_total\{topic="treasury\.capacity\.v1",reason="schema-invalid"\} 1$/m,
+    );
+    await runner.stop();
   });
 });

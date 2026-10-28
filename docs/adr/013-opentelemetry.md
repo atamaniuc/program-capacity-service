@@ -15,8 +15,12 @@ services are not necessarily NestJS.
   (HTTP, Express and `pg` instrumentations, OTLP/HTTP exporter to the collector or Jaeger).
   Off by default: no exporter, no overhead.
 - Logs: pino JSON; a mixin adds `trace_id` and `span_id` of the active span to every line.
-- Metrics: Prometheus format on the internal ops port (`prom-client`); domain gauges
-  (`outbox_lag`, `invariant_mismatch_programs`, over-limit programs, DLQ and consumer lag).
+- Metrics: Prometheus format on the internal ops port (`prom-client`): RED metrics
+  (`http_requests_total`, `http_request_duration_seconds`) and domain metrics (`outbox_lag`,
+  `outbox_oldest_unpublished_age_seconds`, `invariant_mismatch_programs`,
+  `programs_over_limit`, `dlq_messages_total{topic,reason}`, `retention_deleted_rows_total`).
+  Kafka consumer lag is not exported by the service; in production it comes from the broker
+  side (MSK / CloudWatch `MaxOffsetLag`, or a Kafka exporter), which sees every consumer group.
 - Dashboards and alert rules are files in `deploy/observability/`, started by the compose
   `observability` profile (Prometheus, Grafana, Jaeger).
 

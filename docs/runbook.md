@@ -67,7 +67,8 @@ lower or equal `seq` is skipped by design.
 
 ### CP-4 Bulk reconciliation
 
-A snapshot that exceeds `RECON_MAX_RESERVATIONS` goes to the DLQ with an alert. Drift lines are
+A snapshot that exceeds `RECON_MAX_RESERVATIONS` goes to the DLQ; `dlq_messages_total` rises
+and `DlqGrowing` fires. Drift lines are
 `RECON_ADJUST` ledger entries and `ReconciliationDriftDetected` events (see "Drift alert").
 
 ### CP-5 Multi-currency

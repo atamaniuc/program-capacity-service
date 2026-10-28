@@ -13,6 +13,8 @@ export interface RunnerOptions {
   /** Partitions processed in parallel; each partition still has one message in flight. */
   readonly concurrency?: number;
   readonly backoff?: { readonly baseMs: number; readonly maxMs: number };
+  /** Called after a record was published to the DLQ; `reason` is the error code. */
+  readonly onDlq?: (topic: string, reason: string) => void;
 }
 
 export interface RunnerState {
@@ -142,6 +144,7 @@ export class TreasuryConsumerRunner {
         if (failure.kind === 'permanent') {
           try {
             await this.publishToDlq(raw, failure.code, failure.message);
+            this.options.onDlq?.(raw.topic, failure.code);
             this.options.logger.warn(
               {
                 event: 'dlq',
