@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryTreasuryWorld } from '../../../../../test/kafka/support/in-memory-treasury.js';
 import { programReconciledSchema } from '../../shared/treasury-messages.js';
 import { ReserveCapacity } from '../reserve-capacity/reserve-capacity.js';
-import { ReconcileProgram } from './reconcile-program.js';
+import { MAX_DRIFTS_IN_EVENT, ReconcileProgram } from './reconcile-program.js';
 
 const SOURCE = {
   consumer: 'treasury-capacity',
@@ -131,6 +131,32 @@ describe('reconcile program', () => {
     expect([...world.state.reservations.values()].find((r) => r.invoiceId === 'C')?.origin).toBe(
       'TREASURY',
     );
+  });
+
+  it('AC-08 caps the drift list in ReconciliationDriftDetected and reports the total', async () => {
+    const big = new ReconcileProgram({
+      uow: world,
+      clock: world.clock,
+      ids: world.ids,
+      logger: { info: () => undefined, warn: () => undefined },
+      policy: { toleranceMinor: 1n, mode: 'HOLD', skewMs: 300_000 },
+      maxReservations: 500,
+    });
+    const reservations = Array.from({ length: 150 }, (_, index) => ({
+      invoiceId: `INV-${index}`,
+      outstandingInvoiceAmount: usd('1.00'),
+      outstandingReservedAmount: usd('1.00'),
+    }));
+    expect(
+      (await big.execute(SOURCE, snapshot(1, { platformWatermark: 0, reservations }))).status,
+    ).toBe('applied');
+    const event = world.state.outbox.find((e) => e.type === 'ReconciliationDriftDetected');
+    const payload = event?.payload as { drifts: unknown[]; driftCount: number; truncated: boolean };
+    expect(MAX_DRIFTS_IN_EVENT).toBe(100);
+    expect(payload.drifts).toHaveLength(100);
+    expect(payload.driftCount).toBe(150);
+    expect(payload.truncated).toBe(true);
+    expect(JSON.stringify(payload).length).toBeLessThan(100_000);
   });
 
   it('AC-08 holds a seen reservation, logs the fallback, and only records the seq when nothing changes', async () => {

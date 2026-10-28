@@ -88,6 +88,10 @@ RDS Proxy, and the run key needs neither.
 - The program lock is held only for the version re-check and the set-based apply, not for
   parsing or comparing a large snapshot.
 - Staging rows live only for one execution; nothing accumulates.
+- `ReconciliationDriftDetected` lists at most 100 drifts and carries `driftCount` and
+  `truncated`, so a snapshot with thousands of drifts cannot exceed Kafka's 1 MB message limit
+  and block the outbox for every tenant. Every drift is still logged and recorded in the
+  ledger.
 - Treasury wins wherever it has an opinion; where it is silent about something it should
   know, the service keeps the larger exposure (HOLD).
 

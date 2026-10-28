@@ -54,6 +54,8 @@ interface Prepared {
 }
 
 const ACTOR = 'treasury';
+/** Keeps ReconciliationDriftDetected far below Kafka's 1 MB limit; the full list is in the logs. */
+export const MAX_DRIFTS_IN_EVENT = 100;
 
 /**
  * Reconciliation (PRD §8, CP-4). The diff is planned outside the program lock from plain reads;
@@ -222,7 +224,9 @@ export class ReconcileProgram {
           snapshotSeq: seq,
           asOf: snapshot.asOf.toISOString(),
           mode: this.deps.policy.mode,
-          drifts: plan.drifts.map(driftView),
+          driftCount: plan.drifts.length,
+          truncated: plan.drifts.length > MAX_DRIFTS_IN_EVENT,
+          drifts: plan.drifts.slice(0, MAX_DRIFTS_IN_EVENT).map(driftView),
         },
       });
     } else if (!capacityChanged) {
