@@ -42,7 +42,9 @@ to the source topic; the inbox makes the replay safe.
 The runner exposes `state()` (`running`, `pausedPartitions`, `lastError`) and `check()`; the
 worker role wires `check()` into `/health/ready` as the `kafka` check, so readiness reports
 consumer state. The runner does not retry a Kafka outage at boot: connection errors surface
-as a failed start and the process supervisor restarts the worker.
+as a failed start and the process supervisor restarts the worker. On shutdown the
+runner stops intake, waits up to 25 s for the in-flight record to finish its
+transaction and commit its offset, then disconnects (NFR-07).
 
 ## Consequences
 

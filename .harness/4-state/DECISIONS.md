@@ -8,27 +8,27 @@ decisions about how the work is run.
 
 | ADR | Decision | File |
 | --- | --- | --- |
-| 001 | Modular monolith with `api` and `worker` roles | planned (0004) |
-| 002 | PostgreSQL as the single source of truth; no Redis | planned (0004) |
+| 001 | Modular monolith with `api` and `worker` roles | [001-modular-monolith-roles](../../docs/adr/001-modular-monolith-roles.md) |
+| 002 | PostgreSQL as the single source of truth; no Redis | [002-postgres-source-of-truth](../../docs/adr/002-postgres-source-of-truth.md) |
 | 003 | Concurrency: READ COMMITTED, program row lock, fixed lock order | [003-concurrency-lock-order](../../docs/adr/003-concurrency-lock-order.md) |
 | 004 | Money as `bigint` minor units with ISO 4217 scales | [004-money-minor-units](../../docs/adr/004-money-minor-units.md) |
 | 005 | FX: treasury-fed rates, stored per reservation, round up, max age | [005-fx-rates](../../docs/adr/005-fx-rates.md) |
 | 006 | Idempotency: `Idempotency-Key` in the same transaction, stored business outcomes, natural keys, `release_ref` fingerprint | [006-idempotency](../../docs/adr/006-idempotency.md) |
-| 007 | Kafka consumer semantics: client choice, commit after DB, inbox, ordering, DLQ and replay | planned (0003) |
-| 008 | Reconciliation: contiguous watermark, tolerance, staged diff, HOLD default | planned (0003) |
-| 009 | Transactional outbox with a single relay under a TTL lease with epoch fencing | planned (0004) |
+| 007 | Kafka consumer semantics: client choice, commit after DB, inbox, ordering, DLQ and replay | [007-kafka-consumer-semantics](../../docs/adr/007-kafka-consumer-semantics.md) |
+| 008 | Reconciliation: contiguous watermark, tolerance, staged diff, HOLD default | [008-reconciliation](../../docs/adr/008-reconciliation.md) |
+| 009 | Transactional outbox with a single relay under a TTL lease with epoch fencing | [009-outbox-relay-lease](../../docs/adr/009-outbox-relay-lease.md) |
 | 010 | Append-only ledger plus projection instead of event sourcing | [010-ledger-projection](../../docs/adr/010-ledger-projection.md) |
 | 011 | AuthN and AuthZ: JWKS, scopes, tenant-scoped keys, internal ops port | [011-auth](../../docs/adr/011-auth.md) |
 | 012 | Data access with Kysely and SQL migrations | [012-kysely-sql-migrations](../../docs/adr/012-kysely-sql-migrations.md) |
-| 013 | OpenTelemetry instead of `@nestjs/observe` | planned (0004) |
+| 013 | OpenTelemetry instead of `@nestjs/observe` | [013-opentelemetry](../../docs/adr/013-opentelemetry.md) |
 | 014 | API conventions: `/v1`, problem types, cursor pagination, `ETag` | [014-api-conventions](../../docs/adr/014-api-conventions.md) |
 | 015 | Contracts and compatibility: zod to OpenAPI, AsyncAPI, `oasdiff`; no Pact until the first split | [015-contracts](../../docs/adr/015-contracts.md) |
 | 016 | Testing strategy: Testcontainers, property tests, AC-named tests | [016-testing-strategy](../../docs/adr/016-testing-strategy.md) |
-| 017 | Out of scope and why: GraphQL, gateway, event sourcing, Saga, CDC, Kubernetes, AWS emulation | planned (0004) |
+| 017 | Out of scope and why: GraphQL, gateway, event sourcing, Saga, CDC, Kubernetes, AWS emulation | [017-out-of-scope](../../docs/adr/017-out-of-scope.md) |
 | 018 | Architecture: hexagonal, vertical slices, tactical DDD; no monorepo tooling | [018-hexagonal-architecture](../../docs/adr/018-hexagonal-architecture.md) |
 | 019 | Aggregate design: `Program` root, reservations loaded one at a time | [019-aggregate-design](../../docs/adr/019-aggregate-design.md) |
 | 020 | Ubiquitous language and naming rules | [020-ubiquitous-language](../../docs/adr/020-ubiquitous-language.md) |
-| 021 | Evolution path: split triggers T1–T4 and the order of the split | planned (0004) |
+| 021 | Evolution path: split triggers T1–T4 and the order of the split | [021-evolution-path](../../docs/adr/021-evolution-path.md) |
 
 ---
 
@@ -92,3 +92,26 @@ ADRs.
 **Why recorded here:** lanes 0003 and 0004 add writers (treasury consumer, reconciliation,
 relay). They must follow the same lock order and idempotency rules without re-reading the
 review.
+
+---
+
+## 2026-10-28 — Architect review of lanes 0003/0004: rulings
+
+The architect reviewed 0003 cold at 39ef69e (APPROVE: 3 MINOR, 3 NOTE) and 0004 on branch
+`worktree-agent-ae0ecf817fc70646c` at 1081e1f (CHANGES REQUIRED: 2 MAJOR, 3 NOTE). Every
+MAJOR and MINOR was fixed before the M2/M3 gates; the full reasoning is in
+`.harness/4-state/architect-review-0003-0004.md`.
+
+- **Tenant ownership on the Kafka create path** (ADR 007): a `ProgramLimitSet` whose
+  programId exists under another tenant is rejected to the DLQ, never creates a parallel
+  program row.
+- **Reconciliation stages the snapshot** (ADR 008): rows land in `reconcile_snapshot_row`,
+  the diff is computed outside the program lock with set-based SQL, and the version is
+  re-checked under the lock.
+- **Stale snapshots skip before semantic validation** (ADR 008): a stale snapshot is never
+  parked; the size cap stays first as a resource guard.
+- **The worker role runs consumer and relay together** (ADR 007/009): the 0004 merge kept
+  `createTreasuryConsumer` beside `startWorkerComponents`; shutdown order is consumer →
+  relay/jobs → pool. A role-all Kafka test fails if a future merge drops the consumer.
+- **Consumer stop drains in-flight messages** (ADR 007): `TreasuryConsumerRunner.stop()`
+  waits up to 25 s for the in-flight record to commit its offset before disconnecting.
