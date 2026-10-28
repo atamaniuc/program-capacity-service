@@ -4,7 +4,7 @@ Real-time credit capacity for supply chain finance programs: reserve on invoice 
 release on repayment, reconcile against the bank's treasury, never over-reserve.
 Take-home for a senior Node.js role; requirements in [docs/PRD.md](docs/PRD.md). <!-- proof: docs/PRD.md -->
 
-> **Status: M0 done, M1 in progress.** This README states only what exists. Sections marked
+> **Status: M0 and M1 done; M2 and M3 in progress.** This README states only what exists. Sections marked
 > _planned_ describe the target from the PRD and become claims, with proof markers, as the
 > lanes in [specs/TRACKS.md](specs/TRACKS.md) close. <!-- proof: specs/TRACKS.md -->
 
@@ -31,6 +31,7 @@ make demo    # every critical-path scenario against the running stack
 | --- | --- |
 | PRD, review edits, lanes 0001–0005 | written |
 | Skeleton: tooling, layer rules, config validation, ops port, migrations, compose, CI | built <!-- proof: test/architecture/layers.test.ts#SK-02 --> <!-- proof: test/e2e/ops.e2e.test.ts#SK-04 --> |
+| Reserve, release, capacity read, Idempotency-Key, JWT auth and tenant isolation, ledger, OpenAPI from zod | built <!-- proof: test/integration/reserve-concurrency.int.test.ts#AC-01 --> <!-- proof: test/e2e/auth.e2e.test.ts#AC-13 --> <!-- proof: make verify --> |
 | Everything else | not built yet; see `specs/TRACKS.md` |
 
 Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md`. Cut order when

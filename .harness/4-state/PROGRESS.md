@@ -4,7 +4,7 @@ State carried between sessions. Read this first; update it before you stop.
 
 ## Now
 
-Lane 0002 (core capacity, M1). M0 closed at 28 minutes. Nothing is waiting on a human
+Lanes 0003 (treasury ingest) and 0004 (polish) in parallel. M1 closed at 70 minutes. Nothing is waiting on a human
 except the locked-baseline commit (below).
 
 ## Done
@@ -21,11 +21,14 @@ except the locked-baseline commit (below).
 - M0: lane 0001 closed — tooling, layer rules, config validation, ops port, PG18 migrations,
   compose stack (postgres, kafka, oauth, migrate, api, worker), token CLI, CI/CodeQL/Dependabot,
   glossary, ADRs 012/016/018/020. Distillate in specs/TRACKS-LOG.md.
+- M1: lane 0002 closed — reserve/release/read, idempotency, JWT auth, ledger, OpenAPI; AC-01..06,
+  AC-13, AC-16, AC-17 green; architect review found a missing guard test and 5 hardening items,
+  all fixed; ADRs 003/004/005/006/010/011/014/015/019.
 
 ## Next
 
-1. 0002 core capacity (M1), AC-01 first; architect review before the gate.
-2. 0003 and 0004 in parallel once 0002's domain and ports exist (Owns do not overlap).
+1. 0003 and 0004 in parallel; architect review of each before its gate.
+2. M3 gate: S1–S8, README, dated facts; then 0005 only if > 60 min left.
 
 ## Open questions for the human
 

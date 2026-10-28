@@ -22,8 +22,10 @@
       "id": "m1-core-capacity",
       "behavior": "reserve, release, read, idempotency and auth hold AC-01..AC-06, AC-13, AC-16, AC-17 on real PostgreSQL (lane 0002)",
       "verification": "make verify && make test",
-      "state": "not_started",
-      "kind": "code"
+      "state": "passing",
+      "kind": "code",
+      "evidence": "> vitest run --project int |  RUN  v5.0.5 /Users/datamaniuc/work/finverity |  Test Files  11 passed (11) |       Tests  53 passed (53) |    Start at  17:07:03 |    Duration  43.34s (tests 84%, import 16%)",
+      "last_failure": null
     },
     {
       "id": "m2-treasury-ingest",

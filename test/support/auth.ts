@@ -58,9 +58,15 @@ export async function startTestIssuer(audience = 'capacity-service'): Promise<Te
       return jwt.sign(key);
     },
     close: () =>
-      new Promise<void>((resolve, reject) => {
+      new Promise<void>((resolve) => {
+        if (!server.listening) {
+          resolve();
+          return;
+        }
         server.closeAllConnections();
-        server.close((error) => (error ? reject(error) : resolve()));
+        server.close(() => {
+          resolve();
+        });
       }),
   };
 }

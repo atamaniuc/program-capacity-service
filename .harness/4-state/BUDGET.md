@@ -11,8 +11,9 @@ k8s) → OTel profile → invariant job (FR-15) → list endpoints (FR-12) → o
 | 2026-10-28T13:58Z | start: read PRD, review, bootstrap | 0 |
 | 2026-10-28T14:08Z | bootstrap gate: git init, harnessimo, PRD edits (FR-16, Evolution, budget, contracts, dated facts), harness files, lanes 0001–0005; commit 611505b | 10 |
 | 2026-10-28T14:27Z | M0 gate: lane 0001 closed (make verify, test:int 5/5, make up healthy, make token); JWT aud aligned to PRD; queue m0-skeleton passing | 28 |
+| 2026-10-28T15:09Z | M1 gate: lane 0002 closed after architect review (1 MAJOR + 5 MINOR fixed; guard mutation-proven); queue m1 passing; Kafka/OTel deps pre-installed | 70 |
 
-current lane: 0002-core-capacity
-last green command: `npx harnessimo queue verify m0-skeleton` (make verify && npm run test:int)
-exact next action: lane 0002 — write test/integration/reserve-concurrency.int.test.ts `AC-01 …`, then T1 schema migration (specs/0002-core-capacity/handoff.md "First step")
+current lane: 0003-treasury-ingest and 0004-polish in parallel (0004 in a git worktree)
+last green command: `npx harnessimo queue verify m1-core-capacity` (make verify && make test: 58 unit + 53 int)
+exact next action: wait for implementers of 0003 and 0004; then architect review of 0003 (reconciliation, consumer) and 0004 (relay lease); merge the 0004 worktree branch
 resume command: `claude` in the repo root, then `make status`

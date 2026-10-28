@@ -124,6 +124,8 @@ describe('capacity over HTTP', () => {
       { invoiceId: 'I', amount: { value: '10.00', currency: 'XXX' } },
       { invoiceId: 'I', amount: { value: '10', currency: 'JPY' }, extra: true },
       { invoiceId: '', amount: { value: '10.00', currency: 'USD' } },
+      { invoiceId: 'I', amount: { value: '92233720368547758.08', currency: 'USD' } },
+      { invoiceId: 'I', amount: { value: `${'9'.repeat(40)}.00`, currency: 'USD' } },
     ];
     for (const body of cases) {
       const response = await app.request('POST', `${path}/reservations`, { body });

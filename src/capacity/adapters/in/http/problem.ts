@@ -9,12 +9,18 @@ export const PROBLEM_CONTENT_TYPE = 'application/problem+json';
 
 /** Problems the transport adds on top of the business catalog. */
 export type TransportProblemType =
-  ProblemType | 'unauthorized' | 'forbidden' | 'internal-error' | 'service-unavailable';
+  | ProblemType
+  | 'unauthorized'
+  | 'forbidden'
+  | 'payload-too-large'
+  | 'internal-error'
+  | 'service-unavailable';
 
 export const TRANSPORT_PROBLEM_TYPES: readonly TransportProblemType[] = [
   ...PROBLEM_TYPES,
   'unauthorized',
   'forbidden',
+  'payload-too-large',
   'internal-error',
   'service-unavailable',
 ];
@@ -62,3 +68,8 @@ export const forbidden = (detail: string): HttpProblem =>
 
 export const validationProblem = (detail: string): HttpProblem =>
   new HttpProblem('validation-error', 'Validation error', 400, detail);
+
+export const serviceUnavailable = (detail: string): HttpProblem =>
+  new HttpProblem('service-unavailable', 'Service unavailable', 503, detail, {
+    'Retry-After': '1',
+  });

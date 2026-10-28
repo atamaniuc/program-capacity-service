@@ -164,4 +164,19 @@ describe('ReleaseReservation', () => {
     const again = await release.execute(command({ releaseRef: 'rel-2' }));
     expect(again).toMatchObject({ ok: false, problem: { type: 'release-exceeds-remaining' } });
   });
+
+  it('MINOR-3 a wrong amount currency is a validation error that never takes the key, so the corrected body reuses it', async () => {
+    const wrong = await release.execute(
+      command({ idempotencyKey: 'RK2', amount: { minor: 5n, currency: 'USD' } }),
+    );
+    expect(wrong).toMatchObject({ ok: false, problem: { type: 'validation-error', status: 400 } });
+    expect(world.state.idempotency.size).toBe(0);
+    expect(world.state.releases).toHaveLength(0);
+
+    const fixed = await release.execute(
+      command({ idempotencyKey: 'RK2', amount: { minor: 10_000_000n, currency: 'EUR' } }),
+    );
+    expect(fixed).toMatchObject({ ok: true, status: 200 });
+    expect(world.state.idempotency.size).toBe(1);
+  });
 });

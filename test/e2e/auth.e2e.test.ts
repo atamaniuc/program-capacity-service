@@ -122,4 +122,70 @@ describe('auth', () => {
       SELECT actor, tenant_id FROM ledger_entry`.execute(app.persistence.db);
     expect(ledger.rows).toEqual([{ actor: 'svc-orders', tenant_id: 'bank-a' }]);
   });
+
+  it('S6 no /v1 endpoint answers without a valid token, even before the body is parsed', async () => {
+    const huge = JSON.stringify({ invoiceId: 'I', pad: 'x'.repeat(200_000) });
+    const cases: [string, string, { rawBody?: string }][] = [
+      ['POST', '/v1/programs/grand-usd/reservations', { rawBody: '{not json' }],
+      ['POST', '/v1/programs/grand-usd/reservations', { rawBody: huge }],
+      ['POST', '/v1/programs/grand-usd/reservations/x/releases', { rawBody: '{' }],
+      ['GET', '/v1/nope', {}],
+      ['GET', '/v1/programs/grand-usd/ledger', {}],
+      ['DELETE', '/v1/programs/grand-usd', {}],
+    ];
+    for (const [method, path, options] of cases) {
+      const response = await app.request(method, path, { token: null, ...options });
+      expect(response.status, `${method} ${path}`).toBe(401);
+      expect(response.headers.get('content-type')).toContain('application/problem+json');
+    }
+    const garbage = await app.request('POST', '/v1/programs/grand-usd/reservations', {
+      token: 'not-a-jwt',
+      rawBody: '{not json',
+    });
+    expect(garbage.status).toBe(401);
+  });
+
+  it('S6 with a valid token a body over the limit answers 413 payload-too-large and unknown routes 404', async () => {
+    const huge = JSON.stringify({ invoiceId: 'I', pad: 'x'.repeat(200_000) });
+    const tooLarge = await app.request('POST', '/v1/programs/grand-usd/reservations', {
+      rawBody: huge,
+    });
+    expect(tooLarge.status).toBe(413);
+    expect(tooLarge.body).toMatchObject({
+      type: 'https://errors.capacity.example/payload-too-large',
+      status: 413,
+    });
+    const malformed = await app.request('POST', '/v1/programs/grand-usd/reservations', {
+      rawBody: '{not json',
+    });
+    expect(malformed.status).toBe(400);
+    expect((await app.request('GET', '/v1/nope')).status).toBe(404);
+  });
+});
+
+describe('jwks outage', () => {
+  let app: TestApp;
+
+  beforeAll(async () => {
+    app = await startTestApp();
+    await seed(app, 'bank-a', 'grand-usd', '100000000');
+  });
+
+  afterAll(async () => {
+    await app.stop();
+  });
+
+  it('S6 answers 503 service-unavailable with Retry-After when the issuer keys cannot be fetched', async () => {
+    const token = await app.token();
+    await app.issuer.close();
+    const response = await app.request('GET', '/v1/programs/grand-usd/capacity', { token });
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('1');
+    expect(response.headers.get('content-type')).toContain('application/problem+json');
+    expect(response.body).toMatchObject({
+      type: 'https://errors.capacity.example/service-unavailable',
+    });
+    const anonymous = await app.request('GET', '/v1/programs/grand-usd/capacity', { token: null });
+    expect(anonymous.status).toBe(401);
+  });
 });

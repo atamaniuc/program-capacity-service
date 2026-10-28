@@ -8,7 +8,7 @@ import { GetCapacity } from '#src/capacity/application/use-cases/queries/get-cap
 import { GetReservation } from '#src/capacity/application/use-cases/queries/get-reservation/get-reservation.js';
 import { ReleaseReservation } from '#src/capacity/application/use-cases/release-reservation/release-reservation.js';
 import { ReserveCapacity } from '#src/capacity/application/use-cases/reserve-capacity/reserve-capacity.js';
-import { AUTH_OPTIONS, JwtAuthGuard, type AuthOptions } from './adapters/in/http/auth.js';
+import { ScopeGuard } from './adapters/in/http/auth.js';
 import {
   CapacityController,
   GET_CAPACITY,
@@ -20,7 +20,6 @@ import { ProblemFilter } from './adapters/in/http/problem.filter.js';
 
 export interface CapacityModuleOptions {
   readonly persistence: Persistence;
-  readonly auth: AuthOptions;
   readonly fxMaxAgeSeconds: number;
 }
 
@@ -34,8 +33,7 @@ export class CapacityModule {
       module: CapacityModule,
       controllers: [CapacityController],
       providers: [
-        { provide: AUTH_OPTIONS, useValue: options.auth },
-        JwtAuthGuard,
+        ScopeGuard,
         { provide: APP_FILTER, useClass: ProblemFilter },
         {
           provide: RESERVE_CAPACITY,

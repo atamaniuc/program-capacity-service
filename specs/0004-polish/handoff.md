@@ -32,11 +32,10 @@ questions until T5.
 
 ## Depends on
 
-- core-capacity
 
 ## State
 
-Not started; waits on 0002.
+Not started. Lanes 0001 and 0002 are closed (see specs/TRACKS-LOG.md). `@confluentinc/kafka-javascript` 1.11.0, `@testcontainers/kafka` 12.2.1 and the OpenTelemetry packages are pre-installed by the lead; do not run `npm install` — ask the lead for a new dependency. Lock-order rule for any new writer: claim the dedup row (inbox / idempotency / release_ref), then `program` FOR UPDATE, then reservation rows. The `reservation_release → reservation` FK is DEFERRABLE INITIALLY DEFERRED on purpose (ADR 003).
 
 ## Decisions taken
 

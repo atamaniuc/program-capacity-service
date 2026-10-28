@@ -4,6 +4,7 @@ import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { sql } from 'kysely';
 import { createPersistence } from '#src/capacity/adapters/out/postgres/db.js';
 import type { Config } from '../config/config.js';
+import { createAuthMiddleware, JwtVerifier } from '#src/capacity/adapters/in/http/auth.js';
 import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js';
 import { startOpsServer, type OpsServer } from '../health/ops-server.js';
 import { renderApiDocs } from '../health/api-docs.js';
@@ -24,20 +25,22 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
   const serveHttp = config.appRole === 'api' || config.appRole === 'all';
   const module = AppModule.register(
     persistence,
-    serveHttp
-      ? {
-          auth: {
-            issuer: config.oauthIssuer,
-            audience: config.oauthAudience,
-            jwksUrl: config.oauthJwksUrl,
-          },
-          fxMaxAgeSeconds: config.fxMaxAgeSeconds,
-        }
-      : undefined,
+    serveHttp ? { fxMaxAgeSeconds: config.fxMaxAgeSeconds } : undefined,
   );
   let app: INestApplication | INestApplicationContext;
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
+    // Mounted before Nest registers the body parser (at init), so authentication comes first.
+    http.use(
+      '/v1',
+      createAuthMiddleware(
+        new JwtVerifier({
+          issuer: config.oauthIssuer,
+          audience: config.oauthAudience,
+          jwksUrl: config.oauthJwksUrl,
+        }),
+      ),
+    );
     await http.listen(config.httpPort, '0.0.0.0');
     app = http;
   } else {

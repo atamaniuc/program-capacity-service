@@ -29,7 +29,11 @@ export interface Money {
   readonly currency: CurrencyCode;
 }
 
-export type MoneyError = 'unsupported-currency' | 'malformed-amount' | 'wrong-scale';
+export type MoneyError =
+  'unsupported-currency' | 'malformed-amount' | 'wrong-scale' | 'amount-too-large';
+
+/** Largest minor-unit amount a BIGINT column holds; larger values could never be stored. */
+export const MAX_MINOR = 9_223_372_036_854_775_807n;
 
 export function currencyScale(currency: CurrencyCode): number | undefined {
   return Object.hasOwn(CURRENCY_SCALES, currency) ? CURRENCY_SCALES[currency] : undefined;
@@ -39,7 +43,8 @@ const DECIMAL = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/;
 
 /**
  * Parses a non-negative decimal string such as "1250.50". The number of fraction digits must be
- * exactly the currency's scale; signs, exponents, separators and surrounding spaces are refused.
+ * exactly the currency's scale; signs, exponents, separators and surrounding spaces are refused,
+ * and so is anything above the 64-bit storage limit.
  */
 export function parseMoney(value: string, currency: CurrencyCode): Result<Money, MoneyError> {
   const scale = currencyScale(currency);
@@ -49,7 +54,9 @@ export function parseMoney(value: string, currency: CurrencyCode): Result<Money,
   const whole = match[1] ?? '';
   const fraction = match[2] ?? '';
   if (fraction.length !== scale) return err('wrong-scale');
-  return ok({ minor: BigInt(whole + fraction), currency });
+  const minor = BigInt(whole + fraction);
+  if (minor > MAX_MINOR) return err('amount-too-large');
+  return ok({ minor, currency });
 }
 
 /** Formats minor units as a decimal string with exactly the currency's scale. */

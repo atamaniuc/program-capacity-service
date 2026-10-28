@@ -15,14 +15,14 @@ export class PgReservationRepository implements ReservationRepository {
     return rows[0] === undefined ? null : toReservation(rows[0]);
   }
 
-  async exists(tenantId: string, programId: string, reservationId: string) {
-    if (!isUuid(reservationId)) return false;
-    const { rows } = await sql`
-      SELECT 1 FROM reservation
+  async invoiceCurrencyOf(tenantId: string, programId: string, reservationId: string) {
+    if (!isUuid(reservationId)) return null;
+    const { rows } = await sql<{ invoice_currency: string }>`
+      SELECT invoice_currency FROM reservation
        WHERE id = ${reservationId}::uuid AND tenant_id = ${tenantId} AND program_id = ${programId}`.execute(
       this.db,
     );
-    return rows.length > 0;
+    return rows[0]?.invoice_currency ?? null;
   }
 
   async lockById(tenantId: string, programId: string, reservationId: string) {

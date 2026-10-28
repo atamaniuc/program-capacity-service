@@ -19,7 +19,7 @@ import { ReleaseReservation } from '#src/capacity/application/use-cases/release-
 import { ReserveCapacity } from '#src/capacity/application/use-cases/reserve-capacity/reserve-capacity.js';
 import type { Outcome } from '#src/capacity/application/shared/problem.js';
 import { parseMoney, type Money } from '#src/capacity/domain/index.js';
-import { CurrentPrincipal, JwtAuthGuard, RequireScope, type Principal } from './auth.js';
+import { CurrentPrincipal, ScopeGuard, RequireScope, type Principal } from './auth.js';
 import { PROBLEM_CONTENT_TYPE, problemBody, validationProblem } from './problem.js';
 import {
   IdempotencyKeyHeader,
@@ -53,6 +53,7 @@ function money(amount: { value: string; currency: string }, field: string): Mone
     'unsupported-currency': `${field}.currency is not a supported ISO 4217 code`,
     'malformed-amount': `${field}.value must be an unsigned decimal string such as "1250.50"`,
     'wrong-scale': `${field}.value must have exactly the minor-unit digits of ${amount.currency}`,
+    'amount-too-large': `${field}.value is too large`,
   } as const;
   throw validationProblem(reasons[parsed.error]);
 }
@@ -76,7 +77,7 @@ function send(response: Response, outcome: Outcome<unknown>): void {
 }
 
 @Controller('v1/programs/:programId')
-@UseGuards(JwtAuthGuard)
+@UseGuards(ScopeGuard)
 export class CapacityController {
   constructor(
     @Inject(RESERVE_CAPACITY) private readonly reserveCapacity: ReserveCapacity,

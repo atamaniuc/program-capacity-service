@@ -6,6 +6,7 @@ export const Amount = z
   .object({
     value: z
       .string()
+      .max(32)
       .meta({ description: 'Decimal string at the currency scale.', example: '1250.50' }),
     currency: z.string().length(3).meta({ description: 'ISO 4217 code.', example: 'USD' }),
   })
@@ -46,7 +47,7 @@ export const IdempotencyKeyHeader = z.object({
     .optional()
     .meta({
       description:
-        'Makes the call idempotent per tenant. Keys and their stored responses are kept at least 24 hours.',
+        'Makes the call idempotent per tenant. Keys and their stored responses are kept at least 24 hours. The first outcome is stored and replayed for the key, including business rejections such as 404, 409 and 422; validation, authentication and idempotency-key-mismatch errors are not stored.',
       example: '6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90',
     }),
 });

@@ -7,4 +7,6 @@ Closing a track is a distillation, not an archive move: the outcome in a sentenc
 decisions where decisions live, then the handoff is deleted. A handoff kept "just in case"
 is a file nobody trusts and everybody reads.
 
+- **Core capacity (M1) (spec 0002)** — M1 green (f875699 + review fixes): schema with DEFERRABLE release FK (prevents release/release deadlock), Money/FX bigint domain, reserve/release with Idempotency-Key (no FOR UPDATE), stored business rejections incl. 404, release_ref fingerprint, JWT pre-parser middleware (S6) + scope guard default-deny, JWKS outage → 503, OpenAPI from zod + contracts:check. AC-01..06, AC-13, AC-16, AC-17, NFR-09, FR-01, I2 guard (mutation-proven). Architect review: CHANGES REQUIRED → all 6 findings fixed. Rule for new writers: claim dedup row, then program FOR UPDATE, then reservation.
+
 - **Skeleton (M0) (spec 0001)** — M0 skeleton green: tooling, layer rules (SK-02), config validation (SK-03), ops port (SK-04), migrations on PG18 (SK-05), compose stack + token (SK-06), CI/CodeQL/Dependabot (SK-07); glossary + ADRs 012/016/018/020. Deviations: dist copied to /app/src for #src imports; prom-client 15 deprecated but kept; JWT aud aligned to capacity-service.

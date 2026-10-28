@@ -19,8 +19,12 @@ export interface ReservationRepository {
     programId: string,
     invoiceId: string,
   ): Promise<Reservation | null>;
-  /** Plain read used to verify ownership before the release dedup row is claimed. */
-  exists(tenantId: string, programId: string, reservationId: string): Promise<boolean>;
+  /** Plain read: invoice currency of a reservation, null when this tenant's program has none. */
+  invoiceCurrencyOf(
+    tenantId: string,
+    programId: string,
+    reservationId: string,
+  ): Promise<string | null>;
   /** `SELECT … FOR UPDATE` by id, filtered by tenant and program. */
   lockById(tenantId: string, programId: string, reservationId: string): Promise<Reservation | null>;
   insert(reservation: Reservation): Promise<void>;

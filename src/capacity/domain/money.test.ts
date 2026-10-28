@@ -13,9 +13,9 @@ describe('Money', () => {
       value: { minor: 1234n, currency: 'KWD' },
     });
     expect(parseMoney('0.00', 'EUR')).toEqual({ ok: true, value: { minor: 0n, currency: 'EUR' } });
-    expect(parseMoney('90071992547409930000.01', 'USD')).toEqual({
+    expect(parseMoney('92233720368547758.07', 'USD')).toEqual({
       ok: true,
-      value: { minor: 9007199254740993000001n, currency: 'USD' },
+      value: { minor: 9223372036854775807n, currency: 'USD' },
     });
   });
 
@@ -40,6 +40,21 @@ describe('Money', () => {
     }
     expect(parseMoney('1.00', 'XXX')).toEqual({ ok: false, error: 'unsupported-currency' });
     expect(parseMoney('1.00', 'constructor')).toEqual({ ok: false, error: 'unsupported-currency' });
+  });
+
+  it('MINOR-1 refuses amounts above the 64-bit storage limit instead of failing later', () => {
+    expect(parseMoney('92233720368547758.08', 'USD')).toEqual({
+      ok: false,
+      error: 'amount-too-large',
+    });
+    expect(parseMoney('9223372036854775808', 'JPY')).toEqual({
+      ok: false,
+      error: 'amount-too-large',
+    });
+    expect(parseMoney('1' + '0'.repeat(40) + '.00', 'USD')).toEqual({
+      ok: false,
+      error: 'amount-too-large',
+    });
   });
 
   it('T2 formats minor units back to exact decimal strings', () => {

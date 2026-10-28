@@ -45,6 +45,14 @@ function fromHttpException(exception: HttpException): ProblemBody {
       detail: 'Access is denied.',
     });
   }
+  if (status === 413) {
+    return problemBody({
+      type: 'payload-too-large',
+      title: 'Payload too large',
+      status,
+      detail: 'The request body exceeds the size limit.',
+    });
+  }
   if (status < 500) {
     return problemBody({
       type: 'validation-error',
@@ -62,44 +70,57 @@ function fromHttpException(exception: HttpException): ProblemBody {
   });
 }
 
-/** Every error leaves as `application/problem+json`; internals go to the log, never to the client. */
-@Catch()
-export class ProblemFilter implements ExceptionFilter {
-  private readonly logger = new Logger(ProblemFilter.name);
+export interface ProblemResponse {
+  readonly body: ProblemBody;
+  readonly headers: Readonly<Record<string, string>>;
+}
 
-  catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
-    let body: ProblemBody;
-    let headers: Readonly<Record<string, string>> = {};
+const logger = new Logger('ProblemFilter');
 
-    if (exception instanceof HttpProblem) {
-      body = exception.problem;
-      headers = exception.headers;
-    } else if (exception instanceof HttpException) {
-      body = fromHttpException(exception);
-    } else if (isTransient(exception)) {
-      this.logger.warn(`transient failure: ${String(exception)}`);
-      body = problemBody({
+/** Maps any thrown value to the problem the client sees; internals go to the log only. */
+export function toProblemResponse(exception: unknown): ProblemResponse {
+  if (exception instanceof HttpProblem) {
+    return { body: exception.problem, headers: exception.headers };
+  }
+  if (exception instanceof HttpException)
+    return { body: fromHttpException(exception), headers: {} };
+  if (isTransient(exception)) {
+    logger.warn(`transient failure: ${String(exception)}`);
+    return {
+      body: problemBody({
         type: 'service-unavailable',
         title: 'Service unavailable',
         status: 503,
         detail: 'The service could not complete the request in time; retry later.',
-      });
-      headers = { 'Retry-After': '1' };
-    } else {
-      this.logger.error(
-        exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
-      );
-      body = problemBody({
-        type: 'internal-error',
-        title: 'Internal error',
-        status: 500,
-        detail: 'The request failed; retry later.',
-      });
-    }
+      }),
+      headers: { 'Retry-After': '1' },
+    };
+  }
+  logger.error(
+    exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
+  );
+  return {
+    body: problemBody({
+      type: 'internal-error',
+      title: 'Internal error',
+      status: 500,
+      detail: 'The request failed; retry later.',
+    }),
+    headers: {},
+  };
+}
 
-    response.status(body.status);
-    for (const [name, value] of Object.entries(headers)) response.setHeader(name, value);
-    response.type(PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
+export function writeProblem(response: Response, exception: unknown): void {
+  const { body, headers } = toProblemResponse(exception);
+  response.status(body.status);
+  for (const [name, value] of Object.entries(headers)) response.setHeader(name, value);
+  response.type(PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
+}
+
+/** Every error leaves as `application/problem+json`. */
+@Catch()
+export class ProblemFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost): void {
+    writeProblem(host.switchToHttp().getResponse<Response>(), exception);
   }
 }

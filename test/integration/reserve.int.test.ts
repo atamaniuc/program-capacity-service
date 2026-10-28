@@ -179,4 +179,14 @@ describe('reserve', () => {
        GROUP BY p.reserved_minor`.execute(world.persistence.db);
     expect(rows[0]?.delta).toBe(rows[0]?.reserved);
   });
+
+  it('MINOR-1 an amount at the 64-bit limit is refused as insufficient capacity, not as a server error', async () => {
+    const outcome = await world.reserve.execute(
+      command({
+        invoiceId: 'INV-HUGE',
+        invoiceAmount: { minor: 9_223_372_036_854_775_807n, currency: 'EUR' },
+      }),
+    );
+    expect(outcome).toMatchObject({ ok: false, problem: { type: 'insufficient-capacity' } });
+  });
 });

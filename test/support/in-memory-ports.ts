@@ -157,9 +157,11 @@ export class InMemoryWorld implements UnitOfWork, CapacityReader {
                 r.tenantId === tenantId && r.programId === programId && r.invoiceId === invoiceId,
             ) ?? null,
           ),
-        exists: (tenantId, programId, reservationId) => {
+        invoiceCurrencyOf: (tenantId, programId, reservationId) => {
           const r = world.state.reservations.get(reservationId);
-          return Promise.resolve(r?.tenantId === tenantId && r.programId === programId);
+          return Promise.resolve(
+            r?.tenantId === tenantId && r.programId === programId ? r.invoiceAmount.currency : null,
+          );
         },
         lockById: (tenantId, programId, reservationId) => {
           const r = world.state.reservations.get(reservationId);

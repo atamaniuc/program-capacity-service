@@ -29,7 +29,7 @@ const authErrors = {
 };
 
 const idempotencyNote =
-  ' Send an optional `Idempotency-Key`: the first outcome, including a business rejection, is stored and replayed for that key; keys are kept at least 24 hours.';
+  ' Send an optional `Idempotency-Key`: the first outcome, including a business rejection such as 404, 409 or 422, is stored and replayed for that key; keys are kept at least 24 hours.';
 
 /** The REST contract of `/v1`, generated from the same zod schemas that validate requests. */
 export function buildOpenApiDocument() {

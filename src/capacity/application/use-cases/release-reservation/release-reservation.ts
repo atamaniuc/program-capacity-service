@@ -59,13 +59,30 @@ export class ReleaseReservation {
     });
     // The release_ref fingerprint ignores the route: the reservation already scopes it.
     const releaseFingerprint = fingerprintOf({ reason: command.reason, amount: body.amount });
-    return this.deps.uow.run((tx) =>
-      idempotently(
+    return this.deps.uow.run(async (tx) => {
+      // The invoice currency never changes, so a wrong amount currency is a validation error
+      // decided before the key is claimed: the client fixes the request and reuses the key.
+      const invoiceCurrency = await tx.reservations.invoiceCurrencyOf(
+        command.tenantId,
+        command.programId,
+        command.reservationId,
+      );
+      if (
+        invoiceCurrency !== null &&
+        command.amount !== undefined &&
+        command.amount.currency !== invoiceCurrency
+      ) {
+        return rejected<ReleaseView>(
+          'validation-error',
+          `amount.currency must be the invoice currency ${invoiceCurrency}.`,
+        );
+      }
+      return idempotently(
         tx.idempotency,
         { tenantId: command.tenantId, key: command.idempotencyKey, fingerprint },
         () => this.release(tx, command, releaseFingerprint),
-      ),
-    );
+      );
+    });
   }
 
   private async release(
@@ -76,7 +93,7 @@ export class ReleaseReservation {
     const { tenantId, programId, reservationId, releaseRef, reason } = command;
 
     // Ownership is checked with a plain read; the dedup row below needs an existing reservation.
-    if (!(await tx.reservations.exists(tenantId, programId, reservationId))) {
+    if ((await tx.reservations.invoiceCurrencyOf(tenantId, programId, reservationId)) === null) {
       return rejected('not-found', 'Reservation not found.');
     }
 
@@ -106,24 +123,12 @@ export class ReleaseReservation {
     const reservation = await tx.reservations.lockById(tenantId, programId, reservationId);
     if (reservation === null) throw new Error('reservation vanished under the program lock');
 
-    const refuse = async (
-      type: 'release-exceeds-remaining' | 'validation-error',
-      detail: string,
-    ) => {
+    const refuse = async (detail: string) => {
       // A refused release leaves no trace, so the same releaseRef can be retried with a fix.
       await tx.releases.discard(claimId);
-      return rejected<ReleaseView>(type, detail);
+      return rejected<ReleaseView>('release-exceeds-remaining', detail);
     };
 
-    if (
-      command.amount !== undefined &&
-      command.amount.currency !== reservation.invoiceAmount.currency
-    ) {
-      return refuse(
-        'validation-error',
-        `amount.currency must be the invoice currency ${reservation.invoiceAmount.currency}.`,
-      );
-    }
     const computed = computeRelease(
       {
         amountMinor: reservation.amountMinor,
@@ -134,10 +139,7 @@ export class ReleaseReservation {
       command.amount?.minor,
     );
     if (!computed.ok) {
-      return refuse(
-        'release-exceeds-remaining',
-        'The release is above the remaining invoice amount.',
-      );
+      return refuse('The release is above the remaining invoice amount.');
     }
     const { invoiceMinor, programMinor, status } = computed.value;
 

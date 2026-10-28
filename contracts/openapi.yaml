@@ -63,8 +63,8 @@ paths:
       operationId: reserveCapacity
       summary: Reserve capacity for an invoice
       description: "Scope `capacity:write`. One reservation per invoice. Send an optional
-        `Idempotency-Key`: the first outcome, including a business rejection, is stored and replayed
-        for that key; keys are kept at least 24 hours."
+        `Idempotency-Key`: the first outcome, including a business rejection such as 404, 409 or
+        422, is stored and replayed for that key; keys are kept at least 24 hours."
       parameters:
         - in: path
           name: programId
@@ -78,14 +78,18 @@ paths:
           name: idempotency-key
           schema:
             description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
-              24 hours.
+              24 hours. The first outcome is stored and replayed for the key, including business
+              rejections such as 404, 409 and 422; validation, authentication and
+              idempotency-key-mismatch errors are not stored.
             example: 6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90
             type: string
             minLength: 1
             maxLength: 255
             pattern: ^[\x21-\x7e]+$
           description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
-            24 hours.
+            24 hours. The first outcome is stored and replayed for the key, including business
+            rejections such as 404, 409 and 422; validation, authentication and
+            idempotency-key-mismatch errors are not stored.
       requestBody:
         required: true
         content:
@@ -196,8 +200,8 @@ paths:
       description: "Scope `capacity:write`. A partial release frees floor(reserved x repaid / invoice
         amount); the release that completes the invoice takes the exact remainder. The same
         `releaseRef` with the same body replays the result. Send an optional `Idempotency-Key`: the
-        first outcome, including a business rejection, is stored and replayed for that key; keys are
-        kept at least 24 hours."
+        first outcome, including a business rejection such as 404, 409 or 422, is stored and
+        replayed for that key; keys are kept at least 24 hours."
       parameters:
         - in: path
           name: programId
@@ -218,14 +222,18 @@ paths:
           name: idempotency-key
           schema:
             description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
-              24 hours.
+              24 hours. The first outcome is stored and replayed for the key, including business
+              rejections such as 404, 409 and 422; validation, authentication and
+              idempotency-key-mismatch errors are not stored.
             example: 6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90
             type: string
             minLength: 1
             maxLength: 255
             pattern: ^[\x21-\x7e]+$
           description: Makes the call idempotent per tenant. Keys and their stored responses are kept at least
-            24 hours.
+            24 hours. The first outcome is stored and replayed for the key, including business
+            rejections such as 404, 409 and 422; validation, authentication and
+            idempotency-key-mismatch errors are not stored.
       requestBody:
         required: true
         content:
@@ -291,6 +299,7 @@ components:
       properties:
         value:
           type: string
+          maxLength: 32
           description: Decimal string at the currency scale.
           example: "1250.50"
         currency:
@@ -595,6 +604,7 @@ components:
       properties:
         value:
           type: string
+          maxLength: 32
           description: Decimal string at the currency scale.
           example: "1250.50"
         currency:

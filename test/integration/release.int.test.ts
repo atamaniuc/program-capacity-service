@@ -219,4 +219,26 @@ describe('release', () => {
       problem: { type: 'not-found' },
     });
   });
+
+  it('MINOR-3 a wrong amount currency answers validation-error without taking the idempotency key', async () => {
+    const reservationId = await reserveEur();
+    const wrong = await release(reservationId, {
+      releaseRef: 'cur',
+      idempotencyKey: 'K-CUR',
+      amount: { minor: 100n, currency: 'USD' },
+    });
+    expect(wrong).toMatchObject({ ok: false, problem: { type: 'validation-error', status: 400 } });
+    expect(await count(world, 'idempotency_key', "key = 'K-CUR'")).toBe(0);
+    expect(await count(world, 'reservation_release', `reservation_id = '${reservationId}'`)).toBe(
+      0,
+    );
+
+    const fixed = await release(reservationId, {
+      releaseRef: 'cur',
+      idempotencyKey: 'K-CUR',
+      amount: { minor: 100n, currency: 'EUR' },
+    });
+    expect(fixed).toMatchObject({ ok: true, status: 200 });
+    expect(await count(world, 'idempotency_key', "key = 'K-CUR' AND status_code = 200")).toBe(1);
+  });
 });
