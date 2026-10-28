@@ -1,3 +1,5 @@
+# The api and worker Deployments must not be created before this Job completes:
+# readiness probes fail (schema not migrated) until the Job has run.
 apiVersion: batch/v1
 kind: Job
 metadata:

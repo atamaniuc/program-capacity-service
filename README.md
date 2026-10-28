@@ -30,13 +30,16 @@ make demo    # every critical-path scenario against the running stack
 
 `make load` runs `tools/load/scenario.js` in Docker `grafana/k6` — no local k6 binary is
 needed. The scenario drives a constant 100 requests/s arrival rate against one hot program
-(`prg_grand_usd`), 80% capacity reads and 20% reservations of USD 100.00 each. Measured on the
-local compose stack (macOS arm64):
+(`prg_grand_usd`), 80% capacity reads and 20% reserve-then-release pairs of USD 100.00 each.
+Measured on the local compose stack (macOS arm64):
 
-| Metric | Measured |
+| Metric | p95 |
 | --- | --- |
-| `http_req_duration` p95 | 10.46 ms |
-| Achieved throughput | 99.32 requests/s (≈19.9 reservations/s on the hot program) |
+| Capacity read | 28.26 ms |
+| Reserve | 316.26 ms |
+| Release | 215.12 ms |
+| Aggregate `http_req_duration` | 123.67 ms |
+| Achieved throughput | 117.51 requests/s against the hot program |
 
 ## Built / not built
 

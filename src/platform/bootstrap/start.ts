@@ -73,7 +73,9 @@ export async function startApp(
     documents: serveHttp ? renderApiDocs(buildOpenApiDocument()) : {},
     checks: {
       db: async () => {
-        await sql`select 1`.execute(persistence.db);
+        const { rows } = await sql<{ migrated: boolean }>`
+          SELECT to_regclass('public.program') IS NOT NULL AS migrated`.execute(persistence.db);
+        if (rows[0]?.migrated !== true) throw new Error('schema is not migrated');
       },
       ...(consumer === null ? {} : { kafka: () => consumer.check() }),
     },
