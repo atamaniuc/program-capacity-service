@@ -29,6 +29,7 @@ decisions about how the work is run.
 | 019 | Aggregate design: `Program` root, reservations loaded one at a time | [019-aggregate-design](../../docs/adr/019-aggregate-design.md) |
 | 020 | Ubiquitous language and naming rules | [020-ubiquitous-language](../../docs/adr/020-ubiquitous-language.md) |
 | 021 | Evolution path: split triggers T1–T4 and the order of the split | [021-evolution-path](../../docs/adr/021-evolution-path.md) |
+| 022 | No gRPC adapter: FR-16 declined, revisit triggers | [022-no-grpc-adapter](../../docs/adr/022-no-grpc-adapter.md) |
 
 ---
 
@@ -45,7 +46,7 @@ decisions about how the work is run.
 ## 2026-10-28 — Settled before the build (bootstrap §1, not to be relitigated)
 
 Modular monolith; PostgreSQL single source of truth; no Redis, event sourcing, Saga,
-GraphQL or CQRS read store; gRPC only as a P2 driving adapter; no Pact (OpenAPI + `oasdiff`
+GraphQL or CQRS read store; no gRPC adapter (ADR 022); no Pact (OpenAPI + `oasdiff`
 + JSON Schema/AsyncAPI); OpenAPI generated from zod with `zod-openapi`, `/docs` dev/ops only,
 no `@nestjs/swagger`; no `SELECT … FOR UPDATE` on the idempotency path (review D3 closed);
 Given/When/Then in specs and test names, no Gherkin runtime.
@@ -115,3 +116,14 @@ MAJOR and MINOR was fixed before the M2/M3 gates; the full reasoning is in
   relay/jobs → pool. A role-all Kafka test fails if a future merge drops the consumer.
 - **Consumer stop drains in-flight messages** (ADR 007): `TreasuryConsumerRunner.stop()`
   waits up to 25 s for the in-flight record to commit its offset before disconnecting.
+
+---
+
+## 2026-10-28 — FR-16 gRPC adapter declined
+
+Decided at the start of lane 0005, before any code: the gRPC adapter is not built. No client
+needs it, a second transport would duplicate validation, auth, error mapping and idempotency
+handling at the boundary of a money service, and it would not move latency (the hot-program
+limit is the row lock). Ports and adapters are already shown by HTTP and the Kafka repayment
+handler sharing `releaseCapacity`. Reasoning and revisit triggers: ADR 022. PRD FR-16, §10
+and §11, ADRs 017/018/021 and constraint 9 updated in the same commit.

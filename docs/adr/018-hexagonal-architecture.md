@@ -19,7 +19,7 @@ imports another. No monorepo tooling.
 
 ## Consequences
 
-A new entry point such as gRPC is one more driving adapter. Slices duplicate a little wiring
+A new entry point is one more driving adapter. Slices duplicate a little wiring
 instead of sharing internals.
 
 ## Alternatives rejected

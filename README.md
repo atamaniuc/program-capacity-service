@@ -4,7 +4,7 @@ Real-time credit capacity for supply chain finance programs: reserve on invoice 
 release on repayment, reconcile against the bank's treasury, never over-reserve.
 Take-home for a senior Node.js role; requirements in [docs/PRD.md](docs/PRD.md). <!-- proof: docs/PRD.md -->
 
-> **Status: M0, M1, M2 and M3 are done; M4 (stretch: gRPC, load, k8s, ZAP) is not built.**
+> **Status: M0, M1, M2 and M3 are done; M4 (stretch: load, k8s, ZAP) is not built.**
 > This README states only what exists. <!-- proof: specs/TRACKS.md -->
 
 ## Quick start
@@ -40,7 +40,7 @@ make demo    # every critical-path scenario against the running stack
 | Outage and SIGTERM behaviour: readiness flips, in-flight requests and messages drain, offsets commit (NFR-06, NFR-07) | built <!-- proof: test/fault/outage.fault.test.ts#NFR-06 --> <!-- proof: test/fault/shutdown-worker.fault.test.ts#NFR-07 --> |
 | OpenTelemetry traces, RED and domain metrics, observability compose profile (NFR-10) | built <!-- proof: test/e2e/observability.e2e.test.ts#NFR-10 --> |
 | Runbook and ADRs 001–021 | written <!-- proof: docs/runbook.md --> |
-| gRPC adapter, k6 load, Kubernetes manifests, ZAP scan (M4) | not built; lane 0005 paused |
+| k6 load, Kubernetes manifests, ZAP scan (M4); gRPC adapter declined (ADR 022) | not built; lane 0005 paused |
 
 ## Production mapping (not built)
 
@@ -56,6 +56,6 @@ make demo    # every critical-path scenario against the running stack
 ## Time and cuts
 
 Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md`. Cut order when
-behind: M4 (gRPC, k6, ZAP, k8s) → OpenTelemetry profile → invariant job → list endpoints →
+behind: M4 (k6, ZAP, k8s) → OpenTelemetry profile → invariant job → list endpoints →
 outbox relay. M4 was cut; the other four are built.
 <!-- proof: .harness/4-state/BUDGET.md -->

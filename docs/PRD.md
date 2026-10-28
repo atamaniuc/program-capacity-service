@@ -54,7 +54,7 @@ Three machine clients and one human role use the service. Five critical paths ca
 
 | Actor | Channel | Uses |
 | --- | --- | --- |
-| Platform services (invoice and funding workflow) | REST; gRPC later | Reserve, release, read availability |
+| Platform services (invoice and funding workflow) | REST, or the `capacity.events.v1` stream | Reserve, release, read availability |
 | Platform UI or BFF (bank operators, supplier portal) | REST | Read availability, list reservations, read the audit trail |
 | Treasury system (the bank's system of record) | Kafka, inbound | Limit changes, repayments, FX rates, reconciliation snapshots |
 | Downstream consumers (treasury, risk, notifications) | Kafka, outbound | Reservation and capacity events |
@@ -89,7 +89,7 @@ Sixteen requirements cover the assignment; twelve are P0 and form the critical p
 | FR-13 | **Outbound events.** Transactional outbox publishes `ReservationCreated`, `ReservationReleased`, `ProgramCapacityChanged`, `ReconciliationDriftDetected`, keyed by `tenantId:programId` with a per-program sequence. | P1 Should |
 | FR-14 | **Ops endpoints.** Liveness, readiness (DB and consumer state) and Prometheus metrics on a separate internal port. | P0 Must |
 | FR-15 | **Invariant check.** A scheduled job recomputes reserved totals from active reservations and the ledger and reports any mismatch. | P1 Should |
-| FR-16 | **gRPC adapter (P2).** One more driving adapter over the same use cases: reserve, release and read with deadlines and the same auth and idempotency rules. A monolith has no internal network transport; this adapter prepares the contract for the first split. | P2 Could |
+| FR-16 | **gRPC adapter — declined (ADR 022).** Considered as a P2 driving adapter over the same use cases; not built because no client needs it and a second transport would duplicate validation, auth and error mapping. Revisit triggers are in ADR 022. | Won't (this release) |
 
 **Acceptance criteria for the critical path**
 
@@ -181,7 +181,6 @@ flowchart LR
   subgraph driving["Driving adapters"]
     http["HTTP controllers, guard"]
     kc["Kafka consumers + treasury ACL"]
-    grpc["gRPC (P2)"]
     jobs["Scheduled jobs"]
   end
   subgraph slices["Use-case slices"]
@@ -208,13 +207,13 @@ flowchart LR
   nest -. wires .-> ports
 ```
 
-Business rules live only in the domain core. A new entry point such as gRPC is one more driving adapter, not a new code path.
+Business rules live only in the domain core. A new entry point is one more driving adapter, not a new code path.
 
 | Pattern | Use it? | How, and why |
 | --- | --- | --- |
 | DDD, strategic | Yes | One bounded context, *Program Capacity*. Treasury is an upstream context behind an anti-corruption layer that translates its messages into domain commands. Platform services are downstream and consume a published language: the REST API and `capacity.events.v1`. |
 | DDD, tactical | Yes, light | `Program` is the aggregate root and owns the capacity invariant. `Reservation` is an entity loaded one at a time, never as a full collection. Value objects: `Money`, `Currency`, `FxRate`, typed ids. Domain events become outbox rows. |
-| Hexagonal (ports and adapters) | Yes | Three driving adapters (HTTP, Kafka, later gRPC) call the same use cases. Persistence and messaging sit behind ports, so domain and slice tests need no containers. |
+| Hexagonal (ports and adapters) | Yes | Three driving adapters (HTTP, Kafka, scheduled jobs) call the same use cases. Persistence and messaging sit behind ports, so domain and slice tests need no containers. |
 | Clean Architecture | Only its dependency rule | Hexagonal already makes dependencies point inward. Extra rings and per-layer DTO mappers add ceremony without safety. |
 | Vertical slices | Yes, for use cases | One folder per use case: command, handler, schema, tests. Slices share the domain core, never each other's internals. |
 | CQRS | Lite, in code only | Commands go through the domain; queries read PostgreSQL through Kysely directly. No separate read store, and no `@nestjs/cqrs` bus for six handlers. |
@@ -241,14 +240,13 @@ Order of the split, when a trigger fires:
 
 1. Already in place: `api` and `worker` roles, ports, versioned contracts, inbox and outbox. These are the seams.
 2. Move `contracts/` into its own package; every split depends on it.
-3. Finish the gRPC adapter (FR-16), so the service-to-service contract exists before any new network hop.
-4. First real split: `worker`, with an ADR on the shared database as a transitional state.
-5. Per-tenant cells as the main scaling answer for a white-label platform.
-6. New capabilities arrive as new event consumers, never by cutting the reservation transaction.
+3. First real split: `worker`, with an ADR on the shared database as a transitional state.
+4. Per-tenant cells as the main scaling answer for a white-label platform.
+5. New capabilities arrive as new event consumers, never by cutting the reservation transaction.
 
 **Preconditions for any split.** A trigger above has fired and is written down as an ADR; contracts live in their own package; the inbox and outbox already guard the boundary being cut; the AC suite runs against both sides of the split.
 
-**When contract tooling grows.** Today contract control is OpenAPI generated from zod, `oasdiff` in CI, and JSON Schema / AsyncAPI validation of simulator output and outbound events: there is one provider and no real consumer to verify against. Consumer-driven contracts (Pact) or a schema registry (Avro or JSON Schema with compatibility rules) appear with the first real split, when a second deployable consumes `capacity.events.v1` or calls the gRPC adapter.
+**When contract tooling grows.** Today contract control is OpenAPI generated from zod, `oasdiff` in CI, and JSON Schema / AsyncAPI validation of simulator output and outbound events: there is one provider and no real consumer to verify against. Consumer-driven contracts (Pact) or a schema registry (Avro or JSON Schema with compatibility rules) appear with the first real split, when a second deployable consumes `capacity.events.v1`.
 
 Never split by write operation while one invariant spans those operations, and never add Redis or a read store without metrics that ask for it.
 
@@ -399,7 +397,6 @@ Treasury message shapes are an assumption (A2): the assignment does not define t
 - Service-to-service clients use OAuth2 client credentials. Locally a mock OAuth2 server issues tokens; `make token TENANT=bank-a SCOPES="capacity:read capacity:write"` prints one.
 - Every query filters by `tenant_id`; another tenant's program answers 404 so its existence does not leak.
 - Kafka: PLAINTEXT locally; SASL or IAM over TLS with topic ACLs in production. The consumer rejects a message whose `tenantId` does not own the program.
-- gRPC (P2) takes the same JWT in the `authorization` metadata.
 
 ## 10. Tech stack decisions
 
@@ -412,7 +409,7 @@ The stack is NestJS 12, PostgreSQL and Kafka, with everything else earning its p
 | Framework | NestJS 12, Express adapter | Required by the role; ESM core; Standard Schema validation | Fastify adapter: no throughput need, fewer moving parts |
 | Shape | Modular monolith, one image, roles `api` and `worker` | One bounded context; separate scaling and failure isolation without a network hop | Microservice split, API gateway (the platform owns routing; the service checks JWT itself) |
 | Public API | REST + OpenAPI 3.1 | Matches the clients and the job description | GraphQL: no graph-shaped reads, adds auth and N+1 surface |
-| Service-to-service API | gRPC adapter, P2: a driving adapter only | Contract-first `capacity.v1` proto shows versioning; same application services | Building it before P0 and P1 are done; gRPC between modules of the monolith |
+| Service-to-service API | REST `/v1` plus `capacity.events.v1`; no gRPC (ADR 022) | One contract (OpenAPI from zod) and one boundary to validate and audit | A gRPC adapter with no consumer; gRPC between modules of the monolith |
 | Validation | zod via Standard Schema | One schema language for HTTP bodies and Kafka messages; JSON Schema export | class-validator: duplicated types and decorators |
 | Database | PostgreSQL 18 | Row locks, unique constraints and transactions enforce the invariants; `NUMERIC`; native `uuidv7()` | DynamoDB: no multi-row transaction at snapshot size; invariants would move into code |
 | Data access | Kysely, SQL migrations | Locks, `ON CONFLICT`, `RETURNING` and isolation stay visible in review | Prisma (raw SQL on the critical path anyway), TypeORM (implicit behaviour), Drizzle (v1 still a release candidate, `1.0.0-rc.5`, with 0.45 as `latest` on 2026-10-28) |
@@ -447,13 +444,13 @@ Five milestones, each closed by a green gate. M3 is the submission point; M4 sta
    - Gate: AC-07 to AC-12, AC-14 and AC-15 pass; `make demo` runs every scenario.
 4. **M3 Production polish.** FR-12, FR-13, FR-15 and NFR-06, NFR-07, NFR-10: query endpoints, outbox relay, invariant job, OpenTelemetry, dashboard, security CI, README and ADRs.
    - Gate: success criteria S1 to S8 are met and the dated facts in section 10 are re-checked. Submit here.
-5. **M4 Stretch.** FR-16 gRPC adapter, k6 report, OWASP ZAP baseline, Kubernetes manifests.
+5. **M4 Stretch.** k6 report, OWASP ZAP baseline, Kubernetes manifests (FR-16 gRPC declined, ADR 022).
 
 **Time tracking (optional).** The recruiter frames the task as "a couple of hours"; this plan is deliberately larger, to show production habits. Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md`; the cut order below says what to drop first if time runs short.
 
 **Cut order when time runs short** (first item goes first; P0 is never cut):
 
-1. M4 stretch items: gRPC adapter, k6 load test, OWASP ZAP, Kubernetes manifests.
+1. M4 stretch items: k6 load test, OWASP ZAP, Kubernetes manifests.
 2. The `observability` compose profile (OpenTelemetry export, Grafana, Jaeger); JSON logs and `/metrics` stay.
 3. FR-15 invariant job.
 4. FR-12 list endpoints.
@@ -502,7 +499,6 @@ A reviewer clones the repo, runs `make up && make demo`, and sees every critical
 │  │  └─ adapters/
 │  │     ├─ in/http/               controllers, auth guard, problem+json filter
 │  │     ├─ in/kafka/              consumer runner, treasury ACL, DLQ
-│  │     ├─ in/grpc/               P2
 │  │     ├─ in/jobs/               invariant check, retention cleanup
 │  │     ├─ out/postgres/          Kysely repositories, unit of work, migrations
 │  │     └─ out/kafka/             outbox relay, producer

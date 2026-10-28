@@ -26,11 +26,9 @@ Order when a trigger fires:
 1. Already in place: the `api` and `worker` roles (ADR 001), ports, versioned contracts, inbox and
    outbox (ADR 009). These are the seams.
 2. Move `contracts/` into its own package; every split depends on it.
-3. Finish the gRPC adapter (FR-16), so the service-to-service contract exists before any new
-   network hop.
-4. First real split: `worker`, with an ADR on the shared database as a transitional state.
-5. Per-tenant cells as the main scaling answer for a white-label platform.
-6. New capabilities arrive as new event consumers, never by cutting the reservation transaction.
+3. First real split: `worker`, with an ADR on the shared database as a transitional state.
+4. Per-tenant cells as the main scaling answer for a white-label platform.
+5. New capabilities arrive as new event consumers, never by cutting the reservation transaction.
 
 Preconditions for any split: the trigger is written down as an ADR; contracts live in their own
 package; the inbox and outbox already guard the boundary being cut; the acceptance suite runs

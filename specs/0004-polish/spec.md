@@ -57,7 +57,7 @@ cut order: outbox rows are always written, so the seam remains even if the relay
 
 ## Out of scope
 
-gRPC, k6, ZAP, Kubernetes (0005).
+k6, ZAP, Kubernetes (0005).
 
 ## Tasks
 

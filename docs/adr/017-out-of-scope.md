@@ -22,7 +22,7 @@ down avoids relitigating them.
 | Kubernetes, Helm | No cluster in scope; probes, SIGTERM handling and env config keep the image ready | A target environment |
 | AWS emulation (LocalStack, Floci) | The service calls no AWS API; RDS and MSK speak plain PostgreSQL and Kafka | A direct AWS SDK dependency |
 | Pact, schema registry | One provider and no real consumer yet (ADR 015) | The first real split |
-| gRPC adapter | P2; one more driving adapter once P0 and P1 are done | Service-to-service callers |
+| gRPC adapter | No client needs it; a second transport duplicates validation, auth and error mapping (ADR 022) | A real caller that REST and Kafka events do not serve |
 
 ## Consequences
 

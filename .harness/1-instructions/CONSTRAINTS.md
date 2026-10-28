@@ -32,7 +32,7 @@ skeleton lane creates; until then they are review-only in practice.
    `@nestjs/swagger` decorators, no class-validator.** enforced by: `npm run contracts:check`
    (fails when the committed file differs from the generated one) _(lands in 0002)_
 9. **Settled decisions are not relitigated: modular monolith, no Redis, no event sourcing,
-   no Saga, no GraphQL, no CQRS read store, no Pact, gRPC only as a P2 driving adapter.**
+   no Saga, no GraphQL, no CQRS read store, no Pact, no gRPC adapter (ADR 022).**
    review-only (rationale in PRD §7 and §10)
 
 ## Work discipline

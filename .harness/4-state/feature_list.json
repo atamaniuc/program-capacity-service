@@ -47,7 +47,7 @@
     },
     {
       "id": "m4-stretch",
-      "behavior": "gRPC adapter matches REST results under the same auth and idempotency rules (lane 0005)",
+      "behavior": "k6 load numbers for NFR-03/NFR-04, OWASP ZAP baseline workflow and Kubernetes manifests (lane 0005)",
       "verification": "make verify && make test",
       "state": "not_started",
       "kind": "code"
