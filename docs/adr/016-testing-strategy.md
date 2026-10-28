@@ -18,6 +18,23 @@ Kafka would prove nothing about it.
   application.
 - Every acceptance criterion maps to a test whose name starts with its id (`AC-08 ...`,
   `SK-03 ...`); a ticked task carries a proof marker that resolves to that test.
+- **Every money or concurrency guard has a test that fails when the guard is removed.** A
+  green suite proves nothing about a line that no test can reach. The architect checks this
+  with a mutation probe: delete the line, run the tests, expect red, `git checkout`. Lane 0002
+  review:
+
+  | Line removed | Result | Action |
+  | --- | --- | --- |
+  | `program … FOR UPDATE` | AC-01 red (the guard catches it: "matched no row") | none |
+  | `credit_limit_minor - reserved_minor >= :amount` | **all 26 tests green** | added `program-guard.int.test.ts` |
+  | `DEFERRABLE INITIALLY DEFERRED` on the `release_ref` FK | AC-05 concurrency test red, `deadlock detected` | none |
+
+  A guard that sits behind a primary check (a lock, an earlier `if`) cannot be reached end to
+  end. It is tested at the layer where it lives, such as the repository against real
+  PostgreSQL.
+- A concurrency test must prove the overlap, not just start requests together. AC-02 waits
+  until `pg_stat_activity` shows the duplicate blocked on `transactionid` before it releases
+  the first transaction.
 
 ## Consequences
 

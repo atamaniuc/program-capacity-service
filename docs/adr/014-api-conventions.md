@@ -16,10 +16,15 @@ not on status. Business problems: `insufficient-capacity`, `program-over-limit`,
 `program-suspended`, `fx-rate-unavailable`, `release-exceeds-remaining` (422),
 `reservation-conflict` (409), `idempotency-key-mismatch`, `release-ref-mismatch` (422),
 `validation-error` (400), `not-found` (404). The transport adds `unauthorized` (401),
-`forbidden` (403), `service-unavailable` (503, lock or statement timeout) and `internal-error`.
+`forbidden` (403), `payload-too-large` (413), `service-unavailable` (503: lock or statement
+timeout, database connection, JWKS outage) and `internal-error` (500). Each status has its own
+type; a 413 is not a `validation-error`, which means 400.
 Use cases return `Outcome` values carrying the status; only the controller writes HTTP.
 Amounts are decimal strings. `GET …/capacity` sets `ETag` to the program version and answers 304
-to `If-None-Match`. Created reservations answer 201 with `Location`; replays 200.
+to `If-None-Match`. Created reservations answer 201 with `Location`. A replay under the same
+`Idempotency-Key` returns the stored 201 with `Location`, because it is the same response.
+A natural-key replay (the same invoice and terms, sent without a key or under a new key)
+answers 200 with the existing reservation.
 
 ## Consequences
 

@@ -18,6 +18,15 @@ is converted with `BigInt`, never `Number`. ESLint forbids `Number` and `parseFl
 domain. Release rule: a partial release frees floor(amount × repaid ÷ invoice amount) and the
 completing release takes the exact remainder, so releases always sum to the reserved amount.
 
+**Upper bound.** `parseMoney` refuses more than `MAX_MINOR` = 2^63 − 1 minor units, the largest
+`BIGINT`, with 400 `validation-error`. `bigint` itself has no limit, so before this bound such
+an amount crossed the domain and failed only at the `INSERT` (22003, out of range). The client
+then got 500 "retry later" for a request that can never succeed, and would retry forever. The
+review hit this case with a JPY amount of 20 digits and a tiny JPY→USD rate: the converted USD
+amount fit under the limit, so the capacity check passed and the invoice amount itself
+overflowed. The rule: a value that can never be stored is a validation error, decided at the
+edge.
+
 ## Consequences
 
 - Rounding is explicit and testable (property test AC-05); amounts above 2^53 are safe.

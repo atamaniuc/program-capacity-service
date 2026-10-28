@@ -62,3 +62,33 @@ Given/When/Then in specs and test names, no Gherkin runtime.
 
 **Rejected:** TS 7 now — unknown decorator-metadata support under Nest's build.
 
+---
+
+## 2026-10-28 — Architect review of lane 0002: rulings
+
+The architect reviewed f875699 cold (verdict CHANGES REQUIRED: 1 major, 5 minor), and the
+findings were fixed in 5d5b03c. The rulings below are durable; the full reasoning is in the
+ADRs.
+
+- **`release_ref` FK is `DEFERRABLE INITIALLY DEFERRED`** ([ADR 003](../../docs/adr/003-concurrency-lock-order.md)).
+  An immediate check took `KEY SHARE` on the reservation before the program lock, which made
+  two releases of one reservation deadlock. Made immediate again in a probe: `deadlock
+  detected`, 2 of 2 runs. **Rule for lanes 0003+:** dedup row, then program, then
+  reservations. Any new FK from a dedup table to `reservation` or `program` is deferred.
+- **404 under an `Idempotency-Key` is stored** ([ADR 006](../../docs/adr/006-idempotency.md)).
+  The key is taken before the lookup (PRD §8), so 404 is a business outcome (A13).
+  Rejected: a special case that would make one key answer 404 first and 201 later.
+- **Validation errors never take the key, even those that need the database** (ADR 006). The
+  release currency is checked with a plain read before the claim; the invoice currency
+  never changes.
+- **Amounts above 2^63 − 1 minor units are 400, not 500** ([ADR 004](../../docs/adr/004-money-minor-units.md)).
+  A request that can never succeed must not say "retry later".
+- **Token before body parser; JWKS outage 503; scope default-deny** ([ADR 011](../../docs/adr/011-auth.md)).
+  S6 is meant literally: no business endpoint answers anything but 401 without a valid token.
+- **Every money/concurrency guard has a test that fails when the guard is removed**
+  ([ADR 016](../../docs/adr/016-testing-strategy.md)). With the I2 `WHERE` guard deleted, the
+  suite stayed green, so `program-guard.int.test.ts` tests it at the repository.
+
+**Why recorded here:** lanes 0003 and 0004 add writers (treasury consumer, reconciliation,
+relay). They must follow the same lock order and idempotency rules without re-reading the
+review.
