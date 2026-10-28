@@ -15,6 +15,7 @@ truth, Kafka for treasury input and outbound events. The requirements live in
 
 ## Run
 
+- `make` — every command with a one-line description.
 - `make up` — compose stack (PostgreSQL, Kafka, mock OAuth2, migrate, api, worker).
 - `make seed`, `make token`, `make demo` — seed data, a JWT, every demo scenario.
 <!-- proof: Makefile -->

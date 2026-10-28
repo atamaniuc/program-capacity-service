@@ -41,6 +41,9 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 **You need:** Docker (with Compose v2), Node.js 24 and npm, `make`. Ports 3000, 5432, 8081,
 9464, 9465 and 29092 must be free.
 
+`make` on its own lists every command with a one-line description. `make completion` shows
+how to turn on tab completion for targets and `TENANT=`/`TOPIC=` values in bash or zsh.
+
 ```bash
 npm ci                 # install dependencies (the CLI tools below run on your machine)
 make up                # build the image, start everything, wait until healthy (~2 min the first time)
