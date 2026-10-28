@@ -71,7 +71,7 @@ make down              # stop and delete everything
 | URL | What |
 | --- | --- |
 | <http://localhost:3000/v1/…> | Business API (needs a token) |
-| <http://localhost:9464/docs> | OpenAPI UI (ops port, local only) |
+| <http://localhost:9464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
 | <http://localhost:9464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 9465) |
 | <http://localhost:3001> | Grafana, after `docker compose -f deploy/compose.yaml --profile observability up -d` (Jaeger on 16686) |
 

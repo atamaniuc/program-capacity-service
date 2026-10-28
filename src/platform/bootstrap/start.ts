@@ -48,6 +48,15 @@ export async function startApp(
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
     http.use(httpMetrics(registry));
+    // Before authentication: a CORS preflight carries no token. Off unless origins are listed.
+    if (config.corsOrigins.length > 0) {
+      http.enableCors({
+        origin: [...config.corsOrigins],
+        allowedHeaders: ['authorization', 'content-type', 'idempotency-key', 'if-none-match'],
+        exposedHeaders: ['etag', 'location'],
+        maxAge: 600,
+      });
+    }
     // Mounted before Nest registers the body parser (at init), so authentication comes first.
     http.use(
       '/v1',
@@ -81,7 +90,9 @@ export async function startApp(
   const ops: OpsServer = await startOpsServer({
     registry,
     port: config.opsPort,
-    documents: serveHttp ? renderApiDocs(buildOpenApiDocument()) : {},
+    documents: serveHttp
+      ? renderApiDocs(buildOpenApiDocument(), { tokenUrl: config.oauthTokenUrl })
+      : {},
     checks: {
       db: async () => {
         // The newest migration file must be recorded, so a half-migrated schema is not ready.

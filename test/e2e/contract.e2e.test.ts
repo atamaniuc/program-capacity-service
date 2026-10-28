@@ -16,7 +16,10 @@ describe('contract', () => {
   };
 
   beforeAll(async () => {
-    app = await startTestApp();
+    app = await startTestApp({
+      CORS_ORIGINS: 'http://docs.local:9464',
+      OAUTH_TOKEN_URL: 'http://oauth.local/default/token',
+    });
     await sql`INSERT INTO program (tenant_id, id, currency, credit_limit_minor)
               VALUES ('bank-a', 'prg', 'USD', 1000000000)`.execute(app.persistence.db);
     await sql`INSERT INTO fx_rate (base, quote, rate, source, as_of)
@@ -96,5 +99,49 @@ describe('contract', () => {
     expect((await fetch(`${app.opsUrl}/docs`)).status).toBe(200);
     expect((await fetch(`${app.baseUrl}/docs`)).status).toBe(404);
     expect((await fetch(`${app.baseUrl}/docs/openapi.json`)).status).toBe(404);
+  });
+
+  it('openapi: /docs is Swagger UI with try-it-out and a local OAuth2 login; the committed contract has none', async () => {
+    const html = await (await fetch(`${app.opsUrl}/docs`)).text();
+    expect(html).toContain('tryItOutEnabled: true');
+    // Served by the service itself, so the page works without network access.
+    expect(html).not.toMatch(/https?:\/\//);
+    for (const [asset, type] of [
+      ['/docs/swagger-ui-bundle.js', 'text/javascript'],
+      ['/docs/swagger-ui.css', 'text/css'],
+    ] as const) {
+      const response = await fetch(`${app.opsUrl}${asset}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain(type);
+      expect((await response.text()).length).toBeGreaterThan(10_000);
+    }
+    const served = (await (await fetch(`${app.opsUrl}/docs/openapi.json`)).json()) as {
+      servers: { url: string }[];
+      components: { securitySchemes: Record<string, { type: string; flows?: unknown }> };
+    };
+    expect(served.servers[0]?.url).toBe('http://localhost:3000');
+    expect(served.components.securitySchemes['localOAuth']).toMatchObject({
+      type: 'oauth2',
+      flows: { clientCredentials: { tokenUrl: 'http://oauth.local/default/token' } },
+    });
+    expect(JSON.stringify(document)).not.toContain('localOAuth');
+  });
+
+  it('openapi: the API answers the docs page CORS preflight without a token, and no other origin', async () => {
+    const preflight = (origin: string) =>
+      fetch(`${app.baseUrl}/v1/programs/prg/reservations`, {
+        method: 'OPTIONS',
+        headers: {
+          origin,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization,content-type,idempotency-key',
+        },
+      });
+    const allowed = await preflight('http://docs.local:9464');
+    expect(allowed.status).toBe(204);
+    expect(allowed.headers.get('access-control-allow-origin')).toBe('http://docs.local:9464');
+    expect(allowed.headers.get('access-control-allow-headers')).toContain('idempotency-key');
+    const other = await preflight('http://evil.example');
+    expect(other.headers.get('access-control-allow-origin')).toBeNull();
   });
 });

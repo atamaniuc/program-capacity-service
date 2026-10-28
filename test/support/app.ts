@@ -42,7 +42,7 @@ export interface TestApp {
 }
 
 /** The Nest app against Testcontainers PostgreSQL 18 and an in-process JWKS issuer. */
-export async function startTestApp(): Promise<TestApp> {
+export async function startTestApp(env: Record<string, string> = {}): Promise<TestApp> {
   const postgres: TestPostgres = await startPostgres();
   await migrate(postgres.url);
   const issuer = await startTestIssuer();
@@ -57,6 +57,7 @@ export async function startTestApp(): Promise<TestApp> {
     OAUTH_AUDIENCE: issuer.audience,
     OAUTH_JWKS_URL: issuer.jwksUrl,
     LOG_LEVEL: 'silent',
+    ...env,
   });
   const app: RunningApp = await startApp(config, createLogger('silent'));
   const persistence = createPersistence(postgres.url, 5);

@@ -26,6 +26,19 @@ const schema = z.object({
   OAUTH_ISSUER: z.url(),
   OAUTH_AUDIENCE: z.string().min(1),
   OAUTH_JWKS_URL: z.url(),
+  /** Token endpoint shown by the interactive API docs; local development only. */
+  OAUTH_TOKEN_URL: z.url().optional(),
+  /** Browser origins allowed to call `/v1` (the API docs page); empty disables CORS. */
+  CORS_ORIGINS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin !== ''),
+    )
+    .pipe(z.array(z.url())),
   FX_MAX_AGE: duration.default(24 * 3600),
   RECON_TOLERANCE_MINOR: z.coerce.number().int().min(0).default(1),
   RECON_MAX_RESERVATIONS: z.coerce.number().int().min(1).default(50_000),
@@ -44,6 +57,8 @@ export interface Config {
   readonly oauthIssuer: string;
   readonly oauthAudience: string;
   readonly oauthJwksUrl: string;
+  readonly oauthTokenUrl: string | undefined;
+  readonly corsOrigins: readonly string[];
   readonly fxMaxAgeSeconds: number;
   readonly reconToleranceMinor: number;
   readonly reconMaxReservations: number;
@@ -84,6 +99,8 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     oauthIssuer: data.OAUTH_ISSUER,
     oauthAudience: data.OAUTH_AUDIENCE,
     oauthJwksUrl: data.OAUTH_JWKS_URL,
+    oauthTokenUrl: data.OAUTH_TOKEN_URL,
+    corsOrigins: data.CORS_ORIGINS,
     fxMaxAgeSeconds: data.FX_MAX_AGE,
     reconToleranceMinor: data.RECON_TOLERANCE_MINOR,
     reconMaxReservations: data.RECON_MAX_RESERVATIONS,

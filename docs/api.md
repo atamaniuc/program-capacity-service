@@ -4,8 +4,18 @@ A hands-on walk through the REST API against the local stack. Every command belo
 pasted into a terminal after `make up && make seed`. Responses are shortened.
 
 The full contract is [`contracts/openapi.yaml`](../contracts/openapi.yaml), generated from the
-zod schemas in `src/capacity/adapters/in/http/`. A browsable version runs at
-<http://localhost:9464/docs> (ops port, local only).
+zod schemas in `src/capacity/adapters/in/http/`.
+
+## Easiest: Swagger UI
+
+Open <http://localhost:9464/docs> (ops port, local only). Click **Authorize**, choose
+`localOAuth`, keep client id `bank-a` (the client id becomes the tenant; `bank-b` and `bank-c`
+also exist) and log in. Then open an endpoint, press **Try it out**: request bodies and the
+`Idempotency-Key` are prefilled from the schema examples, and the request goes to the API on
+port 3000. That works because the compose stack sets `CORS_ORIGINS` for the docs page and
+`OAUTH_TOKEN_URL` for the login; both are unset by default, so production has neither.
+
+The rest of this page does the same with curl.
 
 ## Endpoints
 

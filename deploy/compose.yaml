@@ -135,6 +135,9 @@ services:
       APP_ROLE: api
       HTTP_PORT: 3000
       OPS_PORT: 9464
+      # Swagger UI on the ops port calls the API from the browser (local development only).
+      CORS_ORIGINS: http://localhost:9464,http://127.0.0.1:9464
+      OAUTH_TOKEN_URL: http://localhost:8081/default/token
     ports:
       - '3000:3000'
       - '9464:9464'

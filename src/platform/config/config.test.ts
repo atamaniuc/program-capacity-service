@@ -59,4 +59,13 @@ describe('config', () => {
     expect(loadConfig({ ...valid, FX_MAX_AGE: '15m' }).fxMaxAgeSeconds).toBe(900);
     expect(() => loadConfig({ ...valid, FX_MAX_AGE: 'soon' })).toThrow(/FX_MAX_AGE/);
   });
+
+  it('SK-03 parses CORS_ORIGINS as a list of URLs and leaves CORS off by default', () => {
+    expect(loadConfig(valid).corsOrigins).toEqual([]);
+    expect(
+      loadConfig({ ...valid, CORS_ORIGINS: 'http://localhost:9464, http://127.0.0.1:9464' })
+        .corsOrigins,
+    ).toEqual(['http://localhost:9464', 'http://127.0.0.1:9464']);
+    expect(() => loadConfig({ ...valid, CORS_ORIGINS: 'not a url' })).toThrow(/CORS_ORIGINS/);
+  });
 });
