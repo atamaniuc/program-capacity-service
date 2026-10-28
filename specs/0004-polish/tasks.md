@@ -11,8 +11,8 @@ Cut order inside this lane, last cut first: NFR-10 OTel profile → FR-15 → FR
   producer, `outbox_lag` metric. <!-- proof: test/kafka/outbox-relay.kafka.test.ts#FR-13 -->
 - [x] T3 — FR-12 list reservations (filters `invoiceId`, `status`) and program ledger with
   cursor pagination. <!-- proof: test/e2e/queries.e2e.test.ts#FR-12 -->
-- [ ] T4 — FR-15 invariant job every 5 minutes; retention cleanup job (NFR-11).
-  proof (planned): `test/integration/invariant-job.int.test.ts#FR-15`
+- [x] T4 — FR-15 invariant job every 5 minutes; retention cleanup job (NFR-11).
+  <!-- proof: test/integration/invariant-job.int.test.ts#FR-15 -->
 - [ ] T5 — README honest (built / not built / cut order / production mapping / time spent),
   `docs/runbook.md` for CP-1..CP-5, remaining ADRs (001, 002, 009, 013, 017, 021), dated facts
   re-checked. proof (planned): `docs/runbook.md`

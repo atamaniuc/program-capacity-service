@@ -35,7 +35,7 @@ questions until T5.
 
 ## State
 
-T1 (NFR-06/NFR-07), T2 (FR-13 relay) and T3 (FR-12 list reservations + ledger, `npm run contracts` regenerated) done and green. Relay: `src/capacity/adapters/out/kafka/outbox-relay.ts`, store `src/capacity/adapters/out/postgres/repositories/outbox-relay.repository.ts`, port `src/capacity/application/ports/outbox-relay.ts`; wired for the `worker`/`all` roles in `src/platform/bootstrap/worker.ts`. Worker tuning lives in `src/platform/telemetry/settings.ts` (not `Config`, to avoid colliding with lane 0003). Lock-order rule for any new writer: claim the dedup row, then `program` FOR UPDATE, then reservation rows. The `reservation_release -> reservation` FK is DEFERRABLE INITIALLY DEFERRED on purpose (ADR 003).
+T1 (NFR-06/NFR-07), T2 (FR-13 relay) T3 (FR-12 list reservations + ledger, `npm run contracts` regenerated) and T4 (FR-15 invariant job, NFR-11 retention job) done and green. Relay: `src/capacity/adapters/out/kafka/outbox-relay.ts`, store `src/capacity/adapters/out/postgres/repositories/outbox-relay.repository.ts`, port `src/capacity/application/ports/outbox-relay.ts`; wired for the `worker`/`all` roles in `src/platform/bootstrap/worker.ts`. Worker tuning lives in `src/platform/telemetry/settings.ts` (not `Config`, to avoid colliding with lane 0003). Lock-order rule for any new writer: claim the dedup row, then `program` FOR UPDATE, then reservation rows. The `reservation_release -> reservation` FK is DEFERRABLE INITIALLY DEFERRED on purpose (ADR 003).
 
 ## Decisions taken
 
@@ -45,4 +45,4 @@ T1 (NFR-06/NFR-07), T2 (FR-13 relay) and T3 (FR-12 list reservations + ledger, `
 
 ## First step
 
-T4: write `test/integration/invariant-job.int.test.ts` (`FR-15 ...`) against `InvariantCheckJob` / `RetentionCleanupJob` in `src/capacity/adapters/in/jobs/jobs.ts` (already wired by `src/platform/bootstrap/worker.ts`).
+T5: write `docs/runbook.md` (CP-1..CP-5 + PRD section 13 entries) and ADRs 001, 002, 009, 013, 017, 021; then T6 (OTel).
