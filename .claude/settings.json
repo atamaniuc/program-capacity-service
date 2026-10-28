@@ -1,0 +1,22 @@
+{
+  "enabledPlugins": {
+    "github@anthropic-plugin-directory": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [{ "type": "command", "command": "npx --no-install harnessimo brief" }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "npx --no-install harnessimo check" }]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [{ "type": "command", "command": "npx --no-install harnessimo check" }]
+      }
+    ]
+  }
+}

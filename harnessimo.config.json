@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/atamaniuc/Harnessimo/main/schema/harnessimo.config.schema.json",
+  "docs": {
+    "roots": [".", "docs", "specs", ".harness"],
+    "skip": ["node_modules", ".git", "dist", "build", "coverage", ".omc", ".codegraph"],
+    "mustCarryProof": ["README.md", "AGENTS.md"],
+    "commands": {
+      "make": "Makefile",
+      "npm run": "package.json"
+    }
+  },
+  "tracks": {
+    "file": "specs/TRACKS.md",
+    "log": "specs/TRACKS-LOG.md",
+    "specsDir": "specs",
+    "taskFile": "tasks.md",
+    "gateTasks": true
+  },
+  "queue": {
+    "file": ".harness/4-state/feature_list.json",
+    "timeoutMinutes": 15
+  },
+  "locked": {
+    "paths": [".harness/1-instructions/CONSTRAINTS.md"],
+    "baseline": ".harness/3-environment/locked-baseline",
+    "agentTrailer": "Co-Authored-By: Claude"
+  },
+  "coldStart": {
+    "requiredFiles": [
+      "AGENTS.md",
+      "README.md",
+      "harnessimo.config.json",
+      ".harness/README.md",
+      "specs/TRACKS.md"
+    ],
+    "entryDocs": ["README.md", "AGENTS.md"],
+    "commands": ["npm ci"]
+  },
+  "cleanExit": {
+    "scan": ["src/", "test/", "tools/"],
+    "allow": [".harness/", "specs/"],
+    "progressFile": ".harness/4-state/PROGRESS.md",
+    "codePrefixes": ["src/", "test/", "tools/", "db/", "deploy/"]
+  },
+  "instructions": {
+    "limits": {
+      "AGENTS.md": 80,
+      "CLAUDE.md": 80
+    }
+  }
+}

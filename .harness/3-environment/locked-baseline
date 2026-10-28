@@ -1,0 +1,2 @@
+# The commit from which the locked-surface rule applies. Moving this forward
+# widens what an agent may change, which is a human decision.

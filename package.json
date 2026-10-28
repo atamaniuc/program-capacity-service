@@ -1,0 +1,16 @@
+{
+  "name": "program-capacity-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "scripts": {},
+  "devDependencies": {
+    "harnessimo": "^0.10.1"
+  }
+}

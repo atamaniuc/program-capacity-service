@@ -1,0 +1,48 @@
+{
+  "$comment": "The work queue. `verification` is the only path out of `active`, and the harness runs it — never the agent. CI re-runs every passing claim, so editing `state` by hand is detected rather than trusted.",
+  "states": [
+    "not_started",
+    "active",
+    "blocked",
+    "passing",
+    "done"
+  ],
+  "wip_limit": 1,
+  "items": [
+    {
+      "id": "m0-skeleton",
+      "behavior": "a fresh clone lints, type-checks, passes layer rules and unit tests, and the stack starts healthy (lane 0001)",
+      "verification": "make verify && npm run test:int",
+      "state": "active",
+      "kind": "code"
+    },
+    {
+      "id": "m1-core-capacity",
+      "behavior": "reserve, release, read, idempotency and auth hold AC-01..AC-06, AC-13, AC-16, AC-17 on real PostgreSQL (lane 0002)",
+      "verification": "make verify && make test",
+      "state": "not_started",
+      "kind": "code"
+    },
+    {
+      "id": "m2-treasury-ingest",
+      "behavior": "treasury events, FX and reconciliation hold AC-07..AC-12, AC-14, AC-15 on real Kafka and PostgreSQL (lane 0003)",
+      "verification": "make verify && make test",
+      "state": "not_started",
+      "kind": "code"
+    },
+    {
+      "id": "m3-polish",
+      "behavior": "queries, outbox relay, invariant job, outage and shutdown behaviour meet FR-12, FR-13, FR-15, NFR-06, NFR-07 (lane 0004)",
+      "verification": "make verify && make test",
+      "state": "not_started",
+      "kind": "code"
+    },
+    {
+      "id": "m4-stretch",
+      "behavior": "gRPC adapter matches REST results under the same auth and idempotency rules (lane 0005)",
+      "verification": "make verify && make test",
+      "state": "not_started",
+      "kind": "code"
+    }
+  ]
+}
