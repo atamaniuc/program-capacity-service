@@ -10,6 +10,7 @@ import { startOpsServer, type OpsServer } from '../health/ops-server.js';
 import { renderApiDocs } from '../health/api-docs.js';
 import { NestPinoLogger, type Logger } from '../logging/logger.js';
 import { AppModule } from './app.module.js';
+import { createTreasuryConsumer } from './worker.js';
 
 export interface RunningApp {
   readonly opsPort: number;
@@ -47,6 +48,10 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
     app = await NestFactory.createApplicationContext(module, { logger: nestLogger });
   }
 
+  const consumeTreasury = config.appRole === 'worker' || config.appRole === 'all';
+  const consumer = consumeTreasury ? createTreasuryConsumer(config, persistence, logger) : null;
+  await consumer?.start();
+
   const ops: OpsServer = await startOpsServer({
     port: config.opsPort,
     documents: serveHttp ? renderApiDocs(buildOpenApiDocument()) : {},
@@ -54,6 +59,7 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
       db: async () => {
         await sql`select 1`.execute(persistence.db);
       },
+      ...(consumer === null ? {} : { kafka: () => consumer.check() }),
     },
   });
 
@@ -69,6 +75,8 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
     close: () => {
       closing ??= (async () => {
         ops.markDraining();
+        // Stop intake first: an in-flight message finishes its transaction before the pool closes.
+        await consumer?.stop();
         await app.close();
         await ops.close();
         logger.info('service stopped');

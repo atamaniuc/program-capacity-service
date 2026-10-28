@@ -21,6 +21,6 @@
     "types": ["node"],
     "outDir": "dist"
   },
-  "include": ["src", "test", "tools", "vitest.config.ts", "eslint.config.js"],
+  "include": ["src", "test", "tools", "db", "vitest.config.ts", "eslint.config.js"],
   "exclude": ["node_modules", "dist", "test/architecture/fixtures"]
 }

@@ -17,7 +17,11 @@ describe('migrations', () => {
 
   it('SK-05 applies baseline once, the second run is a no-op, and SELECT 1 works through Kysely', async () => {
     const first = await migrate(postgres.url);
-    expect(first.applied).toEqual(['0001_baseline.sql', '0002_core_schema.sql']);
+    expect(first.applied).toEqual([
+      '0001_baseline.sql',
+      '0002_core_schema.sql',
+      '0003_treasury.sql',
+    ]);
 
     const second = await migrate(postgres.url);
     expect(second.applied).toEqual([]);
@@ -36,6 +40,7 @@ describe('migrations', () => {
       expect(recorded.rows).toEqual([
         { filename: '0001_baseline.sql' },
         { filename: '0002_core_schema.sql' },
+        { filename: '0003_treasury.sql' },
       ]);
     } finally {
       await persistence.close();
@@ -47,7 +52,7 @@ describe('migrations', () => {
     try {
       const results = await Promise.all([migrate(empty.url), migrate(empty.url)]);
       const appliedCount = results.reduce((sum, result) => sum + result.applied.length, 0);
-      expect(appliedCount).toBe(2);
+      expect(appliedCount).toBe(3);
     } finally {
       await empty.stop();
     }

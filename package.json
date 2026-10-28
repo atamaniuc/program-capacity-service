@@ -19,12 +19,13 @@
     "test:unit": "vitest run --project unit --coverage",
     "test:int": "vitest run --project int",
     "migrate": "tsx src/capacity/adapters/out/postgres/migrate.ts",
-    "seed": "tsx tools/not-implemented.ts seed 0002",
+    "seed": "tsx db/seeds/seed.ts",
     "token": "tsx tools/token/token.ts",
-    "demo": "tsx tools/not-implemented.ts demo 0004",
+    "demo": "tsx tools/demo/demo.ts",
     "contracts": "tsx tools/contracts/generate.ts",
     "contracts:check": "tsx tools/contracts/generate.ts --check",
-    "dlq-replay": "tsx tools/not-implemented.ts dlq-replay 0003",
+    "dlq-replay": "tsx tools/dlq-replay/replay.ts",
+    "simulate": "tsx tools/simulator/cli.ts",
     "load": "tsx tools/not-implemented.ts load 0004"
   },
   "dependencies": {

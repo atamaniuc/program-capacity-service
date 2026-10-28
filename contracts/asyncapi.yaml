@@ -1,0 +1,66 @@
+asyncapi: 3.0.0
+info:
+  title: Program Capacity Service - treasury input
+  version: 1.0.0
+  description: "Treasury message shapes are an assumption (PRD A2): the assignment
+    does not define them. JSON, one envelope (messageId, type, schemaVersion,
+    tenantId, programId, seq, occurredAt, payload). Money is a decimal string
+    with its ISO 4217 currency. A message that fails validation is published
+    unchanged to <topic>.dlq with x-error-code, x-error-message and x-original-*
+    headers."
+servers:
+  local:
+    host: localhost:29092
+    protocol: kafka
+channels:
+  treasuryCapacity:
+    address: treasury.capacity.v1
+    description: Keyed by tenantId:programId; one message in flight per partition
+      keeps program order.
+    messages:
+      ProgramLimitSet:
+        $ref: "#/components/messages/ProgramLimitSet"
+      RepaymentReceived:
+        $ref: "#/components/messages/RepaymentReceived"
+      ProgramReconciled:
+        $ref: "#/components/messages/ProgramReconciled"
+  treasuryFxRates:
+    address: treasury.fx-rates.v1
+    description: 'Keyed by currency pair. Rates are global: tenantId and programId
+      carry "*"; seq is not used for ordering, the newest asOf wins.'
+    messages:
+      FxRatePublished:
+        $ref: "#/components/messages/FxRatePublished"
+operations:
+  receiveCapacity:
+    action: receive
+    channel:
+      $ref: "#/channels/treasuryCapacity"
+    summary: Limits, repayments and reconciliation snapshots from treasury
+  receiveFxRates:
+    action: receive
+    channel:
+      $ref: "#/channels/treasuryFxRates"
+    summary: FX rates from treasury
+components:
+  messages:
+    ProgramLimitSet:
+      name: ProgramLimitSet
+      contentType: application/json
+      payload:
+        $ref: ./json-schema/ProgramLimitSet.schema.json
+    RepaymentReceived:
+      name: RepaymentReceived
+      contentType: application/json
+      payload:
+        $ref: ./json-schema/RepaymentReceived.schema.json
+    ProgramReconciled:
+      name: ProgramReconciled
+      contentType: application/json
+      payload:
+        $ref: ./json-schema/ProgramReconciled.schema.json
+    FxRatePublished:
+      name: FxRatePublished
+      contentType: application/json
+      payload:
+        $ref: ./json-schema/FxRatePublished.schema.json

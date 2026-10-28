@@ -4,8 +4,10 @@ State carried between sessions. Read this first; update it before you stop.
 
 ## Now
 
-Lanes 0003 (treasury ingest) and 0004 (polish) in parallel. M1 closed at 70 minutes. Nothing is waiting on a human
-except the locked-baseline commit (below).
+Paused because the agent usage limit was reached. Lane 0003 is
+committed as an unreviewed WIP; lane 0004 is complete on branch
+`worktree-agent-ae0ecf817fc70646c` (5 commits, not merged; its architect review was
+interrupted). Resume steps: `.harness/4-state/BUDGET.md` "exact next action".
 
 ## Done
 

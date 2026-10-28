@@ -73,7 +73,11 @@ export interface OutboxEvent {
   readonly tenantId: string;
   readonly programId: string;
   readonly programSeq: number;
-  readonly type: 'ReservationCreated' | 'ReservationReleased';
+  readonly type:
+    | 'ReservationCreated'
+    | 'ReservationReleased'
+    | 'ProgramCapacityChanged'
+    | 'ReconciliationDriftDetected';
   readonly payload: unknown;
 }
 

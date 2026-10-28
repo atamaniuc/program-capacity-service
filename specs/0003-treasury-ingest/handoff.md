@@ -52,5 +52,6 @@ Not started. Lanes 0001 and 0002 are closed (see specs/TRACKS-LOG.md). `@conflue
 
 ## First step
 
-Write `test/kafka/treasury-consumer.kafka.test.ts` with `AC-10 a redelivered message has no
-effect` against Testcontainers Kafka and PostgreSQL; watch it fail; then T1.
+Session stopped at the usage limit; this lane's code was committed as an unreviewed WIP
+without re-running tests. Run `make verify && npm run test:int`, compare tasks.md ticks with
+what the tests prove, then continue with the first unticked task.

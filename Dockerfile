@@ -12,7 +12,10 @@ RUN npm run build
 FROM node:24-bookworm-slim AS prod-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts \
+    # --ignore-scripts also skips the native Kafka binding; fetch only that one.
+    && npm rebuild @confluentinc/kafka-javascript \
+    && npm cache clean --force
 
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production

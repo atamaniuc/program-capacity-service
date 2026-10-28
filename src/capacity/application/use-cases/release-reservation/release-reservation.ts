@@ -1,16 +1,11 @@
-import {
-  computeRelease,
-  currencyScale,
-  formatMoney,
-  type Money,
-  type Reservation,
-} from '#src/capacity/domain/index.js';
+import { currencyScale, formatMoney, type Money } from '#src/capacity/domain/index.js';
 import type { Clock, IdGenerator, TransactionScope, UnitOfWork } from '../../ports/index.js';
 import { fingerprintOf } from '../../shared/fingerprint.js';
 import { idempotently } from '../../shared/idempotent.js';
-import { rejected, succeeded, type Outcome } from '../../shared/problem.js';
+import { rejected, type Outcome } from '../../shared/problem.js';
 import type { RequestContext } from '../../shared/request-context.js';
-import { capacitySnapshot, moneyView, type ReleaseView } from '../../shared/views.js';
+import { releaseCapacity } from '../../shared/release-capacity.js';
+import type { ReleaseView } from '../../shared/views.js';
 
 export const RELEASE_ROUTE = '/v1/programs/{programId}/reservations/{reservationId}/releases';
 
@@ -97,99 +92,21 @@ export class ReleaseReservation {
       return rejected('not-found', 'Reservation not found.');
     }
 
-    const claimId = this.deps.ids.next();
-    const won = await tx.releases.claim({
-      id: claimId,
+    const outcome = await releaseCapacity(tx, this.deps.ids, {
+      tenantId,
+      programId,
       reservationId,
       releaseRef,
+      reason,
+      amount: command.amount,
       fingerprint,
-      reason,
-    });
-    if (!won) {
-      const earlier = await tx.releases.find(reservationId, releaseRef);
-      if (earlier === null || earlier.result === null) {
-        throw new Error('release_ref was claimed but has no committed result');
-      }
-      return earlier.fingerprint === fingerprint
-        ? (earlier.result as Outcome<ReleaseView>)
-        : rejected(
-            'release-ref-mismatch',
-            `releaseRef ${releaseRef} was already used with a different amount or reason.`,
-          );
-    }
-
-    const program = await tx.programs.lockForUpdate(tenantId, programId);
-    if (program === null) throw new Error('program vanished under an existing reservation');
-    const reservation = await tx.reservations.lockById(tenantId, programId, reservationId);
-    if (reservation === null) throw new Error('reservation vanished under the program lock');
-
-    const refuse = async (detail: string) => {
-      // A refused release leaves no trace, so the same releaseRef can be retried with a fix.
-      await tx.releases.discard(claimId);
-      return rejected<ReleaseView>('release-exceeds-remaining', detail);
-    };
-
-    const computed = computeRelease(
-      {
-        amountMinor: reservation.amountMinor,
-        releasedMinor: reservation.releasedMinor,
-        invoiceAmountMinor: reservation.invoiceAmount.minor,
-        releasedInvoiceMinor: reservation.releasedInvoiceMinor,
+      cause: {
+        type: 'http',
+        id: command.idempotencyKey ?? command.requestId,
+        actor: command.actor,
       },
-      command.amount?.minor,
-    );
-    if (!computed.ok) {
-      return refuse('The release is above the remaining invoice amount.');
-    }
-    const { invoiceMinor, programMinor, status } = computed.value;
-
-    const updated = await tx.programs.release(tenantId, programId, programMinor);
-    if (updated === null) throw new Error('invariant I1: reserved would drop below zero');
-    const next: Reservation = {
-      ...reservation,
-      releasedMinor: reservation.releasedMinor + programMinor,
-      releasedInvoiceMinor: reservation.releasedInvoiceMinor + invoiceMinor,
-      status,
-    };
-    await tx.reservations.applyRelease({
-      id: reservation.id,
-      releasedMinor: next.releasedMinor,
-      releasedInvoiceMinor: next.releasedInvoiceMinor,
-      status,
     });
-    await tx.ledger.append({
-      tenantId,
-      programId,
-      reservationId,
-      kind: 'RELEASE',
-      deltaReservedMinor: -programMinor,
-      deltaLimitMinor: 0n,
-      limitAfter: updated.creditLimitMinor,
-      reservedAfter: updated.reservedMinor,
-      causeType: 'http',
-      causeId: command.idempotencyKey ?? command.requestId,
-      actor: command.actor,
-    });
-
-    const view: ReleaseView = {
-      releaseRef,
-      reservationId,
-      reservationStatus: status,
-      reason,
-      invoiceAmount: moneyView(invoiceMinor, reservation.invoiceAmount.currency),
-      releasedAmount: moneyView(programMinor, program.currency),
-      remainingAmount: moneyView(next.amountMinor - next.releasedMinor, program.currency),
-      capacity: capacitySnapshot(updated),
-    };
-    const outcome = succeeded(200, view);
-    await tx.releases.complete(claimId, { invoiceMinor, programMinor }, outcome);
-    await tx.outbox.append({
-      tenantId,
-      programId,
-      programSeq: updated.platformSeq,
-      type: 'ReservationReleased',
-      payload: { tenantId, programId, programSeq: updated.platformSeq, ...view },
-    });
+    if (outcome === null) throw new Error('an HTTP release has no stale guard');
     return outcome;
   }
 }
