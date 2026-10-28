@@ -29,6 +29,8 @@ jobs:
         run: npm run typecheck
       - name: Layer rules
         run: npm run depcruise
+      - name: OpenAPI contract matches the zod schemas
+        run: npm run contracts:check
       - name: Unit and property tests with coverage gate
         run: npm run test:unit
 
