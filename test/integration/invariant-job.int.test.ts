@@ -124,12 +124,18 @@ describe('scheduled jobs', () => {
     await sql`UPDATE program SET reserved_minor = 260000 WHERE id = 'prg-bad'`.execute(
       persistence.db,
     );
-    await sql`UPDATE reservation SET released_minor = released_minor + 100,
-                     released_invoice_minor = released_invoice_minor + 100
-               WHERE program_id = 'prg-ok' AND invoice_id = 'INV-A'`.execute(persistence.db);
+    // Only the ledger is corrupted: an extra entry no reservation or program total accounts for.
+    await sql`INSERT INTO ledger_entry (tenant_id, program_id, kind, delta_reserved_minor,
+                                        limit_after, reserved_after, cause_type, cause_id, actor)
+              VALUES ('bank-a', 'prg-ok', 'RECON_ADJUST', 500, 100000000, 260500,
+                      'test', 'ledger-only-corruption', 'test')`.execute(persistence.db);
     const found = await new InvariantCheckJob(store, logger).run();
     expect(found.map((m) => m.programId)).toEqual(['prg-ok']);
-    expect(found[0]).toMatchObject({ reservedMinor: 260_000n, reservationsMinor: 259_900n });
+    expect(found[0]).toMatchObject({
+      reservedMinor: 260_000n,
+      reservationsMinor: 260_000n,
+      ledgerMinor: 260_500n,
+    });
     expect(loadRuntimeSettings({}).invariantCheckIntervalMs).toBe(5 * 60_000);
   });
 
