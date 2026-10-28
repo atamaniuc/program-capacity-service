@@ -12,6 +12,7 @@ const hotRelease = new Trend('hot_release_duration');
 const spreadRead = new Trend('spread_read_duration');
 const spreadReserve = new Trend('spread_reserve_duration');
 const spreadRelease = new Trend('spread_release_duration');
+const warmup = new Trend('warmup_duration');
 
 const hotRequests = new Counter('hot_requests');
 const spreadRequests = new Counter('spread_requests');
@@ -27,10 +28,22 @@ const PROGRAMS = [
   { tenant: 'bank-c', id: 'prg_nordic_eur', amount: { value: '100.00', currency: 'EUR' } },
 ];
 
-// NFR-03: the spread phase (load across six programs) runs first and is the one that proves the
-// targets: read p95 < 20 ms, reserve and release p95 < 50 ms. The hot phase (one program) follows.
+// A 20 s warm-up (JIT, connection pools, k6 VUs) runs first and is not measured: without it the
+// first measured phase pays the cold start, whichever it is. Then the spread phase (six programs)
+// proves NFR-03 (read p95 < 20 ms, reserve and release p95 < 50 ms), then the hot phase (one
+// program) shows the contention of NFR-04.
 export const options = {
   scenarios: {
+    warmup: {
+      executor: 'constant-arrival-rate',
+      exec: 'warmupPhase',
+      rate: 50,
+      timeUnit: '1s',
+      duration: '20s',
+      preAllocatedVUs: 20,
+      maxVUs: 50,
+      gracefulStop: '5s',
+    },
     spread: {
       executor: 'constant-arrival-rate',
       exec: 'spreadPhase',
@@ -39,6 +52,7 @@ export const options = {
       duration: '30s',
       preAllocatedVUs: 20,
       maxVUs: 50,
+      startTime: '25s',
       gracefulStop: '5s',
     },
     hot: {
@@ -49,7 +63,7 @@ export const options = {
       duration: '30s',
       preAllocatedVUs: 20,
       maxVUs: 50,
-      startTime: '35s',
+      startTime: '60s',
       gracefulStop: '5s',
     },
   },
@@ -119,7 +133,7 @@ function reserveRelease(
   releaseName,
   phase,
 ) {
-  const invoiceId = 'INV-K6-' + runId + '-' + __VU + '-' + __ITER + '-' + program.id;
+  const invoiceId = 'INV-K6-' + runId + '-' + phase + '-' + __VU + '-' + __ITER + '-' + program.id;
   const reserve = http.post(
     API + '/v1/programs/' + program.id + '/reservations',
     JSON.stringify({ invoiceId: invoiceId, amount: program.amount }),
@@ -133,7 +147,8 @@ function reserveRelease(
 
   if (reserve.status === 201) {
     const reservationId = reserve.json().reservationId;
-    const releaseRef = 'K6-REL-' + runId + '-' + __VU + '-' + __ITER + '-' + program.id;
+    const releaseRef =
+      'K6-REL-' + runId + '-' + phase + '-' + __VU + '-' + __ITER + '-' + program.id;
     const release = http.post(
       API + '/v1/programs/' + program.id + '/reservations/' + reservationId + '/releases',
       JSON.stringify({ releaseRef: releaseRef, reason: 'CANCELLED' }),
@@ -164,6 +179,25 @@ export function hotPhase(data) {
     'hot reserve ok',
     'hot release ok',
     'hot',
+  );
+}
+
+export function warmupPhase(data) {
+  const program = PROGRAMS[__ITER % PROGRAMS.length];
+  const headers = headersFor(data, program);
+  if (__ITER % 10 < 8) {
+    read(program, headers, 'warmup read ok', warmup, 'warmup');
+    return;
+  }
+  reserveRelease(
+    program,
+    headers,
+    data.runId,
+    warmup,
+    warmup,
+    'warmup reserve ok',
+    'warmup release ok',
+    'warmup',
   );
 }
 
