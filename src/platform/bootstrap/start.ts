@@ -13,7 +13,14 @@ import { NestPinoLogger, type Logger } from '../logging/logger.js';
 import { httpMetrics } from '../telemetry/http-metrics.js';
 import { loadRuntimeSettings, type RuntimeSettings } from '../telemetry/settings.js';
 import { AppModule } from './app.module.js';
+import { SHUTDOWN_DEADLINE_MS } from './shutdown.js';
 import { createTreasuryConsumer, startWorkerComponents, type WorkerComponents } from './worker.js';
+
+/**
+ * NFR-07: the consumer drain gets 40 % of the shutdown deadline, which leaves the rest for the
+ * relay and job stop, the pool and the ops server.
+ */
+const CONSUMER_DRAIN_MS = Math.floor(SHUTDOWN_DEADLINE_MS * 0.4);
 
 export interface RunningApp {
   readonly opsPort: number;
@@ -59,7 +66,7 @@ export async function startApp(
 
   const consumeTreasury = config.appRole === 'worker' || config.appRole === 'all';
   const consumer = consumeTreasury
-    ? createTreasuryConsumer(config, persistence, logger, registry)
+    ? createTreasuryConsumer(config, persistence, logger, registry, CONSUMER_DRAIN_MS)
     : null;
   await consumer?.start();
 

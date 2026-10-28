@@ -15,6 +15,8 @@ export interface RunnerOptions {
   readonly backoff?: { readonly baseMs: number; readonly maxMs: number };
   /** Called after a record was published to the DLQ; `reason` is the error code. */
   readonly onDlq?: (topic: string, reason: string) => void;
+  /** Bound on waiting for in-flight messages at stop (NFR-07); the caller sizes it to the shutdown deadline. */
+  readonly drainTimeoutMs?: number;
 }
 
 export interface RunnerState {
@@ -25,10 +27,8 @@ export interface RunnerState {
 }
 
 const DEFAULT_BACKOFF = { baseMs: 250, maxMs: 10_000 };
-/** NFR-07: SIGTERM drain budget for in-flight messages before the consumer disconnects. */
-const DRAIN_TIMEOUT_MS = 25_000;
-
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+/** NFR-07: default drain budget for in-flight messages before the consumer disconnects. */
+const DEFAULT_DRAIN_TIMEOUT_MS = 10_000;
 
 /**
  * Consumer runner (PRD §8, CP-3). Per record: the handler runs one DB transaction; only after
@@ -44,7 +44,8 @@ export class TreasuryConsumerRunner {
   private running = false;
   private paused = 0;
   private lastError: string | null = null;
-  private wake: (() => void) | null = null;
+  /** One waker per paused partition, so stop() releases every one of them. */
+  private readonly wakers = new Map<string, () => void>();
   private readonly committed = new Map<string, bigint>();
   private readonly inflight = new Set<Promise<void>>();
 
@@ -114,7 +115,7 @@ export class TreasuryConsumerRunner {
 
   async stop(): Promise<void> {
     this.stopping = true;
-    this.wake?.();
+    for (const wake of [...this.wakers.values()]) wake();
     this.running = false;
     // NFR-07: wait for in-flight messages to finish and commit their offsets, with a bounded
     // drain, then disconnect. A message still blocked after the budget is left for a redelivery.
@@ -124,11 +125,19 @@ export class TreasuryConsumerRunner {
   }
 
   private async drainInflight(): Promise<void> {
-    const deadline = Date.now() + DRAIN_TIMEOUT_MS;
+    const deadline = Date.now() + (this.options.drainTimeoutMs ?? DEFAULT_DRAIN_TIMEOUT_MS);
     while (this.inflight.size > 0) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) return;
-      await Promise.race([...this.inflight, delay(remaining)]);
+      let timer: NodeJS.Timeout | undefined;
+      const expired = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, remaining);
+      });
+      try {
+        await Promise.race([...this.inflight, expired]);
+      } finally {
+        clearTimeout(timer);
+      }
     }
   }
 
@@ -165,7 +174,7 @@ export class TreasuryConsumerRunner {
         }
         if (this.stopping) return;
         attempt += 1;
-        const delay = Math.min(backoff.maxMs, backoff.baseMs * 2 ** Math.min(attempt - 1, 10));
+        const delayMs = Math.min(backoff.maxMs, backoff.baseMs * 2 ** Math.min(attempt - 1, 10));
         this.options.logger.warn(
           {
             event: 'transient-failure',
@@ -173,11 +182,11 @@ export class TreasuryConsumerRunner {
             partition: raw.partition,
             offset: raw.offset.toString(),
             attempt,
-            delayMs: delay,
+            delayMs,
           },
           `transient failure, partition paused: ${this.lastError ?? ''}`,
         );
-        await this.pauseAndWait(raw, delay);
+        await this.pauseAndWait(raw, delayMs);
         if (this.stopping) return;
       }
     }
@@ -196,18 +205,23 @@ export class TreasuryConsumerRunner {
 
   private async pauseAndWait(raw: RawMessage, delayMs: number): Promise<void> {
     const target = [{ topic: raw.topic, partitions: [raw.partition] }];
+    const waker = `${raw.topic}/${raw.partition}`;
     this.paused += 1;
     try {
       this.consumer?.pause(target);
       await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, delayMs);
-        this.wake = () => {
-          clearTimeout(timer);
+        const timer = setTimeout(() => {
+          this.wakers.delete(waker);
           resolve();
-        };
+        }, delayMs);
+        this.wakers.set(waker, () => {
+          clearTimeout(timer);
+          this.wakers.delete(waker);
+          resolve();
+        });
       });
     } finally {
-      this.wake = null;
+      this.wakers.delete(waker);
       this.paused -= 1;
       try {
         this.consumer?.resume(target);

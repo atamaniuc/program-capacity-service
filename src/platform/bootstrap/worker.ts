@@ -36,6 +36,7 @@ export function createTreasuryConsumer(
   persistence: Persistence,
   logger: Logger,
   registry: Registry,
+  drainTimeoutMs: number,
 ): TreasuryConsumerRunner {
   const uow = new PostgresTreasuryUnitOfWork(persistence);
   const handler = new TreasuryMessageHandler({
@@ -61,6 +62,7 @@ export function createTreasuryConsumer(
     handler,
     logger,
     onDlq: createDlqMetrics(registry),
+    drainTimeoutMs,
   });
 }
 

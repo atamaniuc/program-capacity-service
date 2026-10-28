@@ -128,4 +128,32 @@ describe('TreasuryConsumerRunner shutdown drain', () => {
     );
     await runner.stop();
   });
+
+  it('NFR-07 stop wakes every paused partition, not only the last one', async () => {
+    const handler: MessageHandler = { handle: () => Promise.reject(new Error('db down')) };
+    const runner = new TreasuryConsumerRunner({
+      brokers: ['127.0.0.1:1'],
+      groupId: 'test-group',
+      topics: ['treasury.capacity.v1'],
+      handler,
+      logger: { info: vi.fn(), warn: vi.fn() },
+      backoff: { baseMs: 600_000, maxMs: 600_000 },
+    });
+    await runner.start();
+    const eachMessage = mocks.getEachMessage();
+    if (eachMessage === null) throw new Error('consumer was not started');
+    const deliveries = [0, 1].map((partition) =>
+      eachMessage({
+        topic: 'treasury.capacity.v1',
+        partition,
+        message: { offset: '0', key: null, value: Buffer.from('{}') },
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(runner.state().pausedPartitions).toBe(2);
+    });
+    await runner.stop();
+    await Promise.all(deliveries);
+    expect(runner.state().pausedPartitions).toBe(0);
+  });
 });
