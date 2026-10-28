@@ -25,6 +25,7 @@ export class InvariantCheckJob {
   async run(): Promise<readonly InvariantMismatch[]> {
     const mismatches = await this.store.findInvariantMismatches();
     this.metrics?.setInvariantMismatches(mismatches.length);
+    this.metrics?.setProgramsOverLimit(await this.store.countOverLimitPrograms());
     for (const mismatch of mismatches) {
       this.logger.error(
         {

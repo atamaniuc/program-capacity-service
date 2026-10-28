@@ -19,6 +19,7 @@ Cut order inside this lane, last cut first: NFR-10 OTel profile → FR-15 → FR
 
 ## P1
 
-- [ ] T6 — NFR-10 OpenTelemetry traces across HTTP, PostgreSQL and Kafka; `observability`
+- [x] T6 — NFR-10 OpenTelemetry traces across HTTP and PostgreSQL (Kafka: the relay is not
+  instrumented, no span there), `trace_id` in pino logs, RED and domain metrics; `observability`
   compose profile with Prometheus, Grafana dashboard and Jaeger; alert rules as code.
-  proof (planned): `test/e2e/observability.e2e.test.ts#NFR-10`
+  <!-- proof: test/e2e/observability.e2e.test.ts#NFR-10 -->

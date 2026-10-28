@@ -45,5 +45,6 @@ export interface EventPublisher {
 export interface OperationalMetrics {
   setOutboxLag(lag: OutboxLag): void;
   setInvariantMismatches(count: number): void;
+  setProgramsOverLimit(count: number): void;
   addRetentionDeleted(table: string, count: number): void;
 }

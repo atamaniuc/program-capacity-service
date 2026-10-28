@@ -1,3 +1,4 @@
+import { shutdownTelemetry } from '#src/platform/telemetry/register.js';
 import { loadConfig, ConfigError } from '#src/platform/config/config.js';
 import { closeWithin } from '#src/platform/bootstrap/shutdown.js';
 import { startApp } from '#src/platform/bootstrap/start.js';
@@ -10,13 +11,15 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: string): void => {
     logger.info({ signal }, 'shutdown requested');
-    closeWithin(app, logger).then(
-      () => process.exit(0),
-      (error: unknown) => {
-        logger.error({ error: String(error) }, 'shutdown failed');
-        process.exit(1);
-      },
-    );
+    closeWithin(app, logger)
+      .then(() => shutdownTelemetry())
+      .then(
+        () => process.exit(0),
+        (error: unknown) => {
+          logger.error({ error: String(error) }, 'shutdown failed');
+          process.exit(1);
+        },
+      );
   };
   process.once('SIGTERM', () => {
     shutdown('SIGTERM');

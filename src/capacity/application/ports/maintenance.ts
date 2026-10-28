@@ -24,5 +24,7 @@ export interface RetentionResult {
 export interface MaintenanceStore {
   /** Programs whose reserved total disagrees with their reservations or their ledger (I1). */
   findInvariantMismatches(): Promise<readonly InvariantMismatch[]>;
+  /** Programs whose reserved total exceeds the credit limit (expected after a limit cut). */
+  countOverLimitPrograms(): Promise<number>;
   deleteExpired(policy: RetentionPolicy): Promise<RetentionResult>;
 }

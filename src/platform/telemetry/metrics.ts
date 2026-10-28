@@ -18,6 +18,11 @@ export function createOperationalMetrics(registry: Registry): OperationalMetrics
     help: 'Programs whose reserved total disagrees with reservations or ledger at the last check.',
     registers: [registry],
   });
+  const overLimit = new Gauge({
+    name: 'programs_over_limit',
+    help: 'Programs whose reserved total exceeds the credit limit at the last check.',
+    registers: [registry],
+  });
   const deleted = new Counter({
     name: 'retention_deleted_rows_total',
     help: 'Rows removed by the retention cleanup job.',
@@ -31,6 +36,9 @@ export function createOperationalMetrics(registry: Registry): OperationalMetrics
     },
     setInvariantMismatches: (count) => {
       mismatches.set(count);
+    },
+    setProgramsOverLimit: (count) => {
+      overLimit.set(count);
     },
     addRetentionDeleted: (table, count) => {
       if (count > 0) deleted.inc({ table }, count);

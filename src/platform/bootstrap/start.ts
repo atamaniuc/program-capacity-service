@@ -10,6 +10,7 @@ import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js'
 import { startOpsServer, type OpsServer } from '../health/ops-server.js';
 import { renderApiDocs } from '../health/api-docs.js';
 import { NestPinoLogger, type Logger } from '../logging/logger.js';
+import { httpMetrics } from '../telemetry/http-metrics.js';
 import { loadRuntimeSettings, type RuntimeSettings } from '../telemetry/settings.js';
 import { AppModule } from './app.module.js';
 import { startWorkerComponents, type WorkerComponents } from './worker.js';
@@ -38,6 +39,7 @@ export async function startApp(
   let app: INestApplication | INestApplicationContext;
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
+    http.use(httpMetrics(registry));
     // Mounted before Nest registers the body parser (at init), so authentication comes first.
     http.use(
       '/v1',

@@ -1,0 +1,47 @@
+groups:
+  - name: program-capacity
+    rules:
+      # Runbook: "DLQ grows". `dlq_messages_total` is exported by the worker's Kafka consumers.
+      - alert: DlqGrowing
+        expr: increase(dlq_messages_total[15m]) > 0
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: Messages are landing in a dead-letter topic
+          runbook: docs/runbook.md#dlq-grows-dlqgrowing
+
+      # Runbook: "Relay stuck". The API keeps working; events wait in outbox_event.
+      - alert: OutboxLagHigh
+        expr: outbox_lag > 1000 or outbox_oldest_unpublished_age_seconds > 120
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: Outbox events are not reaching capacity.events.v1
+          runbook: docs/runbook.md#relay-stuck-outboxlaghigh
+
+      # FR-15: reserved disagrees with the reservations or the ledger. Never normal.
+      - alert: InvariantMismatch
+        expr: invariant_mismatch_programs > 0
+        for: 0m
+        labels: { severity: page }
+        annotations:
+          summary: A program's reserved total disagrees with its reservations or ledger
+          runbook: docs/runbook.md#drift-alert
+
+      # Expected after a limit cut; a ticket, not a page.
+      - alert: ProgramOverLimit
+        expr: programs_over_limit > 0
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: At least one program holds more than its credit limit
+          runbook: docs/runbook.md#program-over-limit-programoverlimit
+
+      - alert: ApiErrorRateHigh
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: More than 5% of API requests fail with 5xx

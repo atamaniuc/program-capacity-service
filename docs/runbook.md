@@ -144,3 +144,17 @@ intend the cut.
 The service handles SIGTERM: readiness turns false at once so the load balancer drains, in-flight
 requests finish, the relay hands back its lease, and the pool closes, all within 25 s (NFR-07).
 Set the orchestrator's termination grace period to at least 30 s.
+
+## Worker and telemetry settings
+
+Read from the environment by `src/platform/telemetry/settings.ts`; defaults match PRD §8.
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OUTBOX_RELAY_ENABLED` | `true` | `false` turns the relay off in `worker` and `all` roles (events still accumulate). |
+| `OUTBOX_LEASE_TTL_SECONDS` | `30` | Relay lease TTL, renewed on every batch. |
+| `OUTBOX_BATCH_SIZE` / `OUTBOX_POLL_INTERVAL_MS` | `200` / `500` | Rows per publish, pause when idle. |
+| `INVARIANT_CHECK_INTERVAL_SECONDS` | `300` | Invariant check period (FR-15). |
+| `RETENTION_CLEANUP_INTERVAL_SECONDS` | `3600` | Retention cleanup period. |
+| `RETENTION_IDEMPOTENCY_SECONDS` / `RETENTION_INBOX_SECONDS` / `RETENTION_OUTBOX_SECONDS` | 24 h / 7 d / 7 d | Age after which idempotency keys, inbox rows and published outbox rows are deleted. |
+| `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `false`, from the SDK | Starts the OpenTelemetry SDK before the app; the compose `observability` profile points it at Jaeger. |

@@ -39,6 +39,14 @@ export class PgMaintenanceStore implements MaintenanceStore {
     }));
   }
 
+  async countOverLimitPrograms(): Promise<number> {
+    const { rows } = await sql<{ over: string }>`
+      SELECT count(*) AS over FROM program WHERE reserved_minor > credit_limit_minor`.execute(
+      this.db,
+    );
+    return Number(rows[0]?.over ?? 0);
+  }
+
   async deleteExpired(policy: RetentionPolicy): Promise<RetentionResult> {
     const idempotency = await sql`
       DELETE FROM idempotency_key
