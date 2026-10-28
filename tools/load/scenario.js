@@ -1,7 +1,7 @@
 /* global __ENV, __ITER, __VU */
 import http from 'k6/http';
 import { check } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Counter, Trend } from 'k6/metrics';
 
 const API = __ENV.API_URL || 'http://host.docker.internal:3000';
 const ISSUER = __ENV.OAUTH_TOKEN_ISSUER || 'http://host.docker.internal:8081/default';
@@ -13,6 +13,11 @@ const spreadRead = new Trend('spread_read_duration');
 const spreadReserve = new Trend('spread_reserve_duration');
 const spreadRelease = new Trend('spread_release_duration');
 
+const hotRequests = new Counter('hot_requests');
+const spreadRequests = new Counter('spread_requests');
+
+const PHASE_SECONDS = 30;
+
 const PROGRAMS = [
   { tenant: 'bank-a', id: 'prg_grand_usd', amount: { value: '100.00', currency: 'USD' } },
   { tenant: 'bank-a', id: 'prg_aegean_eur', amount: { value: '100.00', currency: 'EUR' } },
@@ -22,18 +27,10 @@ const PROGRAMS = [
   { tenant: 'bank-c', id: 'prg_nordic_eur', amount: { value: '100.00', currency: 'EUR' } },
 ];
 
+// NFR-03: the spread phase (load across six programs) runs first and is the one that proves the
+// targets: read p95 < 20 ms, reserve and release p95 < 50 ms. The hot phase (one program) follows.
 export const options = {
   scenarios: {
-    hot: {
-      executor: 'constant-arrival-rate',
-      exec: 'hotPhase',
-      rate: 100,
-      timeUnit: '1s',
-      duration: '30s',
-      preAllocatedVUs: 20,
-      maxVUs: 50,
-      gracefulStop: '5s',
-    },
     spread: {
       executor: 'constant-arrival-rate',
       exec: 'spreadPhase',
@@ -42,9 +39,28 @@ export const options = {
       duration: '30s',
       preAllocatedVUs: 20,
       maxVUs: 50,
+      gracefulStop: '5s',
+    },
+    hot: {
+      executor: 'constant-arrival-rate',
+      exec: 'hotPhase',
+      rate: 100,
+      timeUnit: '1s',
+      duration: '30s',
+      preAllocatedVUs: 20,
+      maxVUs: 50,
       startTime: '35s',
       gracefulStop: '5s',
     },
+  },
+  thresholds: {
+    spread_read_duration: ['p(95)<20'],
+    spread_reserve_duration: ['p(95)<50'],
+    spread_release_duration: ['p(95)<50'],
+    'http_req_duration{phase:spread,kind:read}': ['p(95)<20'],
+    'http_req_duration{phase:spread,kind:reserve}': ['p(95)<50'],
+    'http_req_duration{phase:spread,kind:release}': ['p(95)<50'],
+    'http_req_failed{phase:spread}': ['rate<0.001'],
   },
 };
 
@@ -80,9 +96,14 @@ function headersFor(data, program) {
   };
 }
 
-function read(program, headers, name, trend) {
+function tags(phase, kind) {
+  return { phase: phase, kind: kind };
+}
+
+function read(program, headers, name, trend, phase) {
   const response = http.get(API + '/v1/programs/' + program.id + '/capacity', {
     headers: headers,
+    tags: tags(phase, 'read'),
   });
   trend.add(response.timings.duration);
   check(response, { [name]: (r) => r.status === 200 });
@@ -96,25 +117,30 @@ function reserveRelease(
   releaseTrend,
   reserveName,
   releaseName,
+  phase,
 ) {
   const invoiceId = 'INV-K6-' + runId + '-' + __VU + '-' + __ITER + '-' + program.id;
   const reserve = http.post(
     API + '/v1/programs/' + program.id + '/reservations',
     JSON.stringify({ invoiceId: invoiceId, amount: program.amount }),
-    { headers: headers },
+    {
+      headers: Object.assign({ 'idempotency-key': 'K6-RES-' + invoiceId }, headers),
+      tags: tags(phase, 'reserve'),
+    },
   );
   reserveTrend.add(reserve.timings.duration);
   check(reserve, { [reserveName]: (r) => r.status === 201 });
 
   if (reserve.status === 201) {
     const reservationId = reserve.json().reservationId;
+    const releaseRef = 'K6-REL-' + runId + '-' + __VU + '-' + __ITER + '-' + program.id;
     const release = http.post(
       API + '/v1/programs/' + program.id + '/reservations/' + reservationId + '/releases',
-      JSON.stringify({
-        releaseRef: 'K6-REL-' + runId + '-' + __VU + '-' + __ITER + '-' + program.id,
-        reason: 'CANCELLED',
-      }),
-      { headers: headers },
+      JSON.stringify({ releaseRef: releaseRef, reason: 'CANCELLED' }),
+      {
+        headers: Object.assign({ 'idempotency-key': releaseRef }, headers),
+        tags: tags(phase, 'release'),
+      },
     );
     releaseTrend.add(release.timings.duration);
     check(release, { [releaseName]: (r) => r.status === 200 });
@@ -124,8 +150,9 @@ function reserveRelease(
 export function hotPhase(data) {
   const program = PROGRAMS[0];
   const headers = headersFor(data, program);
+  hotRequests.add(1);
   if (__ITER % 10 < 8) {
-    read(program, headers, 'hot read ok', hotRead);
+    read(program, headers, 'hot read ok', hotRead, 'hot');
     return;
   }
   reserveRelease(
@@ -136,14 +163,16 @@ export function hotPhase(data) {
     hotRelease,
     'hot reserve ok',
     'hot release ok',
+    'hot',
   );
 }
 
 export function spreadPhase(data) {
   const program = PROGRAMS[__ITER % PROGRAMS.length];
   const headers = headersFor(data, program);
+  spreadRequests.add(1);
   if (__ITER % 10 < 8) {
-    read(program, headers, 'spread read ok', spreadRead);
+    read(program, headers, 'spread read ok', spreadRead, 'spread');
     return;
   }
   reserveRelease(
@@ -154,5 +183,35 @@ export function spreadPhase(data) {
     spreadRelease,
     'spread reserve ok',
     'spread release ok',
+    'spread',
   );
+}
+
+// Per-phase achieved iteration rate (iterations started per second of the 30 s phase) and the
+// p95 of each operation, printed after the run so a miss is visible next to the numbers.
+export function handleSummary(data) {
+  const lines = [
+    '',
+    'Per-phase results (NFR-03: read p95<20ms, reserve/release p95<50ms in spread)',
+  ];
+  for (const phase of ['spread', 'hot']) {
+    const iterations = data.metrics[phase + '_requests'];
+    const rate = iterations ? iterations.values.count / PHASE_SECONDS : 0;
+    lines.push('  ' + phase + ': ' + rate.toFixed(1) + ' iterations/s achieved (target 100/s)');
+    for (const op of ['read', 'reserve', 'release']) {
+      const metric = data.metrics[phase + '_' + op + '_duration'];
+      if (metric) {
+        lines.push('    ' + op + ' p95=' + metric.values['p(95)'].toFixed(1) + ' ms');
+      }
+    }
+  }
+  for (const name of Object.keys(data.metrics)) {
+    const thresholds = data.metrics[name].thresholds || {};
+    for (const rule of Object.keys(thresholds)) {
+      lines.push(
+        '  threshold ' + name + ' ' + rule + ': ' + (thresholds[rule].ok ? 'ok' : 'FAILED'),
+      );
+    }
+  }
+  return { stdout: lines.join('\n') + '\n' };
 }
