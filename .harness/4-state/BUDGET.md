@@ -15,8 +15,9 @@ k8s) → OTel profile → invariant job (FR-15) → list endpoints (FR-12) → o
 | 2026-10-28T15:43Z | pause: agent usage limit reached. Lane 0003 WIP committed unreviewed; lane 0004 done on branch worktree-agent-ae0ecf817fc70646c (unmerged, review interrupted) | 104 |
 | 2026-10-28T17:46Z | M2 gate: lane 0003 closed after architect review (APPROVE; 3 MINOR + 3 NOTE fixed, staging table, AC-16 tenant check); queue m2-treasury-ingest passing | 228 |
 | 2026-10-28T17:53Z | M3 gate: lane 0004 merged and closed (2 MAJOR fixed: consumer wiring kept, NFR-07 drain; all 10 mutation probes green); queue m3-polish passing; README/DECISIONS final | 235 |
+| 2026-10-28T18:57Z | M4 gate: lane 0005 closed after architect review (APPROVE; 3 MINOR + 1 NOTE addressed); queue m4-stretch passing; k6 load, ZAP workflow, k8s manifests delivered (FR-16 gRPC declined, ADR 022). | 299 |
 
-current lane: none active; 0005 paused (after the M3 gate, first to cut)
-last green command: `make verify && make test` via queue verify (m2-treasury-ingest and m3-polish both passing), `make demo`, `npx harnessimo check`
-exact next action: submission point (M3) reached — owner review. Lane 0005 stays cut: 65 min remained at the M3 gate and the PRD cut order cuts M4 first. Set `.harness/3-environment/locked-baseline` (human act). Note: PRD §10 "Drizzle v1 is an RC, latest 0.45" is stale — `npm view drizzle version` now returns 1.4.0; the PRD is frozen for agents, so the owner decides whether to update it.
+current lane: none — all five lanes closed; queue items m0, m1, m2, m3, m4 all passing
+last green command: `npx harnessimo queue verify m4-stretch` (`make verify && make test`: 88 unit + 97 int tests), `make load`, `make demo`, kubeconform 5/5, `npx harnessimo check`
+exact next action: submission complete — owner review. Human acts remain: set `.harness/3-environment/locked-baseline` (suggested 611505b); decide the PRD §10 Drizzle fact (`npm view drizzle version` = 1.4.0, PRD says rc/0.45); S7 CI has no git remote (workflows written, local equivalent green).
 resume command: `claude` in the repo root, then "continue from .harness/4-state/BUDGET.md exact next action"

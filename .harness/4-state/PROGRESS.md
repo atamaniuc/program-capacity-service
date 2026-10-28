@@ -4,8 +4,7 @@ State carried between sessions. Read this first; update it before you stop.
 
 ## Now
 
-M2 and M3 gates passed (17:53Z). Lanes 0003 and 0004 are
-closed; the submission point is reached. Lane 0005 (M4) stays paused: the PRD cut order cuts M4 first.
+All five lanes are closed and all queue gates are passing (m0, m1, m2, m3, m4). The submission is complete.
 
 ## Done
 
@@ -33,11 +32,16 @@ closed; the submission point is reached. Lane 0005 (M4) stays paused: the PRD cu
   m3-polish passing.
 - Architect review record: `.harness/4-state/architect-review-0003-0004.md`; rulings in
   DECISIONS and ADRs 007/008; DECISIONS ADR index complete for 001–021; README final.
+- M4: lane 0005 closed — FR-16 gRPC adapter declined before any code (ADR 022);
+  k6 load with per-phase NFR-03/NFR-04 numbers (spread: read 4.60 / reserve 13.39 / release
+  16.76 ms p95 — targets met; hot-program contention documented), ZAP workflow, k8s manifests
+  validated by kubeconform; architect review APPROVE with 3 MINOR + 1 NOTE, all addressed; queue
+  m4-stretch passing.
 
 ## Next
 
-1. Owner review of the M3 submission.
-2. 0005 only if the owner grants more budget; otherwise it stays cut.
+1. Owner review of the finished submission (M0–M4).
+2. Human acts: locked-baseline, PRD Drizzle fact decision, CI remote (see open questions).
 
 ## Open questions for the human
 
@@ -45,5 +49,4 @@ closed; the submission point is reached. Lane 0005 (M4) stays paused: the PRD cu
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
 - S7 (CI green on GitHub Actions) has no git remote to run against; workflows are written and the local equivalent (`make verify && make test`) is green.
 - CTO questions live in PRD §14.
-
 _Last updated: 2026-10-28_

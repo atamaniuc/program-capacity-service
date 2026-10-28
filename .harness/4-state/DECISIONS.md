@@ -127,3 +127,19 @@ handling at the boundary of a money service, and it would not move latency (the 
 limit is the row lock). Ports and adapters are already shown by HTTP and the Kafka repayment
 handler sharing `releaseCapacity`. Reasoning and revisit triggers: ADR 022. PRD FR-16, §10
 and §11, ADRs 017/018/021 and constraint 9 updated in the same commit.
+
+---
+
+## 2026-10-28 — Architect review of lane 0005: rulings
+
+The architect reviewed lane 0005 (M4) after its feature commit (APPROVE: 3 MINOR + 1 NOTE).
+The MINORs were fixed in the review-fix commit and the k6 spread-phase commit; the full
+reasoning is in `.harness/4-state/architect-review-0005.md`.
+
+- **Schema readiness** — readiness verifies `to_regclass('public.program')`, so api/worker
+  cannot become Ready before migrations have run.
+- **NFR-03/NFR-04** — k6 spread phase meets the targets (read 4.60 ms, reserve 13.39 ms,
+  release 16.76 ms p95 at 100 req/s); the hot-program phase is documented as row-lock
+  contention with the PRD scale path (capacity buckets, read replica).
+- **kubectl dry-run needs a cluster** — manifests were validated with kubeconform (5/5 valid);
+  kubectl has no context on this machine.

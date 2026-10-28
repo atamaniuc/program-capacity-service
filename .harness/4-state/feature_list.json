@@ -49,8 +49,10 @@
       "id": "m4-stretch",
       "behavior": "k6 load numbers for NFR-03/NFR-04, OWASP ZAP baseline workflow and Kubernetes manifests (lane 0005)",
       "verification": "make verify && make test",
-      "state": "not_started",
-      "kind": "code"
+      "state": "passing",
+      "kind": "code",
+      "evidence": "> vitest run --project int |  RUN  v5.0.5 /Users/datamaniuc/work/finverity |  Test Files  23 passed (23) |       Tests  97 passed (97) |    Start at  21:32:07 |    Duration  215.39s (tests 88%, import 12%)",
+      "last_failure": null
     }
   ]
 }
