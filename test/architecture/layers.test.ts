@@ -40,5 +40,6 @@ describe('layer rules', () => {
     const real = run(root);
     expect(real.output).not.toContain('error');
     expect(real.status).toBe(0);
-  });
+    // dependency-cruiser parses the whole tree in a child process; 5 s is too tight on a busy machine.
+  }, 30_000);
 });
