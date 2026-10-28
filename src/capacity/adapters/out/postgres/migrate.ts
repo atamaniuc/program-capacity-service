@@ -10,6 +10,14 @@ export interface MigrationResult {
   readonly applied: readonly string[];
 }
 
+/** The file name of the newest migration; readiness requires it to be recorded. */
+export async function latestMigration(directory: string = MIGRATIONS_DIR): Promise<string> {
+  const files = (await readdir(directory)).filter((name) => /^\d{4}_.+\.sql$/.test(name)).sort();
+  const latest = files.at(-1);
+  if (latest === undefined) throw new Error(`no migration files in ${directory}`);
+  return latest;
+}
+
 /** Applies every `NNNN_*.sql` file not yet recorded, in name order, one transaction per file. */
 export async function migrate(
   databaseUrl: string,

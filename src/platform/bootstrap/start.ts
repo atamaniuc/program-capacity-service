@@ -4,6 +4,7 @@ import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { sql } from 'kysely';
 import { Registry } from 'prom-client';
 import { createPersistence } from '#src/capacity/adapters/out/postgres/db.js';
+import { latestMigration } from '#src/capacity/adapters/out/postgres/migrate.js';
 import type { Config } from '../config/config.js';
 import { createAuthMiddleware, JwtVerifier } from '#src/capacity/adapters/in/http/auth.js';
 import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js';
@@ -76,14 +77,18 @@ export async function startApp(
       ? null
       : startWorkerComponents(persistence, config, settings, logger, registry);
 
+  const latest = await latestMigration();
   const ops: OpsServer = await startOpsServer({
     registry,
     port: config.opsPort,
     documents: serveHttp ? renderApiDocs(buildOpenApiDocument()) : {},
     checks: {
       db: async () => {
+        // The newest migration file must be recorded, so a half-migrated schema is not ready.
         const { rows } = await sql<{ migrated: boolean }>`
-          SELECT to_regclass('public.program') IS NOT NULL AS migrated`.execute(persistence.db);
+          SELECT to_regclass('public.schema_migrations') IS NOT NULL
+             AND EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ${latest})
+                 AS migrated`.execute(persistence.db);
         if (rows[0]?.migrated !== true) throw new Error('schema is not migrated');
       },
       ...(consumer === null ? {} : { kafka: () => consumer.check() }),
