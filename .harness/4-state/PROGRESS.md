@@ -4,7 +4,12 @@ State carried between sessions. Read this first; update it before you stop.
 
 ## Now
 
-All five lanes are closed and all queue gates are passing (m0, m1, m2, m3, m4). The submission is complete.
+All five lanes are closed and all queue gates pass. A post-submission review of lanes
+0003–0005 found 1 BLOCKER and 5 MAJOR items; all are fixed,
+re-reviewed (APPROVE) and recorded in DECISIONS. Docs were rewritten for human readers
+(`docs/README.md`), the gRPC adapter was declined (ADR 022), `/docs` became an interactive
+Swagger UI, and the k6 numbers were re-measured with a warm-up. Last full run: 95 unit + 100
+integration tests green.
 
 ## Done
 

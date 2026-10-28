@@ -50,9 +50,10 @@ Questions we would ask the product owner are listed in [PRD §14](PRD.md#14-assu
 
 Honest list of what this version does not do, or does only partly.
 
-- **Hot program throughput.** All writes to one program queue on its row lock. The load test
-  shows p95 well above target when every request hits one program. The fix (capacity buckets:
-  split one limit into N rows) is designed in PRD §8 but not built.
+- **Hot program throughput.** All writes to one program queue on its row lock. At 20 writes/s
+  on one program the load test shows reserve p95 of 28–58 ms, about twice the spread case; the
+  ceiling of one program was not measured. The fix (capacity buckets: split one limit into N
+  rows) is designed in PRD §8 but not built.
 - **One outbox relay.** Publishing is single-threaded across all programs. Fine at this
   volume; the scale path is a lease per partition of programs.
 - **Kubernetes manifests are a starting point**, validated with `kubeconform` but never

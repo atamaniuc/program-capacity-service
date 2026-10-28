@@ -1,8 +1,8 @@
 # Architect review — lanes 0003 & 0004
 
 Reviewer: architect (subagent) · Date: 2026-02-05 (session time)
-Method: read-only inspection of main @ 39ef69e (lane 0003) and branch
-`worktree-agent-ae0ecf817fc70646c` @ 1081e1f (lane 0004, read via `git show`).
+Method: read-only inspection of main before the 0003 fixes (lane 0003; fixes in 0a0961e) and branch
+`worktree-agent-ae0ecf817fc70646c` @ 4eda209 (lane 0004, read via `git show`).
 Baseline run (no containers): the five 0003 unit/contract test files pass — 26/26 tests
 (`vitest` exit 0). Container tests (kafka/fault) were not run; mutation probes were not
 executed because the review mandate forbids editing source, so exact mutations to run later
@@ -10,7 +10,7 @@ are stated instead.
 
 ---
 
-## Lane 0003 — Treasury ingest (main @ 39ef69e)
+## Lane 0003 — Treasury ingest (before the fixes in 0a0961e)
 
 **Verdict: APPROVE** — 0 MAJOR · 3 MINOR · 3 NOTE
 
@@ -89,15 +89,15 @@ The 0003 container suite is well targeted; the only weak assertion is NOTE-2.
 
 ---
 
-## Lane 0004 — Production polish (branch `worktree-agent-ae0ecf817fc70646c` @ 1081e1f)
+## Lane 0004 — Production polish (branch `worktree-agent-ae0ecf817fc70646c` @ 4eda209)
 
 **Verdict: CHANGES REQUIRED** — 2 MAJOR · 0 MINOR · 3 NOTE
 
 ### Findings
 
 **MAJOR-1 · The branch's worker bootstrap does not run the lane 0003 treasury consumer.**
-- Evidence: `git merge-base main worktree-agent-ae0ecf817fc70646c` = `5d5b03c` (pre-0003);
-  main has the consumer at 39ef69e. On the branch,
+- Evidence: `git merge-base main worktree-agent-ae0ecf817fc70646c` = `b638a54` (pre-0003);
+  main has the consumer before the fixes. On the branch,
   `src/platform/bootstrap/worker.ts:24-76` defines `startWorkerComponents` with only the
   outbox relay and the two jobs; `src/platform/bootstrap/start.ts:60-64` calls only that;
   `git grep 'TreasuryConsumerRunner|createTreasuryConsumer|consumer.check'` over the branch's

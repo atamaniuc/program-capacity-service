@@ -13,7 +13,7 @@ Read in this order. Each step says what you should know after it.
 | 5 | 10 min | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) and [infrastructure-choices.md](infrastructure-choices.md) | Why it is built this way, and what was left out on purpose |
 | 6 | 10 min | Code: `src/capacity/domain/` → `application/use-cases/reserve-capacity/` → `adapters/in/http/capacity.controller.ts` → `adapters/out/postgres/unit-of-work.ts`; then [testing.md](testing.md) | One request from the controller down to the SQL, and how it is tested |
 
-Optional, when you need them: [runbook.md](runbook.md) (operating the service, alerts),
+Optional, when you need them: [repository-map.md](repository-map.md) (what every file is for), [runbook.md](runbook.md) (operating the service, alerts),
 [PRD.md](PRD.md) (the full requirements, about 600 lines), the decision records below.
 
 ## All documents
@@ -22,7 +22,8 @@ Optional, when you need them: [runbook.md](runbook.md) (operating the service, a
 | --- | --- |
 | [how-it-works.md](how-it-works.md) | The domain in plain words, with a worked example |
 | [architecture.md](architecture.md) | C4 context, containers and components; sequence diagrams; data model |
-| [api.md](api.md) | REST API tour with curl, error catalogue |
+| [repository-map.md](repository-map.md) | Every folder and file: purpose and layer |
+| [api.md](api.md) | REST API tour: Swagger UI and curl, error catalogue |
 | [testing.md](testing.md) | Test levels, how to run them, requirement-to-test mapping |
 | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) | Every assumption and trade-off, with links to ADRs; known limits |
 | [infrastructure-choices.md](infrastructure-choices.md) | PgBouncer, Debezium/CDC, Floci/LocalStack, gRPC, Redis: why not now, when |

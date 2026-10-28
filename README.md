@@ -33,7 +33,7 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 | Different currencies | Treasury FX rates, fixed per reservation, exact integer maths, rounding rules per currency (USD 2 decimals, KWD 3) |
 | All endpoints authenticated | JWT (OAuth2 client credentials, JWKS), scopes, tenant isolation <!-- proof: test/e2e/auth.e2e.test.ts#AC-13 --> |
 | Runnable locally | `make up`: Docker Compose with PostgreSQL, Kafka, an OAuth2 server, the API and the worker <!-- proof: Makefile --> |
-| Production code | Idempotency keys, inbox/outbox, dead-letter topics, graceful shutdown, health checks, metrics, traces, 185 tests on real PostgreSQL and Kafka |
+| Production code | Idempotency keys, inbox/outbox, dead-letter topics, graceful shutdown, health checks, metrics, traces; 195 tests, 100 of them against real PostgreSQL and Kafka |
 | Assumptions and trade-offs documented | [docs/assumptions-and-trade-offs.md](docs/assumptions-and-trade-offs.md) |
 
 ## Quick start
@@ -123,6 +123,8 @@ C4 diagrams, the flows step by step and the data model: [docs/architecture.md](d
 | `docs/` | Everything to read; start at [docs/README.md](docs/README.md) |
 | `.harness/`, `specs/`, `AGENTS.md`, `CLAUDE.md`, `.claude/` | The AI-assisted build process; not needed to understand the service ([docs/development-process.md](docs/development-process.md)) |
 
+Every file, its purpose and its layer: [docs/repository-map.md](docs/repository-map.md).
+
 ## Checks
 
 ```bash
@@ -138,17 +140,23 @@ its id (`grep -rn "AC-08" test src`). Details: [docs/testing.md](docs/testing.md
 
 ## Load test
 
-`make load` runs [k6](https://k6.io) in Docker at 100 requests/s (80% capacity reads, 20%
-reserve-then-release pairs) on a laptop (macOS, Apple silicon), in two phases:
+`make load` runs [k6](https://k6.io) in Docker against the compose stack on a laptop (macOS,
+Apple silicon): a 20 s warm-up that is not measured, then two 30 s phases at 100 requests/s
+(80% capacity reads, 20% reserve-then-release pairs, each write with an `Idempotency-Key`). The
+run **fails** when the spread phase misses NFR-03 (read p95 < 20 ms, reserve and release p95 <
+50 ms). Two consecutive runs:
 
-- **Spread over 6 programs** (the normal case): p95 read 4.6 ms, reserve 13.4 ms, release
-  16.8 ms. Targets (NFR-03: read ≤ 20 ms, writes ≤ 50 ms) are met.
-- **Every request on one program** (the worst case): p95 rises to hundreds of milliseconds,
-  because every write to that program waits for its row lock. This is the expected price of
-  the locking design; the scale path (split one limit into several "capacity buckets") is
-  described in [PRD §8](docs/PRD.md#8-system-design) and not built.
+| Phase | Read p95 | Reserve p95 | Release p95 |
+| --- | --- | --- | --- |
+| Spread over 6 programs (the normal case) | 3.5–4.3 ms | 18.6–25.2 ms | 21.6–25.4 ms |
+| Every request on one program (worst case, 20 writes/s on one row) | 4.4–9.8 ms | 27.5–57.8 ms | 29.4–61.8 ms |
 
-These are single runs on a developer machine, useful for comparison, not as a benchmark.
+At this rate one program absorbs the writes; its p95 is about twice the spread case, because
+the writes queue on the program's row lock. The ceiling of one program was not measured. When
+it matters, the scale path is to split one limit into several "capacity buckets"
+([PRD §8](docs/PRD.md#8-system-design), not built). Without the warm-up, whichever phase runs
+first pays the cold start (JIT, connection pools) and misses the target by a wide margin.
+These are laptop runs, useful for comparison, not a benchmark.
 <!-- proof: make load -->
 
 ## Assumptions and trade-offs (short)

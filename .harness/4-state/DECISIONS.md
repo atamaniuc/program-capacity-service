@@ -67,8 +67,8 @@ Given/When/Then in specs and test names, no Gherkin runtime.
 
 ## 2026-10-28 — Architect review of lane 0002: rulings
 
-The architect reviewed f875699 cold (verdict CHANGES REQUIRED: 1 major, 5 minor), and the
-findings were fixed in 5d5b03c. The rulings below are durable; the full reasoning is in the
+The architect reviewed f10d012 cold (verdict CHANGES REQUIRED: 1 major, 5 minor), and the
+findings were fixed in b638a54. The rulings below are durable; the full reasoning is in the
 ADRs.
 
 - **`release_ref` FK is `DEFERRABLE INITIALLY DEFERRED`** ([ADR 003](../../docs/adr/003-concurrency-lock-order.md)).
@@ -98,8 +98,8 @@ review.
 
 ## 2026-10-28 — Architect review of lanes 0003/0004: rulings
 
-The architect reviewed 0003 cold at 39ef69e (APPROVE: 3 MINOR, 3 NOTE) and 0004 on branch
-`worktree-agent-ae0ecf817fc70646c` at 1081e1f (CHANGES REQUIRED: 2 MAJOR, 3 NOTE). Every
+The architect reviewed 0003 cold before its fixes (they landed in 0a0961e) (APPROVE: 3 MINOR, 3 NOTE) and 0004 on branch
+`worktree-agent-ae0ecf817fc70646c` at 4eda209 (CHANGES REQUIRED: 2 MAJOR, 3 NOTE). Every
 MAJOR and MINOR was fixed before the M2/M3 gates; the full reasoning is in
 `.harness/4-state/architect-review-0003-0004.md`.
 
@@ -143,3 +143,45 @@ reasoning is in `.harness/4-state/architect-review-0005.md`.
   contention with the PRD scale path (capacity buckets, read replica).
 - **kubectl dry-run needs a cluster** — manifests were validated with kubeconform (5/5 valid);
   kubectl has no context on this machine.
+
+---
+
+## 2026-10-28 — Second review of lanes 0003–0005: rulings
+
+A second fresh-context architect review of the lanes 0003–0005 code found 1 BLOCKER, 5 MAJOR and several
+MINOR items; all were fixed in one commit and re-reviewed.
+
+- **B1 — a program is the `(tenantId, programId)` pair; no cross-tenant lookup.** The limit
+  path had gained `findAnyTenant(programId)` and refused a `ProgramLimitSet` when another tenant
+  owned the same id. With bank-a and bank-b both owning `prg` (allowed by A12, required by
+  AC-16), every limit change of bank-b went to the DLQ, so a limit *cut* never landed and bank-b
+  kept reserving against the old limit. The lookup is removed; the Kafka key-vs-body check
+  stays; which tenant may write a topic is a Kafka ACL concern. PRD §9 and ADR 007 now say so.
+  Proof: `AC-16 sets the limit only on the message tenant's program when another tenant uses the
+  same program id`.
+- **M1 — staging keyed by message and run.** Concurrent deliveries of one snapshot collided on
+  the staging primary key (23505, classed permanent → DLQ). Step-by-step in ADR 008 "Why staging
+  rows are keyed by message and run"; migration 0004; orphan sweep after 1 h. Proof: `AC-10 two
+  concurrent deliveries of the same snapshot apply once and neither fails`.
+- **M2 — the DLQ alert was dead.** `alerts.yaml` read `dlq_messages_total`, which nothing
+  emitted. The consumer now counts each successful DLQ send by topic and reason. ADR 013 lists the
+  metrics that really exist; consumer lag is taken from the broker side, not the service.
+- **M3 — bounded drift events.** `ReconciliationDriftDetected` carries at most 100 drifts plus
+  `driftCount` and `truncated`; an unbounded list could exceed 1 MB and stall the single outbox
+  relay for every tenant.
+- **M4 — the FR-15 ledger branch is now tested**: the test corrupts only `ledger_entry`, and
+  fails when the ledger comparison is deleted from the invariant query (probed).
+- **M5 — load numbers.** The old hot-phase figures (reserve p95 ≈ 1.3 s) were a cold-start
+  artefact: the hot phase ran first. Re-running with spread first moved the slowness to the
+  spread phase (≈ 400 ms) and made the hot phase fast, which proved it. The scenario now has an
+  unmeasured 20 s warm-up, sends an `Idempotency-Key`, and fails `make load` when NFR-03 is
+  missed. Two warm runs: spread reserve p95 19–25 ms; hot (20 writes/s on one row) 28–58 ms.
+  The README reports ranges and states that a single program's ceiling was not measured.
+- **Minors**: per-partition wake-ups and cleared timers in the consumer; consumer drain capped
+  at 40% of the shutdown deadline; retention floors (24 h keys, 7 d inbox) enforced at start-up;
+  readiness requires the latest migration; database URL moved to a Kubernetes Secret, resources
+  and grace period added; a test named "MAJOR-1" renamed to its requirement id.
+
+Lesson for future lanes: a change that adds a lookup across tenants, or a table shared between
+concurrent executions, is checked against PRD A12/AC-16 and against a concurrent duplicate
+delivery before it is written.
