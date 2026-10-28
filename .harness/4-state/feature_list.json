@@ -31,15 +31,19 @@
       "id": "m2-treasury-ingest",
       "behavior": "treasury events, FX and reconciliation hold AC-07..AC-12, AC-14, AC-15 on real Kafka and PostgreSQL (lane 0003)",
       "verification": "make verify && make test",
-      "state": "not_started",
-      "kind": "code"
+      "state": "passing",
+      "kind": "code",
+      "evidence": " ✓ |int| test/integration/invariant-job.int.test.ts (4 tests) 3079ms |  ✓ |int| test/kafka/contracts.test.ts (3 tests) 159ms |  Test Files  23 passed (23) |       Tests  97 passed (97) |    Start at  19:46:59 |    Duration  169.21s (tests 89%, import 11%)",
+      "last_failure": null
     },
     {
       "id": "m3-polish",
       "behavior": "queries, outbox relay, invariant job, outage and shutdown behaviour meet FR-12, FR-13, FR-15, NFR-06, NFR-07 (lane 0004)",
       "verification": "make verify && make test",
-      "state": "not_started",
-      "kind": "code"
+      "state": "passing",
+      "kind": "code",
+      "evidence": " ✓ |int| test/integration/program-guard.int.test.ts (3 tests) 2888ms |  ✓ |int| test/kafka/contracts.test.ts (3 tests) 139ms |  Test Files  23 passed (23) |       Tests  97 passed (97) |    Start at  19:50:31 |    Duration  173.50s (tests 89%, import 10%)",
+      "last_failure": null
     },
     {
       "id": "m4-stretch",

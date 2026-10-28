@@ -4,10 +4,8 @@ State carried between sessions. Read this first; update it before you stop.
 
 ## Now
 
-Paused because the agent usage limit was reached. Lane 0003 is
-committed as an unreviewed WIP; lane 0004 is complete on branch
-`worktree-agent-ae0ecf817fc70646c` (5 commits, not merged; its architect review was
-interrupted). Resume steps: `.harness/4-state/BUDGET.md` "exact next action".
+M2 and M3 gates passed (17:53Z). Lanes 0003 and 0004 are
+closed; the submission point is reached. Lane 0005 (M4) stays paused: the PRD cut order cuts M4 first.
 
 ## Done
 
@@ -26,15 +24,26 @@ interrupted). Resume steps: `.harness/4-state/BUDGET.md` "exact next action".
 - M1: lane 0002 closed — reserve/release/read, idempotency, JWT auth, ledger, OpenAPI; AC-01..06,
   AC-13, AC-16, AC-17 green; architect review found a missing guard test and 5 hardening items,
   all fixed; ADRs 003/004/005/006/010/011/014/015/019.
+- M2: lane 0003 closed — Kafka consumer (inbox/DLQ/backoff), FX, reconciliation with the
+  `reconcile_snapshot_row` staging table, simulator, seeds, `make dlq-replay`; architect review
+  APPROVE with 3 MINOR + 3 NOTE, all fixed; queue m2-treasury-ingest passing.
+- M3: lane 0004 merged (`worktree-agent-ae0ecf817fc70646c`) and closed — queries, outbox relay,
+  jobs, outage/SIGTERM behaviour, observability; architect review CHANGES REQUIRED with 2 MAJOR
+  (consumer wiring kept at merge, NFR-07 drain), fixed; all 10 mutation probes green; queue
+  m3-polish passing.
+- Architect review record: `.harness/4-state/architect-review-0003-0004.md`; rulings in
+  DECISIONS and ADRs 007/008; DECISIONS ADR index complete for 001–021; README final.
 
 ## Next
 
-1. 0003 and 0004 in parallel; architect review of each before its gate.
-2. M3 gate: S1–S8, README, dated facts; then 0005 only if > 60 min left.
+1. Owner review of the M3 submission.
+2. 0005 only if the owner grants more budget; otherwise it stays cut.
 
 ## Open questions for the human
 
 - Set `.harness/3-environment/locked-baseline` (suggested: bootstrap commit 611505b) — a human act.
+- PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
+- S7 (CI green on GitHub Actions) has no git remote to run against; workflows are written and the local equivalent (`make verify && make test`) is green.
 - CTO questions live in PRD §14.
 
 _Last updated: 2026-10-28_

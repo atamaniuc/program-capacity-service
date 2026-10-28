@@ -13,8 +13,10 @@ k8s) → OTel profile → invariant job (FR-15) → list endpoints (FR-12) → o
 | 2026-10-28T14:27Z | M0 gate: lane 0001 closed (make verify, test:int 5/5, make up healthy, make token); JWT aud aligned to PRD; queue m0-skeleton passing | 28 |
 | 2026-10-28T15:09Z | M1 gate: lane 0002 closed after architect review (1 MAJOR + 5 MINOR fixed; guard mutation-proven); queue m1 passing; Kafka/OTel deps pre-installed | 70 |
 | 2026-10-28T15:43Z | pause: agent usage limit reached. Lane 0003 WIP committed unreviewed; lane 0004 done on branch worktree-agent-ae0ecf817fc70646c (unmerged, review interrupted) | 104 |
+| 2026-10-28T17:46Z | M2 gate: lane 0003 closed after architect review (APPROVE; 3 MINOR + 3 NOTE fixed, staging table, AC-16 tenant check); queue m2-treasury-ingest passing | 228 |
+| 2026-10-28T17:53Z | M3 gate: lane 0004 merged and closed (2 MAJOR fixed: consumer wiring kept, NFR-07 drain; all 10 mutation probes green); queue m3-polish passing; README/DECISIONS final | 235 |
 
-current lane: 0003 (WIP, unreviewed, in main) + 0004 (done on branch worktree-agent-ae0ecf817fc70646c, unmerged)
-last green command: `npx harnessimo check` + `tsc --noEmit` on the 0003 WIP (tests not re-run)
-exact next action: (1) `make status`; (2) `make verify && npm run test:int` on 0003 WIP, finish its unticked tasks (specs/0003-treasury-ingest/tasks.md); (3) `git merge worktree-agent-ae0ecf817fc70646c` — expect conflicts in src/platform/bootstrap/**, src/capacity/capacity.module.ts, src/capacity/application/ports/index.ts, deploy/compose.yaml; (4) architect review of 0003 (consumer, reconciliation) and 0004 (relay lease, mutation probes — tests were written after code); (5) M2/M3 gates, README, DECISIONS ADR index for 001/002/009/013/017/021
+current lane: none active; 0005 paused (after the M3 gate, first to cut)
+last green command: `make verify && make test` via queue verify (m2-treasury-ingest and m3-polish both passing), `make demo`, `npx harnessimo check`
+exact next action: submission point (M3) reached — owner review. Lane 0005 stays cut: 65 min remained at the M3 gate and the PRD cut order cuts M4 first. Set `.harness/3-environment/locked-baseline` (human act). Note: PRD §10 "Drizzle v1 is an RC, latest 0.45" is stale — `npm view drizzle version` now returns 1.4.0; the PRD is frozen for agents, so the owner decides whether to update it.
 resume command: `claude` in the repo root, then "continue from .harness/4-state/BUDGET.md exact next action"
