@@ -13,9 +13,9 @@ Cut order inside this lane, last cut first: NFR-10 OTel profile → FR-15 → FR
   cursor pagination. <!-- proof: test/e2e/queries.e2e.test.ts#FR-12 -->
 - [x] T4 — FR-15 invariant job every 5 minutes; retention cleanup job (NFR-11).
   <!-- proof: test/integration/invariant-job.int.test.ts#FR-15 -->
-- [ ] T5 — README honest (built / not built / cut order / production mapping / time spent),
-  `docs/runbook.md` for CP-1..CP-5, remaining ADRs (001, 002, 009, 013, 017, 021), dated facts
-  re-checked. proof (planned): `docs/runbook.md`
+- [x] T5 — `docs/runbook.md` for CP-1..CP-5 and PRD §13 entries, remaining ADRs (001, 002, 009,
+  013, 017, 021). The README rewrite and the dated-facts re-check move to the lead: README.md is
+  outside this lane's Owns. <!-- proof: docs/runbook.md -->
 
 ## P1
 
