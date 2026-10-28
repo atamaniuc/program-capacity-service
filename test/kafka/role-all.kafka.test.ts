@@ -12,7 +12,7 @@ import { connectProducer, type SimulatorProducer } from '../../tools/simulator/p
 import { startFaultApp, waitFor, type FaultApp } from '../support/fault-app.js';
 import { startPostgres, type TestPostgres } from '../support/postgres.js';
 
-describe('worker role wiring (MAJOR-1 regression)', () => {
+describe('worker role wiring', () => {
   let postgres: TestPostgres;
   let kafka: TestKafka;
   let service: FaultApp;
@@ -77,7 +77,7 @@ describe('worker role wiring (MAJOR-1 regression)', () => {
     return seen;
   };
 
-  it('MAJOR-1 the all role ingests a treasury message and the relay publishes its outbox event', async () => {
+  it('FR-13 the all role ingests a treasury message and the relay publishes its outbox event', async () => {
     await producer.send([
       limitSet(
         { tenantId: 'bank-a', programId: 'prg-relay', seq: 1 },
