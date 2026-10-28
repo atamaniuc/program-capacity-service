@@ -23,7 +23,14 @@ For every record the order is:
 1. Decode JSON and validate the envelope with zod. A record that cannot be decoded or
    validated is a permanent error.
 2. For capacity messages, check that the Kafka key equals `tenantId:programId` of the body;
-   a key that names another tenant or program is refused (`tenant-mismatch`).
+   a key that names another tenant or program is refused (`tenant-mismatch`). This is the
+   only tenant check on the limit path. A program is the pair `(tenantId, programId)`
+   (PRD A12, AC-16), so a `ProgramLimitSet` never looks at other tenants' programs: two banks
+   may both have a `prg`. A cross-tenant lookup was briefly added after the lane 0003 review
+   and removed after the 0003–0005 review: with two banks sharing an id it sent every limit
+   change of the second bank to the DLQ, leaving that bank on its old, possibly higher,
+   limit. Which tenant may write which topic is enforced by Kafka ACLs on the treasury
+   principal, not by the consumer.
 3. Run the use case in one PostgreSQL transaction. The inbox row `(consumer, message_id)` is
    the dedup row: `INSERT … ON CONFLICT DO NOTHING` claims it, a duplicate skips. Then the
    program row is locked and a message with `seq ≤ treasury_seq` is skipped as stale (I7).

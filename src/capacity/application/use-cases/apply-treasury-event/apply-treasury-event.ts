@@ -64,15 +64,7 @@ export class ApplyTreasuryEvent {
     const { tenantId, programId, seq, messageId } = message;
     if (!(await tx.inbox.claim(source, messageId))) return { status: 'duplicate' };
     const limit = moneyOf(message.payload.creditLimit);
-    // Treasury ACL (PRD §9): a program id owned by another tenant is rejected, never shadowed
-    // by a parallel row under the message tenant.
-    const existing = await tx.treasuryPrograms.findAnyTenant(programId);
-    if (existing !== null && existing.tenantId !== tenantId) {
-      throw new PermanentError(
-        'tenant-mismatch',
-        `program ${programId} is owned by ${existing.tenantId}, not ${tenantId}`,
-      );
-    }
+    // Program ids are unique per tenant only, keyed (tenant_id, id) (AC-16, ADR 011).
     await tx.treasuryPrograms.createIfMissing({
       tenantId,
       id: programId,

@@ -396,7 +396,7 @@ Treasury message shapes are an assumption (A2): the assignment does not define t
 - Bearer JWT (RS256 or ES256) validated against the issuer's JWKS, cached with rotation. Required claims: `iss`, `aud` = `capacity-service`, `exp`, `sub` or `client_id` (the actor), `tenant_id`, `scope`.
 - Service-to-service clients use OAuth2 client credentials. Locally a mock OAuth2 server issues tokens; `make token TENANT=bank-a SCOPES="capacity:read capacity:write"` prints one.
 - Every query filters by `tenant_id`; another tenant's program answers 404 so its existence does not leak.
-- Kafka: PLAINTEXT locally; SASL or IAM over TLS with topic ACLs in production. The consumer rejects a message whose `tenantId` does not own the program.
+- Kafka: PLAINTEXT locally; SASL or IAM over TLS with topic ACLs in production. The consumer rejects a message whose Kafka key (`tenantId:programId`) differs from its body. A program is identified by the pair `(tenantId, programId)` (A12): a `ProgramLimitSet` for `bank-b:prg` sets bank-b's own `prg` even when bank-a also has a `prg`; repayments and snapshots for a pair that does not exist are rejected.
 
 ## 10. Tech stack decisions
 

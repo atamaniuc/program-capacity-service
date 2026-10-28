@@ -12,8 +12,9 @@ Planned proofs are plain text; a ticked box carries a resolving proof marker (an
   transient errors, DLQ publish with `x-error-*` headers on permanent errors.
   <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-10 --> <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-11 -->
 - [x] T3 — `apply-treasury-event` slice: limit set (create or update program, over-limit
-  semantics), repayment → release path of FR-03, stale-seq skip, tenant ownership check.
-  <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-07 --> <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-09 -->
+  semantics), repayment → release path of FR-03, stale-seq skip, tenant scoping by the
+  `(tenantId, programId)` pair.
+  <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-07 --> <!-- proof: test/kafka/treasury-consumer.kafka.test.ts#AC-09 --> <!-- proof: src/capacity/application/use-cases/apply-treasury-event/apply-treasury-event.test.ts#AC-16 -->
 - [x] T4 — `ingest-fx-rate` slice and FX lookup with `FX_MAX_AGE`.
   <!-- proof: test/integration/fx.int.test.ts#AC-12 -->
 - [x] T5 — `reconcile-program` slice: staging table, diff outside the lock, version

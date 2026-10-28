@@ -53,12 +53,6 @@ export class PgTreasuryProgramRepository implements TreasuryProgramRepository {
     return rows[0] === undefined ? null : toProgram(rows[0]);
   }
 
-  async findAnyTenant(programId: string) {
-    const { rows } = await sql<ProgramRow>`
-      SELECT * FROM program WHERE id = ${programId} ORDER BY tenant_id LIMIT 1`.execute(this.db);
-    return rows[0] === undefined ? null : toProgram(rows[0]);
-  }
-
   async createIfMissing(program: { tenantId: string; id: string; currency: string }) {
     await sql`
       INSERT INTO program (tenant_id, id, currency, credit_limit_minor)

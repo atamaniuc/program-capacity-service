@@ -20,8 +20,6 @@ export interface TreasuryChange {
 export interface TreasuryProgramRepository {
   /** Plain read without a row lock. */
   find(tenantId: string, programId: string): Promise<Program | null>;
-  /** Plain read across tenants, for the treasury ACL ownership check. */
-  findAnyTenant(programId: string): Promise<Program | null>;
   /** INSERT … ON CONFLICT DO NOTHING: an ACTIVE program with nothing reserved. */
   createIfMissing(program: {
     readonly tenantId: string;

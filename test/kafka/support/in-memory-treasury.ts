@@ -51,10 +51,6 @@ export class InMemoryTreasuryWorld extends InMemoryWorld implements TreasuryUnit
       },
       treasuryPrograms: {
         find: (tenantId, programId) => world.getProgram(tenantId, programId),
-        findAnyTenant: (programId) =>
-          Promise.resolve(
-            [...world.state.programs.values()].find((program) => program.id === programId) ?? null,
-          ),
         createIfMissing: (program) => {
           if (!world.state.programs.has(key(program.tenantId, program.id))) {
             put({

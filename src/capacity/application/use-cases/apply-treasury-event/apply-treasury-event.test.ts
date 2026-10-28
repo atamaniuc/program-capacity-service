@@ -101,7 +101,7 @@ describe('apply treasury event', () => {
     expect(world.state.outbox.filter((e) => e.type === 'ProgramCapacityChanged')).toHaveLength(2);
   });
 
-  it('AC-16 rejects a ProgramLimitSet whose programId is owned by another tenant', async () => {
+  it("AC-16 sets the limit only on the message tenant's program when another tenant uses the same program id", async () => {
     const otherTenant = programLimitSetSchema.parse({
       messageId: 'ls-bank-b',
       type: 'ProgramLimitSet',
@@ -114,10 +114,8 @@ describe('apply treasury event', () => {
     });
     expect((await apply.execute(SOURCE, otherTenant)).status).toBe('applied');
 
-    await expect(apply.execute(SOURCE, limitSet(1, '200.00'))).rejects.toMatchObject({
-      code: 'tenant-mismatch',
-    });
-    expect(world.state.programs.has('bank-a/prg')).toBe(false);
+    expect((await apply.execute(SOURCE, limitSet(1, '200.00'))).status).toBe('applied');
+    expect(world.program('bank-a', 'prg').creditLimitMinor).toBe(20_000n);
     expect(world.program('bank-b', 'prg').creditLimitMinor).toBe(10_000n);
   });
 
