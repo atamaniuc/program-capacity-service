@@ -23,8 +23,12 @@ git log --oneline -5 2>/dev/null || echo "(no commits yet)"
 
 echo
 echo "== next action =="
-handoff=$(grep -m1 -- '— active' specs/TRACKS.md | sed -n 's/.*\[handoff\](\([^)]*\)).*/\1/p')
-if [[ -n "$handoff" && -f "$handoff" ]]; then
+# First active lane whose handoff exists (TRACKS.md also carries a fenced example line).
+handoff=""
+while read -r h; do
+  [[ -f "$h" ]] && { handoff="$h"; break; }
+done < <(grep -- '— active' specs/TRACKS.md | sed -n 's/.*\[handoff\](\([^)]*\)).*/\1/p')
+if [[ -n "$handoff" ]]; then
   echo "active handoff: $handoff"
   awk '/^## First step/{f=1;next} /^## /{f=0} f' "$handoff" | sed '/^$/d'
 fi
