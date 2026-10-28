@@ -85,6 +85,7 @@ describe('contract', () => {
   it('openapi: every documented path is served and the docs live on the ops port only', async () => {
     expect(Object.keys(document.paths).sort()).toEqual([
       '/v1/programs/{programId}/capacity',
+      '/v1/programs/{programId}/ledger',
       '/v1/programs/{programId}/reservations',
       '/v1/programs/{programId}/reservations/{reservationId}',
       '/v1/programs/{programId}/reservations/{reservationId}/releases',

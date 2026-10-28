@@ -1,10 +1,11 @@
 import type { LoggerService } from '@nestjs/common';
 import pino, { type Logger } from 'pino';
+import { traceContextMixin } from '../telemetry/trace-context.js';
 
 export type { Logger } from 'pino';
 
 export function createLogger(level: string): Logger {
-  return pino({ level, base: { service: 'program-capacity' } });
+  return pino({ level, base: { service: 'program-capacity' }, mixin: traceContextMixin });
 }
 
 /** Routes Nest's own log calls through the same pino instance, so every line is JSON. */

@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: program-capacity
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

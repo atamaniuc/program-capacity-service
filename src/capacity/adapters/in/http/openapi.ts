@@ -1,6 +1,12 @@
 import { createDocument } from 'zod-openapi';
 import * as z from 'zod';
 import {
+  LedgerPageResponse,
+  LedgerQuery,
+  ListReservationsQuery,
+  ReservationPageResponse,
+} from './query-schemas.js';
+import {
   CapacityResponse,
   IdempotencyKeyHeader,
   ProblemResponse,
@@ -65,6 +71,19 @@ export function buildOpenApiDocument() {
         },
       },
       '/v1/programs/{programId}/reservations': {
+        get: {
+          operationId: 'listReservations',
+          summary: 'List the reservations of a program',
+          description:
+            "Scope `capacity:read`. Filter by `invoiceId` and `status`; pages are ordered by creation and carry an opaque `nextCursor` (null on the last page). Tenant-scoped: another tenant's program is 404.",
+          requestParams: { path: ProgramIdParam, query: ListReservationsQuery },
+          responses: {
+            '200': json('A page of reservations.', ReservationPageResponse),
+            '400': problem('`validation-error`: bad filter, page size or cursor.'),
+            ...authErrors,
+            '404': problem('`not-found`.'),
+          },
+        },
         post: {
           operationId: 'reserveCapacity',
           summary: 'Reserve capacity for an invoice',
@@ -86,6 +105,21 @@ export function buildOpenApiDocument() {
             '422': problem(
               '`insufficient-capacity`, `program-over-limit`, `program-suspended`, `fx-rate-unavailable` or `idempotency-key-mismatch`.',
             ),
+          },
+        },
+      },
+      '/v1/programs/{programId}/ledger': {
+        get: {
+          operationId: 'getLedger',
+          summary: 'Audit trail of a program',
+          description:
+            'Scope `capacity:read`. Append-only ledger entries, oldest first, with cause, actor and the balance after each change; keyset-paged with an opaque `nextCursor`.',
+          requestParams: { path: ProgramIdParam, query: LedgerQuery },
+          responses: {
+            '200': json('A page of ledger entries.', LedgerPageResponse),
+            '400': problem('`validation-error`: bad page size or cursor.'),
+            ...authErrors,
+            '404': problem('`not-found`.'),
           },
         },
       },

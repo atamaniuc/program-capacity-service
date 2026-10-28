@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { sql } from 'kysely';
+import { Registry } from 'prom-client';
 import { createPersistence } from '#src/capacity/adapters/out/postgres/db.js';
 import type { Config } from '../config/config.js';
 import { createAuthMiddleware, JwtVerifier } from '#src/capacity/adapters/in/http/auth.js';
@@ -9,8 +10,10 @@ import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js'
 import { startOpsServer, type OpsServer } from '../health/ops-server.js';
 import { renderApiDocs } from '../health/api-docs.js';
 import { NestPinoLogger, type Logger } from '../logging/logger.js';
+import { httpMetrics } from '../telemetry/http-metrics.js';
+import { loadRuntimeSettings, type RuntimeSettings } from '../telemetry/settings.js';
 import { AppModule } from './app.module.js';
-import { createTreasuryConsumer } from './worker.js';
+import { createTreasuryConsumer, startWorkerComponents, type WorkerComponents } from './worker.js';
 
 export interface RunningApp {
   readonly opsPort: number;
@@ -20,8 +23,13 @@ export interface RunningApp {
   close(): Promise<void>;
 }
 
-export async function startApp(config: Config, logger: Logger): Promise<RunningApp> {
+export async function startApp(
+  config: Config,
+  logger: Logger,
+  settings: RuntimeSettings = loadRuntimeSettings(process.env),
+): Promise<RunningApp> {
   const persistence = createPersistence(config.databaseUrl);
+  const registry = new Registry();
   const nestLogger = new NestPinoLogger(logger);
   const serveHttp = config.appRole === 'api' || config.appRole === 'all';
   const module = AppModule.register(
@@ -31,6 +39,7 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
   let app: INestApplication | INestApplicationContext;
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
+    http.use(httpMetrics(registry));
     // Mounted before Nest registers the body parser (at init), so authentication comes first.
     http.use(
       '/v1',
@@ -52,7 +61,14 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
   const consumer = consumeTreasury ? createTreasuryConsumer(config, persistence, logger) : null;
   await consumer?.start();
 
+  // The api role never touches Kafka: only the worker role runs the relay and jobs (NFR-06).
+  const worker: WorkerComponents | null =
+    config.appRole === 'api'
+      ? null
+      : startWorkerComponents(persistence, config, settings, logger, registry);
+
   const ops: OpsServer = await startOpsServer({
+    registry,
     port: config.opsPort,
     documents: serveHttp ? renderApiDocs(buildOpenApiDocument()) : {},
     checks: {
@@ -77,6 +93,8 @@ export async function startApp(config: Config, logger: Logger): Promise<RunningA
         ops.markDraining();
         // Stop intake first: an in-flight message finishes its transaction before the pool closes.
         await consumer?.stop();
+        // Background work next: it uses the pool that the app closes last.
+        await worker?.stop();
         await app.close();
         await ops.close();
         logger.info('service stopped');

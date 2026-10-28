@@ -7,6 +7,9 @@ x-service-env: &service-env
   OAUTH_AUDIENCE: capacity-service
   OAUTH_JWKS_URL: http://oauth:8080/default/jwks
   LOG_LEVEL: info
+  # NFR-10: `OTEL_ENABLED=true docker compose --profile observability up -d` sends traces to Jaeger.
+  OTEL_ENABLED: ${OTEL_ENABLED:-false}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
 
 x-service: &service
   build:
@@ -144,3 +147,40 @@ services:
       OPS_PORT: 9464
     ports:
       - '9465:9464'
+
+  # --- observability profile (NFR-10): Prometheus, Grafana, Jaeger -----------------------------
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=1d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yaml:/etc/prometheus/alerts.yaml:ro
+    ports:
+      - '9090:9090'
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:12.1.0
+    depends_on:
+      - prometheus
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/capacity.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - '3001:3000'
+
+  jaeger:
+    profiles: [observability]
+    image: jaegertracing/all-in-one:1.71.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - '16686:16686'
+      - '4318:4318'

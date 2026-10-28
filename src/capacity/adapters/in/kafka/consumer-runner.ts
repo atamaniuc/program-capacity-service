@@ -23,6 +23,10 @@ export interface RunnerState {
 }
 
 const DEFAULT_BACKOFF = { baseMs: 250, maxMs: 10_000 };
+/** NFR-07: SIGTERM drain budget for in-flight messages before the consumer disconnects. */
+const DRAIN_TIMEOUT_MS = 25_000;
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Consumer runner (PRD §8, CP-3). Per record: the handler runs one DB transaction; only after
@@ -40,6 +44,7 @@ export class TreasuryConsumerRunner {
   private lastError: string | null = null;
   private wake: (() => void) | null = null;
   private readonly committed = new Map<string, bigint>();
+  private readonly inflight = new Set<Promise<void>>();
 
   constructor(private readonly options: RunnerOptions) {
     this.kafka = new KafkaJS.Kafka({
@@ -66,13 +71,25 @@ export class TreasuryConsumerRunner {
     await this.consumer.run({
       partitionsConsumedConcurrently: this.options.concurrency ?? 3,
       eachMessage: async ({ topic, partition, message }) => {
-        await this.process({
+        if (this.stopping) return;
+        const task = this.process({
           topic,
           partition,
           offset: BigInt(message.offset),
           key: message.key,
           value: message.value,
         });
+        // The set holds a promise that never rejects, so `stop()` can race it safely.
+        const tracked = task.then(
+          () => undefined,
+          () => undefined,
+        );
+        this.inflight.add(tracked);
+        try {
+          await task;
+        } finally {
+          this.inflight.delete(tracked);
+        }
       },
     });
     this.running = true;
@@ -97,8 +114,20 @@ export class TreasuryConsumerRunner {
     this.stopping = true;
     this.wake?.();
     this.running = false;
+    // NFR-07: wait for in-flight messages to finish and commit their offsets, with a bounded
+    // drain, then disconnect. A message still blocked after the budget is left for a redelivery.
+    await this.drainInflight();
     await this.consumer?.disconnect().catch(() => undefined);
     await this.producer?.disconnect().catch(() => undefined);
+  }
+
+  private async drainInflight(): Promise<void> {
+    const deadline = Date.now() + DRAIN_TIMEOUT_MS;
+    while (this.inflight.size > 0) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return;
+      await Promise.race([...this.inflight, delay(remaining)]);
+    }
   }
 
   private async process(raw: RawMessage): Promise<void> {

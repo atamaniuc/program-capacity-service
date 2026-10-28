@@ -59,6 +59,85 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
   /v1/programs/{programId}/reservations:
+    get:
+      operationId: listReservations
+      summary: List the reservations of a program
+      description: "Scope `capacity:read`. Filter by `invoiceId` and `status`; pages are ordered by
+        creation and carry an opaque `nextCursor` (null on the last page). Tenant-scoped: another
+        tenant's program is 404."
+      parameters:
+        - in: path
+          name: programId
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: prg_grand_usd
+          required: true
+        - in: query
+          name: invoiceId
+          schema:
+            example: INV-1003
+            type: string
+            minLength: 1
+            maxLength: 128
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - PARTIALLY_RELEASED
+              - RELEASED
+        - in: query
+          name: limit
+          schema:
+            default: 50
+            description: Page size, 1 to 100.
+            example: 50
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Page size, 1 to 100.
+        - in: query
+          name: cursor
+          schema:
+            description: "Opaque cursor: pass the `nextCursor` of the previous page unchanged."
+            type: string
+            minLength: 1
+            maxLength: 256
+          description: "Opaque cursor: pass the `nextCursor` of the previous page unchanged."
+      responses:
+        "200":
+          description: A page of reservations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationPage"
+        "400":
+          description: "`validation-error`: bad filter, page size or cursor."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: "`not-found`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
     post:
       operationId: reserveCapacity
       summary: Reserve capacity for an invoice
@@ -143,6 +222,70 @@ paths:
         "422":
           description: "`insufficient-capacity`, `program-over-limit`, `program-suspended`,
             `fx-rate-unavailable` or `idempotency-key-mismatch`."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/programs/{programId}/ledger:
+    get:
+      operationId: getLedger
+      summary: Audit trail of a program
+      description: Scope `capacity:read`. Append-only ledger entries, oldest first, with cause, actor and
+        the balance after each change; keyset-paged with an opaque `nextCursor`.
+      parameters:
+        - in: path
+          name: programId
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            example: prg_grand_usd
+          required: true
+        - in: query
+          name: limit
+          schema:
+            default: 50
+            description: Page size, 1 to 100.
+            example: 50
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Page size, 1 to 100.
+        - in: query
+          name: cursor
+          schema:
+            description: "Opaque cursor: pass the `nextCursor` of the previous page unchanged."
+            type: string
+            minLength: 1
+            maxLength: 256
+          description: "Opaque cursor: pass the `nextCursor` of the previous page unchanged."
+      responses:
+        "200":
+          description: A page of ledger entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerPage"
+        "400":
+          description: "`validation-error`: bad page size or cursor."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: "`not-found`."
           content:
             application/problem+json:
               schema:
@@ -392,6 +535,80 @@ components:
         - status
         - detail
       additionalProperties: false
+    ReservationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationItem"
+        nextCursor:
+          description: Null on the last page.
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    ReservationItem:
+      type: object
+      properties:
+        reservationId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        invoiceId:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - PARTIALLY_RELEASED
+            - RELEASED
+        invoiceAmount:
+          $ref: "#/components/schemas/AmountOutput"
+        reservedAmount:
+          description: In program currency, rounded up.
+          $ref: "#/components/schemas/AmountOutput"
+        releasedAmount:
+          description: In program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        remainingAmount:
+          description: In program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        fx:
+          type: object
+          properties:
+            rate:
+              type: string
+              example: "1.0800000000"
+            source:
+              type: string
+            asOf:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+          required:
+            - rate
+            - source
+            - asOf
+          additionalProperties: false
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+      required:
+        - reservationId
+        - invoiceId
+        - status
+        - invoiceAmount
+        - reservedAmount
+        - releasedAmount
+        - remainingAmount
+        - fx
+        - createdAt
+      additionalProperties: false
     Reservation:
       type: object
       properties:
@@ -471,6 +688,73 @@ components:
         - reserved
         - available
         - version
+      additionalProperties: false
+    LedgerPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEntry"
+        nextCursor:
+          description: Null on the last page.
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    LedgerEntry:
+      type: object
+      properties:
+        entryId:
+          type: string
+        kind:
+          type: string
+          enum:
+            - RESERVE
+            - RELEASE
+            - LIMIT_SET
+            - RECON_ADJUST
+        reservationId:
+          anyOf:
+            - type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            - type: "null"
+        deltaReserved:
+          description: Change of reserved, program currency.
+          $ref: "#/components/schemas/AmountOutput"
+        deltaLimit:
+          description: Change of the credit limit.
+          $ref: "#/components/schemas/AmountOutput"
+        limitAfter:
+          $ref: "#/components/schemas/AmountOutput"
+        reservedAfter:
+          $ref: "#/components/schemas/AmountOutput"
+        causeType:
+          type: string
+        causeId:
+          type: string
+        actor:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+      required:
+        - entryId
+        - kind
+        - reservationId
+        - deltaReserved
+        - deltaLimit
+        - limitAfter
+        - reservedAfter
+        - causeType
+        - causeId
+        - actor
+        - createdAt
       additionalProperties: false
     ReservationDetail:
       type: object
