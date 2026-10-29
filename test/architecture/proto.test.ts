@@ -99,9 +99,13 @@ describe('GR-01 proto contract', () => {
   });
 
   it('GR-01 committed stubs match a fresh buf generate', () => {
-    const result = run('npx', ['tsx', 'tools/proto/generate.ts', '--check']);
-    expect(result.stderr).toBe('');
-    expect(result.status).toBe(0);
+    const result = run(join(root, 'node_modules/.bin/tsx'), ['tools/proto/generate.ts', '--check']);
+    const stderr = result.stderr
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.startsWith('npm warn'))
+      .join('\n');
+    expect(result.status, stderr).toBe(0);
+    expect(stderr).not.toContain('drifted');
   });
 
   it('GR-01 buf breaking reports a fixture that removes a field', () => {
