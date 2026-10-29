@@ -7,7 +7,7 @@ x-service-env: &service-env
   OAUTH_AUDIENCE: capacity-service
   OAUTH_JWKS_URL: http://oauth:8080/default/jwks
   LOG_LEVEL: info
-  # NFR-10: `OTEL_ENABLED=true docker compose --profile observability up -d` sends traces to Jaeger.
+  # NFR-10: `make up-all` (OTEL_ENABLED=true, profile observability) sends traces to Jaeger.
   OTEL_ENABLED: ${OTEL_ENABLED:-false}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
 
@@ -97,26 +97,6 @@ services:
         done
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 
-  # Browser view of the broker: topics, records with headers, consumer groups and lag
-  # (http://localhost:8080). Local development only: no login, and it can produce records.
-  kafka-ui:
-    image: ghcr.io/kafbat/kafka-ui:v1.5.0
-    depends_on:
-      kafka-init:
-        condition: service_completed_successfully
-    environment:
-      KAFKA_CLUSTERS_0_NAME: program-capacity
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-      DYNAMIC_CONFIG_ENABLED: 'false'
-    ports:
-      - '8080:8080'
-    healthcheck:
-      test: ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:8080/actuator/health']
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 15s
-
   oauth:
     image: ghcr.io/navikt/mock-oauth2-server:3.0.1
     environment:
@@ -171,7 +151,8 @@ services:
     ports:
       - '9465:9464'
 
-  # --- observability profile (NFR-10): Prometheus, Grafana, Jaeger -----------------------------
+  # --- observability profile (NFR-10): Prometheus, Grafana, Jaeger, Kafka UI --------------------
+  # `make up-all` starts the stack with all of them and tracing on.
   prometheus:
     profiles: [observability]
     image: prom/prometheus:v3.5.0
@@ -207,3 +188,24 @@ services:
     ports:
       - '16686:16686'
       - '4318:4318'
+
+  # Kafka UI (http://localhost:8080): topics, records with headers, consumer groups and lag.
+  # Local development only: no login, and it can produce records.
+  kafka-ui:
+    profiles: [observability]
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_CLUSTERS_0_NAME: program-capacity
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: 'false'
+    ports:
+      - '8080:8080'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:8080/actuator/health']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s

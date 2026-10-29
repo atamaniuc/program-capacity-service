@@ -44,7 +44,8 @@ the wire with it: `make events` prints every outbound event as `headers | key | 
 ### Kafka in the browser (Kafka UI)
 
 <http://localhost:8080> (`make kafka-ui`) is [Kafka UI](https://github.com/kafbat/kafka-ui)
-(`kafbat/kafka-ui`, part of `make up`), pointed at the stack's broker. The contract page above
+(`kafbat/kafka-ui`), pointed at the stack's broker. It is in the `observability` compose profile:
+`make up-all` starts it together with Prometheus, Grafana and Jaeger. The contract page above
 says what *should* be on a topic; Kafka UI shows what *is* there, and can put a record on one.
 No login, and it can produce and delete: local stack only.
 

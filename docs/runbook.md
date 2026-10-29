@@ -13,8 +13,8 @@ from the ops port of each container.
 | Metrics | `curl -s localhost:9464/metrics` (api), `localhost:9465/metrics` (worker). The relay and jobs report from the worker. |
 | Logs | `make logs` (JSON, one line per event; `trace_id` is present when OpenTelemetry is on). |
 | SQL | `docker compose -f deploy/compose.yaml exec postgres psql -U capacity capacity` |
-| Kafka | `docker compose -f deploy/compose.yaml exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic capacity.events.v1 --from-beginning --max-messages 5`, or `make events` (headers, key and value). `npm run contracts:events` checks every event on the topic against `contracts/`. In a browser: Kafka UI at `localhost:8080` (records with headers, consumer lag of `program-capacity-treasury`, DLQ contents). |
-| Dashboards, traces | `docker compose -f deploy/compose.yaml --profile observability up -d`, then Grafana `localhost:3001`, Jaeger `localhost:16686`, Prometheus `localhost:9090`. |
+| Kafka | `docker compose -f deploy/compose.yaml exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic capacity.events.v1 --from-beginning --max-messages 5`, or `make events` (headers, key and value). `npm run contracts:events` checks every event on the topic against `contracts/`. In a browser (`make up-all`): Kafka UI at `localhost:8080` (records with headers, consumer lag of `program-capacity-treasury`, DLQ contents). |
+| Dashboards, traces | `make up-all` (compose profile `observability`, `OTEL_ENABLED=true`), then Grafana `localhost:3001`, Jaeger `localhost:16686`, Prometheus `localhost:9090`, Kafka UI `localhost:8080`. |
 | API docs | `localhost:9464/docs` (REST, Swagger UI) and `localhost:9464/docs/asyncapi` (Kafka topics, messages, headers), ops port only. |
 
 Alert rules live in `deploy/observability/alerts.yaml`: `DlqGrowing`, `OutboxLagHigh`,

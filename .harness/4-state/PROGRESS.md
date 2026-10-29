@@ -14,8 +14,8 @@ from the zod schemas that type the outbox payloads, is served at `/docs/asyncapi
 real event is checked against it; `make compat` (CI) blocks breaking contract changes. Last
 full run: 106 unit + 102 integration tests green. `make install` sets up a fresh clone in one
 command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the live stack:
-103/103 on 2026-10-29. Kafka UI (`kafbat/kafka-ui`, `localhost:8080`, `make kafka-ui`)
-is part of the compose stack; how to check the service with it is in `docs/qa.md`.
+103/103 on 2026-10-29. Kafka UI (`kafbat/kafka-ui`, `localhost:8080`) is in the
+`observability` compose profile with Prometheus, Grafana and Jaeger; `make up-all` starts them all; how to check the service with it is in `docs/qa.md`.
 
 ## Done
 

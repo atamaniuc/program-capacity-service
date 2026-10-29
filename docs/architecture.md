@@ -87,7 +87,8 @@ every Kafka topic at `/docs/asyncapi`. It is internal: an ingress routes only po
 orchestrator cannot send a JWT to a health check (PRD assumption A8). Locally, `APP_ROLE=all`
 runs both roles in one process (used by some tests).
 
-Optional, with `docker compose --profile observability`: Prometheus, Grafana and Jaeger.
+Optional, with `make up-all` (compose profile `observability`): Prometheus, Grafana, Jaeger and
+Kafka UI.
 
 ## Level 3 — Components
 

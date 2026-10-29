@@ -22,7 +22,7 @@ endif
 step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
-.PHONY: help targets completion status check doctor install up down ps logs seed token demo qa docs \
+.PHONY: help targets completion status check doctor install up up-all down ps logs seed token demo qa docs \
         docs-events kafka-ui events verify compat test test-unit test-int contracts load dlq-replay
 
 ## Help
@@ -74,8 +74,13 @@ up: ## build and start the stack, wait until every service is healthy
 	$(COMPOSE) up -d --build --wait
 	$(call done,Stack is up — API on :3000 · Swagger UI on http://localhost:9464/docs · AsyncAPI on http://localhost:9464/docs/asyncapi)
 
-down: ## stop the stack and delete its data
-	$(COMPOSE) down -v --remove-orphans
+up-all: ## the stack plus Kafka UI, Prometheus, Grafana and Jaeger, with tracing on
+	$(call step,Starting the stack · Kafka UI · Prometheus · Grafana · Jaeger (OTEL_ENABLED=true))
+	OTEL_ENABLED=true $(COMPOSE) --profile observability up -d --build --wait
+	$(call done,Kafka UI http://localhost:8080 · Grafana http://localhost:3001 · Jaeger http://localhost:16686 · Prometheus http://localhost:9090)
+
+down: ## stop the stack (observability profile included) and delete its data
+	$(COMPOSE) --profile observability down -v --remove-orphans
 
 ps: ## show the stack's containers and their health
 	@$(COMPOSE) ps
@@ -107,7 +112,7 @@ docs-events: ## open the AsyncAPI page: every Kafka topic, message, header and e
 	  xdg-open http://localhost:9464/docs/asyncapi 2>/dev/null || \
 	  printf 'Open http://localhost:9464/docs/asyncapi\n'
 
-kafka-ui: ## open Kafka UI: topics, records with headers, consumer groups and lag (docs/qa.md)
+kafka-ui: ## open Kafka UI (started by make up-all): topics, records, consumer lag (docs/qa.md)
 	@open http://localhost:8080 2>/dev/null || xdg-open http://localhost:8080 2>/dev/null || \
 	  printf 'Open http://localhost:8080\n'
 

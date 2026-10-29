@@ -58,16 +58,16 @@ echo "Ports"
 if [[ -n "$(docker compose -f deploy/compose.yaml ps -q 2>/dev/null)" ]]; then
   ok ports "the stack is already running and holds them"
 elif ! command -v lsof >/dev/null; then
-  warn ports "lsof not found, skipped — the stack needs 3000 5432 8080 8081 9464 9465 29092"
+  warn ports "lsof not found, skipped — the stack needs 3000 5432 8081 9464 9465 29092"
 else
   busy=()
-  for port in 3000 5432 8080 8081 9464 9465 29092; do
+  for port in 3000 5432 8081 9464 9465 29092; do
     lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && busy+=("$port")
   done
   if ((${#busy[@]})); then
     warn ports "in use: ${busy[*]} — stop whatever listens there, or 'make up' will fail"
   else
-    ok ports "3000 5432 8080 8081 9464 9465 29092 are free"
+    ok ports "3000 5432 8081 9464 9465 29092 are free"
   fi
 fi
 
