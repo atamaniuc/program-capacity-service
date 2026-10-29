@@ -7,7 +7,9 @@ const { values } = parseArgs({
     scopes: { type: 'string', default: 'capacity:read capacity:write' },
     issuer: {
       type: 'string',
-      default: process.env['OAUTH_TOKEN_ISSUER'] ?? 'http://localhost:8081/default',
+      default:
+        process.env['OAUTH_TOKEN_ISSUER'] ??
+        `http://localhost:${process.env['HOST_PORT_OAUTH'] ?? '18081'}/default`,
     },
     audience: { type: 'string', default: process.env['OAUTH_AUDIENCE'] ?? 'capacity-service' },
   },

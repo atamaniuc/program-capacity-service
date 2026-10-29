@@ -7,7 +7,7 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
 
 ## P0 — minimum viable: isolation, workspaces, gRPC, funding saga, Helm/kind
 
-- [ ] T1 — **Side-by-side isolation from `main`** (ADR 027). Compose project
+- [x] T1 — **Side-by-side isolation from `main`** (ADR 027). Compose project
   `program-capacity-ms`; every host port from an env var with the +10000 default (table in
   ADR 027), Kafka `EXTERNAL` listener and advertised address on 39092; `OAUTH_ISSUER`,
   `OAUTH_TOKEN_URL` and `CORS_ORIGINS` follow the shifted ports; images tagged `:ms-local`;
@@ -15,7 +15,8 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   `Host` header), `db/seeds`, `tools/doctor.sh` read the same variables; `make isolation-live`
   checks both projects healthy together; README and runbook ports updated. Reserve the kind
   names now (`KIND_CLUSTER := finverity-ms`, `.kind/` gitignored).
-  proof (planned): `test/architecture/isolation.test.ts#MS-01`, `test/architecture/isolation.test.ts#MS-03`, `make isolation-live` (MS-02, evidence: both `docker compose -p … ps` outputs quoted in the handoff)
+  <!-- proof: test/architecture/isolation.test.ts#MS-01 --> <!-- proof: test/architecture/isolation.test.ts#MS-03 --> <!-- proof: make isolation-live -->
+  (MS-02 evidence: both `docker compose -p … ps` outputs quoted in the handoff.)
 - [ ] T2 — **npm workspaces skeleton** (ADR 027). Root `workspaces`; `services/funding` and
   `services/payments-mock` with `package.json`, `tsconfig.json`, Vitest projects,
   dependency-cruiser config and one trivial unit test each; `make verify` and `make test` run

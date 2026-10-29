@@ -13,7 +13,9 @@ const { values } = parseArgs({
     from: { type: 'string', default: '0' },
     brokers: {
       type: 'string',
-      default: process.env['KAFKA_BROKERS_EXTERNAL'] ?? 'localhost:29092',
+      default:
+        process.env['KAFKA_BROKERS_EXTERNAL'] ??
+        `localhost:${process.env['HOST_PORT_KAFKA'] ?? '39092'}`,
     },
     'dry-run': { type: 'boolean', default: false },
   },

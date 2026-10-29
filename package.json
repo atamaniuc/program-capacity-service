@@ -28,7 +28,7 @@
     "contracts:check": "tsx tools/contracts/generate.ts --check",
     "dlq-replay": "tsx tools/dlq-replay/replay.ts",
     "simulate": "tsx tools/simulator/cli.ts",
-    "load": "docker run --rm -i -v \"$PWD/tools/load:/load\" -e API_URL=http://host.docker.internal:3000 -e OAUTH_TOKEN_ISSUER=http://host.docker.internal:8081/default grafana/k6 run --summary-export=/load/summary.json /load/scenario.js"
+    "load": "docker run --rm -i -v \"$PWD/tools/load:/load\" -e HOST_PORT_API=${HOST_PORT_API:-13000} -e HOST_PORT_OAUTH=${HOST_PORT_OAUTH:-18081} grafana/k6 run --summary-export=/load/summary.json /load/scenario.js"
   },
   "dependencies": {
     "@confluentinc/kafka-javascript": "1.11.0",

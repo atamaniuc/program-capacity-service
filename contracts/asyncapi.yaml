@@ -10,7 +10,7 @@ info:
     headers."
 servers:
   local:
-    host: localhost:29092
+    host: localhost:39092
     protocol: kafka
 channels:
   treasuryCapacity:

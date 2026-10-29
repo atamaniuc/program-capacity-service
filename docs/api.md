@@ -8,11 +8,11 @@ zod schemas in `src/capacity/adapters/in/http/`.
 
 ## Easiest: Swagger UI
 
-Open <http://localhost:9464/docs> (ops port, local only). Click **Authorize**, choose
+Open <http://localhost:19464/docs> (ops port, local only). Click **Authorize**, choose
 `localOAuth`, keep client id `bank-a` (the client id becomes the tenant; `bank-b` and `bank-c`
 also exist) and log in. Then open an endpoint, press **Try it out**: request bodies and the
 `Idempotency-Key` are prefilled from the schema examples, and the request goes to the API on
-port 3000. That works because the compose stack sets `CORS_ORIGINS` for the docs page and
+port 13000. That works because the compose stack sets `CORS_ORIGINS` for the docs page and
 `OAUTH_TOKEN_URL` for the login; both are unset by default, so production has neither.
 
 The rest of this page does the same with curl.
@@ -33,7 +33,7 @@ All business endpoints live under `/v1`, need a JWT, and are scoped to the token
 There is no endpoint to create a program or change a limit. Treasury owns limits and sends
 them over Kafka (`ProgramLimitSet`); `make seed` does that for six demo programs.
 
-Ops port (9464, never exposed through an ingress, no token): `/health/live`, `/health/ready`,
+Ops port (19464, never exposed through an ingress, no token): `/health/live`, `/health/ready`,
 `/metrics`, `/docs`.
 
 ## 1. Get a token
@@ -48,7 +48,7 @@ TOKEN=$(make -s token TENANT=bank-a)
 ## 2. Read capacity
 
 ```bash
-curl -s localhost:3000/v1/programs/prg_grand_usd/capacity -H "authorization: Bearer $TOKEN"
+curl -s localhost:13000/v1/programs/prg_grand_usd/capacity -H "authorization: Bearer $TOKEN"
 ```
 
 ```json
@@ -71,7 +71,7 @@ decimals for KWD), never JSON numbers, so no client loses precision.
 ## 3. Reserve
 
 ```bash
-curl -s -X POST localhost:3000/v1/programs/prg_grand_usd/reservations \
+curl -s -X POST localhost:13000/v1/programs/prg_grand_usd/reservations \
   -H "authorization: Bearer $TOKEN" \
   -H "content-type: application/json" \
   -H "idempotency-key: $(uuidgen)" \
@@ -110,7 +110,7 @@ invoice whose reservation is already fully released, returns `409 reservation-co
 ## 5. Release
 
 ```bash
-curl -s -X POST localhost:3000/v1/programs/prg_grand_usd/reservations/<reservationId>/releases \
+curl -s -X POST localhost:13000/v1/programs/prg_grand_usd/reservations/<reservationId>/releases \
   -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
   -H "idempotency-key: $(uuidgen)" \
   -d '{"releaseRef":"repayment-1","amount":{"value":"50000.00","currency":"EUR"},"reason":"REPAID"}'

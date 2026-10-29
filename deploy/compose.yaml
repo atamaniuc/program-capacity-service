@@ -1,9 +1,11 @@
-name: program-capacity
+# Branch `microservices` (ADR 027): own project, own host ports (main's +10000), own image tag, so
+# this stack runs next to `main`'s `program-capacity` stack. Every host port is an env variable.
+name: program-capacity-ms
 
 x-service-env: &service-env
   DATABASE_URL: postgres://capacity:capacity@postgres:5432/capacity
   KAFKA_BROKERS: kafka:9092
-  OAUTH_ISSUER: http://localhost:8081/default
+  OAUTH_ISSUER: http://localhost:${HOST_PORT_OAUTH:-18081}/default
   OAUTH_AUDIENCE: capacity-service
   OAUTH_JWKS_URL: http://oauth:8080/default/jwks
   LOG_LEVEL: info
@@ -15,7 +17,7 @@ x-service: &service
   build:
     context: ..
     dockerfile: Dockerfile
-  image: program-capacity-service:local
+  image: program-capacity-service:ms-local
   restart: unless-stopped
   depends_on:
     migrate:
@@ -43,7 +45,7 @@ services:
       POSTGRES_PASSWORD: capacity
       POSTGRES_DB: capacity
     ports:
-      - '5432:5432'
+      - '${HOST_PORT_POSTGRES:-15432}:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U capacity -d capacity']
       interval: 3s
@@ -55,8 +57,8 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:29092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:${HOST_PORT_KAFKA:-39092},CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:${HOST_PORT_KAFKA:-39092}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -67,7 +69,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
     ports:
-      - '29092:29092'
+      - '${HOST_PORT_KAFKA:-39092}:${HOST_PORT_KAFKA:-39092}'
     healthcheck:
       test:
         [
@@ -104,7 +106,7 @@ services:
     volumes:
       - ./oauth:/config:ro
     ports:
-      - '8081:8080'
+      - '${HOST_PORT_OAUTH:-18081}:8080'
     healthcheck:
       test:
         [
@@ -136,11 +138,11 @@ services:
       HTTP_PORT: 3000
       OPS_PORT: 9464
       # Swagger UI on the ops port calls the API from the browser (local development only).
-      CORS_ORIGINS: http://localhost:9464,http://127.0.0.1:9464
-      OAUTH_TOKEN_URL: http://localhost:8081/default/token
+      CORS_ORIGINS: http://localhost:${HOST_PORT_API_OPS:-19464},http://127.0.0.1:${HOST_PORT_API_OPS:-19464}
+      OAUTH_TOKEN_URL: http://localhost:${HOST_PORT_OAUTH:-18081}/default/token
     ports:
-      - '3000:3000'
-      - '9464:9464'
+      - '${HOST_PORT_API:-13000}:3000'
+      - '${HOST_PORT_API_OPS:-19464}:9464'
 
   worker:
     <<: *service
@@ -149,7 +151,7 @@ services:
       APP_ROLE: worker
       OPS_PORT: 9464
     ports:
-      - '9465:9464'
+      - '${HOST_PORT_WORKER_OPS:-19465}:9464'
 
   # --- observability profile (NFR-10): Prometheus, Grafana, Jaeger -----------------------------
   prometheus:
@@ -162,7 +164,7 @@ services:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/alerts.yaml:/etc/prometheus/alerts.yaml:ro
     ports:
-      - '9090:9090'
+      - '${HOST_PORT_PROMETHEUS:-19090}:9090'
 
   grafana:
     profiles: [observability]
@@ -177,7 +179,7 @@ services:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - '3001:3000'
+      - '${HOST_PORT_GRAFANA:-13001}:3000'
 
   jaeger:
     profiles: [observability]
@@ -185,5 +187,5 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: 'true'
     ports:
-      - '16686:16686'
-      - '4318:4318'
+      - '${HOST_PORT_JAEGER:-26686}:16686'
+      - '${HOST_PORT_OTLP:-14318}:4318'

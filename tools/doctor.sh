@@ -53,21 +53,28 @@ ok make "$(make -v 2>/dev/null | head -1)"
 if command -v curl >/dev/null; then ok curl "found"; else fail curl "not found — the demo and the API tour use it"; fi
 if command -v jq >/dev/null; then ok jq "found"; else warn jq "not found — only 'make qa' needs it (brew install jq / apt install jq)"; fi
 
+for tool in kind helm kubectl; do
+  if command -v "$tool" >/dev/null; then ok "$tool" "found"; else warn "$tool" "not found — only the Kubernetes targets (make kind-up) need it"; fi
+done
+
 echo
-echo "Ports"
+echo "Ports (this branch's stack, project program-capacity-ms; main's stack keeps its own)"
+# Same variables and defaults as the Makefile and deploy/compose.yaml (ADR 027).
+ports=("${HOST_PORT_API:-13000}" "${HOST_PORT_POSTGRES:-15432}" "${HOST_PORT_OAUTH:-18081}"
+  "${HOST_PORT_API_OPS:-19464}" "${HOST_PORT_WORKER_OPS:-19465}" "${HOST_PORT_KAFKA:-39092}")
 if [[ -n "$(docker compose -f deploy/compose.yaml ps -q 2>/dev/null)" ]]; then
   ok ports "the stack is already running and holds them"
 elif ! command -v lsof >/dev/null; then
-  warn ports "lsof not found, skipped — the stack needs 3000 5432 8081 9464 9465 29092"
+  warn ports "lsof not found, skipped — the stack needs ${ports[*]}"
 else
   busy=()
-  for port in 3000 5432 8081 9464 9465 29092; do
+  for port in "${ports[@]}"; do
     lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && busy+=("$port")
   done
   if ((${#busy[@]})); then
     warn ports "in use: ${busy[*]} — stop whatever listens there, or 'make up' will fail"
   else
-    ok ports "3000 5432 8081 9464 9465 29092 are free"
+    ok ports "${ports[*]} are free"
   fi
 fi
 

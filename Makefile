@@ -1,6 +1,23 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 COMPOSE := docker compose -f deploy/compose.yaml
+
+# Side-by-side with `main` (ADR 027): host ports are main's +10000. compose.yaml, tools/, db/seeds
+# and tools/doctor.sh read these same variables; override one on the command line to move it.
+export HOST_PORT_POSTGRES ?= 15432
+export HOST_PORT_KAFKA ?= 39092
+export HOST_PORT_OAUTH ?= 18081
+export HOST_PORT_API ?= 13000
+export HOST_PORT_API_OPS ?= 19464
+export HOST_PORT_WORKER_OPS ?= 19465
+export HOST_PORT_PROMETHEUS ?= 19090
+export HOST_PORT_GRAFANA ?= 13001
+export HOST_PORT_JAEGER ?= 26686
+export HOST_PORT_OTLP ?= 14318
+
+# Kubernetes names reserved for the kind targets (ADR 026); nothing here touches another cluster.
+KIND_CLUSTER := finverity-ms
+KUBECONFIG_FILE := .kind/kubeconfig
 TENANT ?= bank-a
 SCOPES ?= capacity:read capacity:write
 
@@ -23,7 +40,7 @@ step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
 .PHONY: help targets completion status check doctor install up down ps logs seed token demo qa docs \
-        verify test test-unit test-int contracts load dlq-replay
+        verify test test-unit test-int contracts load dlq-replay isolation-live
 
 ## Help
 help: ## list every command (the default goal)
@@ -71,9 +88,9 @@ check: ## harness gates only
 up: ## build and start the stack, wait until every service is healthy
 	$(call step,Starting PostgreSQL · Kafka · OAuth2 · migrate · api · worker)
 	$(COMPOSE) up -d --build --wait
-	$(call done,Stack is up — API on :3000 · Swagger UI on http://localhost:9464/docs)
+	$(call done,Stack is up — API on :$(HOST_PORT_API) · Swagger UI on http://localhost:$(HOST_PORT_API_OPS)/docs)
 
-down: ## stop the stack and delete its data
+down: ## stop this branch's stack (project program-capacity-ms) and delete its data
 	$(COMPOSE) down -v --remove-orphans
 
 ps: ## show the stack's containers and their health
@@ -98,8 +115,8 @@ qa: ## QA pass: every endpoint and treasury message, with DB/Kafka checks (docs/
 	@bash tools/qa/run.sh
 
 docs: ## open Swagger UI (try the API in the browser)
-	@open http://localhost:9464/docs 2>/dev/null || xdg-open http://localhost:9464/docs 2>/dev/null || \
-	  printf 'Open http://localhost:9464/docs\n'
+	@open http://localhost:$(HOST_PORT_API_OPS)/docs 2>/dev/null || xdg-open http://localhost:$(HOST_PORT_API_OPS)/docs 2>/dev/null || \
+	  printf 'Open http://localhost:$(HOST_PORT_API_OPS)/docs\n'
 
 ## Quality gates
 verify: ## lint, types, layer rules, contract drift, unit and property tests
@@ -133,6 +150,9 @@ contracts: ## regenerate contracts/openapi.yaml from the zod schemas
 
 load: ## k6 against the compose stack; fails when NFR-03 is missed
 	npm run load
+
+isolation-live: ## prove main's stack and this branch's stack run together (MS-02)
+	@bash tools/isolation-live.sh
 
 dlq-replay: ## republish fixed DLQ messages: make dlq-replay TOPIC=treasury.capacity.v1.dlq FROM=0
 	npm run dlq-replay -- --topic "$(TOPIC)" --from "$(FROM)"

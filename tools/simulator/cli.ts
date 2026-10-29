@@ -12,7 +12,9 @@ const { positionals, values } = parseArgs({
   options: {
     brokers: {
       type: 'string',
-      default: process.env['KAFKA_BROKERS_EXTERNAL'] ?? 'localhost:29092',
+      default:
+        process.env['KAFKA_BROKERS_EXTERNAL'] ??
+        `localhost:${process.env['HOST_PORT_KAFKA'] ?? '39092'}`,
     },
     tenant: { type: 'string', default: 'bank-a' },
     program: { type: 'string', default: 'prg_demo' },

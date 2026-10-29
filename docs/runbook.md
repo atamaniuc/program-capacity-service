@@ -9,13 +9,13 @@ from the ops port of each container.
 
 | What | Where |
 | --- | --- |
-| Liveness, readiness | `curl -s localhost:9464/health/ready` (api), `localhost:9465` (worker). `down` names the failing dependency. |
-| Metrics | `curl -s localhost:9464/metrics` (api), `localhost:9465/metrics` (worker). The relay and jobs report from the worker. |
+| Liveness, readiness | `curl -s localhost:19464/health/ready` (api), `localhost:19465` (worker). `down` names the failing dependency. |
+| Metrics | `curl -s localhost:19464/metrics` (api), `localhost:19465/metrics` (worker). The relay and jobs report from the worker. |
 | Logs | `make logs` (JSON, one line per event; `trace_id` is present when OpenTelemetry is on). |
 | SQL | `docker compose -f deploy/compose.yaml exec postgres psql -U capacity capacity` |
 | Kafka | `docker compose -f deploy/compose.yaml exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic capacity.events.v1 --from-beginning --max-messages 5` |
-| Dashboards, traces | `docker compose -f deploy/compose.yaml --profile observability up -d`, then Grafana `localhost:3001`, Jaeger `localhost:16686`, Prometheus `localhost:9090`. |
-| API docs | `localhost:9464/docs` (ops port only). |
+| Dashboards, traces | `docker compose -f deploy/compose.yaml --profile observability up -d`, then Grafana `localhost:13001`, Jaeger `localhost:26686`, Prometheus `localhost:19090`. |
+| API docs | `localhost:19464/docs` (ops port only). |
 
 Alert rules live in `deploy/observability/alerts.yaml`: `DlqGrowing`, `OutboxLagHigh`,
 `InvariantMismatch`, `ProgramOverLimit`. Every alert below names its rule.
@@ -57,9 +57,9 @@ treasury has applied and the audit trail of the change:
 
 ```bash
 curl -s -H "Authorization: Bearer $(make token SCOPES=capacity:read)" \
-  localhost:3000/v1/programs/<programId>/capacity
+  localhost:13000/v1/programs/<programId>/capacity
 curl -s -H "Authorization: Bearer $(make token SCOPES=capacity:read)" \
-  "localhost:3000/v1/programs/<programId>/ledger?limit=20"
+  "localhost:13000/v1/programs/<programId>/ledger?limit=20"
 ```
 
 `treasurySeq` in the capacity response is the last applied treasury sequence; a message with a

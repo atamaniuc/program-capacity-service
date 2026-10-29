@@ -70,13 +70,29 @@ only if a task touches them.
 
 ## State
 
-Not started. Written on 2026-10-29: spec, tasks, this handoff, ADRs 023–028, glossary terms,
-pointers in ADRs 015/017/018/021/022, the DECISIONS index, the AGENTS.md branch line, the
-README section "Why this branch exists" and a branch note at the top of the PRD.
-`npx harnessimo check` was green after these edits. No code exists yet.
+T1 done (2026-10-29): side-by-side isolation. `deploy/compose.yaml` has `name:
+program-capacity-ms`, every host port from `HOST_PORT_*` (main's +10000), Kafka `EXTERNAL`
+listener and advertisement on 39092, issuer, token URL and CORS on the shifted ports, image
+`program-capacity-service:ms-local`. The Makefile exports the variables (and reserves
+`KIND_CLUSTER := finverity-ms`, `KUBECONFIG_FILE := .kind/kubeconfig`; `.kind/` is gitignored);
+`tools/`, `db/seeds`, `.env.example`, k6 (`Host` header), `tools/doctor.sh` (branch ports, warns on
+missing kind/helm/kubectl) and `tools/isolation-live.sh` read the same variables. README and
+runbook ports updated; `contracts/asyncapi.yaml` regenerated host (drift test).
+Proof: `test/architecture/isolation.test.ts` (MS-01, MS-03 — 11 tests), `make isolation-live`
+(MS-02). Live run with `main`'s stack up: `make up`, `make seed`, token and capacity read on
+:13000 -> 200, main's :3000 still 200 with a main token, `make down` removed only
+`program-capacity-ms` (main's five containers and `program-capacity-service:local` untouched).
 
-Until T1 lands, the branch's compose stack still uses `main`'s ports and project name:
-**do not run `make up` on the branch while `main`'s stack is up.** T1 is first for that reason.
+`docker compose -p program-capacity ps` (main): api, kafka, oauth, postgres, worker all running
+and healthy. `docker compose -p program-capacity-ms ps` (branch): api, kafka, oauth, postgres,
+worker all running and healthy (migrate and kafka-init exited 0).
+
+Not done in T1: the Funding/gRPC/payments-mock ports (60051, 13100, 19466, 19467, 13200) are in
+ADR 027 but have no service yet; they come with T14. k6 `make load` was not run (the
+scenario reads `HOST_PORT_API` and `HOST_PORT_OAUTH`). `docs/architecture.md` keeps container
+ports (3000, 9464) because those are inside the containers.
+
+Next: T2 (npm workspaces skeleton).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -118,7 +134,6 @@ Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.
 
 ## First step
 
-T1. Read `deploy/compose.yaml`, then write `test/architecture/isolation.test.ts` with
-`MS-01 publishes no host port of main's stack` first (it fails on the current compose file:
-5432 is published), then change the compose file, Makefile, `.env.example`, `tools/` and
-`db/seeds/seed.ts` until it passes. Run `make verify`.
+T2. Read ADR 027 "Layout", then write `test/architecture/workspaces.test.ts` with `WS-01 …`
+first (it fails: no workspaces yet), then add the root `workspaces`, `services/funding` and
+`services/payments-mock` skeletons. Ask the lead before adding any dependency. Run `make verify`.

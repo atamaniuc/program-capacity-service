@@ -3,8 +3,10 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
 
-const API = __ENV.API_URL || 'http://host.docker.internal:3000';
-const ISSUER = __ENV.OAUTH_TOKEN_ISSUER || 'http://host.docker.internal:8081/default';
+const API = __ENV.API_URL || 'http://host.docker.internal:' + (__ENV.HOST_PORT_API || '13000');
+const ISSUER =
+  __ENV.OAUTH_TOKEN_ISSUER ||
+  'http://host.docker.internal:' + (__ENV.HOST_PORT_OAUTH || '18081') + '/default';
 
 const hotRead = new Trend('hot_read_duration');
 const hotReserve = new Trend('hot_reserve_duration');
@@ -84,7 +86,12 @@ function fetchToken(tenant) {
     'grant_type=client_credentials&client_id=' +
       tenant +
       '&client_secret=local-dev-secret&scope=capacity%3Aread%20capacity%3Awrite&audience=capacity-service',
-    { headers: { 'content-type': 'application/x-www-form-urlencoded', Host: 'localhost:8081' } },
+    {
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        Host: 'localhost:' + (__ENV.HOST_PORT_OAUTH || '18081'),
+      },
+    },
   );
   if (tokenResponse.status !== 200) {
     throw new Error('token endpoint answered ' + tokenResponse.status + ' for ' + tenant);

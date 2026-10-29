@@ -9,9 +9,13 @@ import { buildScenario, defaultContext, type ScenarioName } from '../simulator/s
  * goes through Kafka, platform calls through the REST API with a mock-OAuth2 token, and every
  * line below is read back from the API, never from the database.
  */
-const API = process.env['API_URL'] ?? 'http://localhost:3000';
-const ISSUER = process.env['OAUTH_TOKEN_ISSUER'] ?? 'http://localhost:8081/default';
-const BROKERS = (process.env['KAFKA_BROKERS_EXTERNAL'] ?? 'localhost:29092').split(',');
+const API = process.env['API_URL'] ?? `http://localhost:${process.env['HOST_PORT_API'] ?? '13000'}`;
+const ISSUER =
+  process.env['OAUTH_TOKEN_ISSUER'] ??
+  `http://localhost:${process.env['HOST_PORT_OAUTH'] ?? '18081'}/default`;
+const BROKERS = (
+  process.env['KAFKA_BROKERS_EXTERNAL'] ?? `localhost:${process.env['HOST_PORT_KAFKA'] ?? '39092'}`
+).split(',');
 const TENANT = 'bank-a';
 const RUN = Date.now().toString(36);
 

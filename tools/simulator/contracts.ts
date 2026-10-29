@@ -57,7 +57,7 @@ export function renderAsyncApi(): string {
         'Money is a decimal string with its ISO 4217 currency. A message that fails validation is ' +
         'published unchanged to <topic>.dlq with x-error-code, x-error-message and x-original-* headers.',
     },
-    servers: { local: { host: 'localhost:29092', protocol: 'kafka' } },
+    servers: { local: { host: 'localhost:39092', protocol: 'kafka' } },
     channels: {
       treasuryCapacity: {
         address: TOPIC_CAPACITY,

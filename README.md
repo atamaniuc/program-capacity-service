@@ -51,10 +51,12 @@ cd ../finverity-microservices
 | Prometheus, Grafana, Jaeger, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |
 | Kubernetes | none | kind cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` (never `~/.kube/config`) |
 
-**Status: in progress.** The table is the target that lane 0006 task T1 implements. Until T1
-is ticked in [tasks.md](specs/0006-funding-saga/tasks.md), the compose file on this branch
-still uses `main`'s ports, so do not start both stacks at once. The kind targets arrive with
-T16. The rest of this README still describes `main` and is updated as features land.
+**Status: in progress.** Side-by-side isolation (lane 0006 task T1) is in place: every host
+port comes from a `HOST_PORT_*` variable with the default above, `make up` and `make down`
+touch only the project `program-capacity-ms`, and `make isolation-live` checks that both stacks
+are healthy together. The Funding, gRPC and kind rows are filled in by later tasks (the kind
+targets arrive with T16). The rest of this README still describes `main` and is updated as
+features land.
 
 ## The problem in one minute
 
@@ -94,8 +96,8 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 | `make`, `curl` | any (macOS ships GNU Make 3.81, that is enough) | Every command is a make target; the API tour uses curl |
 | `jq` | any; optional | Only `make qa` needs it |
 
-Free ports: 3000 (API), 5432 (PostgreSQL), 8081 (OAuth2), 9464 (api ops + Swagger UI),
-9465 (worker ops), 29092 (Kafka). `make doctor` checks all of the above and says how to fix
+Free ports: 13000 (API), 15432 (PostgreSQL), 18081 (OAuth2), 19464 (api ops + Swagger UI),
+19465 (worker ops), 39092 (Kafka). `make doctor` checks all of the above and says how to fix
 what is missing.
 
 ### Install and run
@@ -118,9 +120,9 @@ Try it:
 ```bash
 TOKEN=$(make -s token TENANT=bank-a)
 
-curl -s localhost:3000/v1/programs/prg_grand_usd/capacity -H "authorization: Bearer $TOKEN"
+curl -s localhost:13000/v1/programs/prg_grand_usd/capacity -H "authorization: Bearer $TOKEN"
 
-curl -s -X POST localhost:3000/v1/programs/prg_grand_usd/reservations \
+curl -s -X POST localhost:13000/v1/programs/prg_grand_usd/reservations \
   -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
   -H "idempotency-key: $(uuidgen)" \
   -d '{"invoiceId":"INV-HELLO-1","amount":{"value":"125000.00","currency":"EUR"}}'
@@ -138,10 +140,10 @@ make down              # stop and delete everything
 
 | URL | What |
 | --- | --- |
-| <http://localhost:3000/v1/…> | Business API (needs a token) |
-| <http://localhost:9464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
-| <http://localhost:9464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 9465) |
-| <http://localhost:3001> | Grafana, after `docker compose -f deploy/compose.yaml --profile observability up -d` (Jaeger on 16686) |
+| <http://localhost:13000/v1/…> | Business API (needs a token) |
+| <http://localhost:19464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
+| <http://localhost:19464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 19465) |
+| <http://localhost:13001> | Grafana, after `docker compose -f deploy/compose.yaml --profile observability up -d` (Jaeger on 26686) |
 
 ## How it is built
 

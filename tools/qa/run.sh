@@ -4,8 +4,8 @@
 # Test-case ids match docs/qa.md. Exit code is the number of failed checks (0 = all green).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
-API=http://localhost:3000
-OPS=http://localhost:9464
+API=http://localhost:${HOST_PORT_API:-13000}
+OPS=http://localhost:${HOST_PORT_API_OPS:-19464}
 RUN=$(date +%s)
 P=prg_qa_$RUN
 DC="docker compose -f deploy/compose.yaml"
@@ -43,13 +43,13 @@ c=$(curl -s -o /dev/null -w '%{http_code}' $OPS/health/live); check QA-01 "liven
 c=$(curl -s -o /dev/null -w '%{http_code}' $OPS/health/ready); check QA-01 "readiness 200" $(is "$c" 200) "$(curl -s $OPS/health/ready | head -c 120)"
 api GET "/v1/programs/$P/capacity" "$TA" # the counter has no series until the first request
 m1=$(curl -s $OPS/metrics | grep -c '^http_requests_total')
-m2=$(curl -s http://localhost:9465/metrics | grep -c -E '^(outbox_lag|outbox_oldest_unpublished_age_seconds|invariant_mismatch_programs|programs_over_limit)')
-check QA-02 "RED metrics on api :9464, domain metrics on worker :9465" $([ "$m1" -ge 1 ] && [ "$m2" -ge 4 ] && echo 0 || echo 1) "api http_requests_total series=$m1, worker domain gauges=$m2"
+m2=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | grep -c -E '^(outbox_lag|outbox_oldest_unpublished_age_seconds|invariant_mismatch_programs|programs_over_limit)')
+check QA-02 "RED metrics on the api ops port, domain metrics on the worker ops port" $([ "$m1" -ge 1 ] && [ "$m2" -ge 4 ] && echo 0 || echo 1) "api http_requests_total series=$m1, worker domain gauges=$m2"
 c=$(curl -s -o /dev/null -w '%{http_code}' $OPS/docs); a=$(curl -s -o /dev/null -w '%{http_code}' $OPS/docs/swagger-ui-bundle.js)
 check QA-03 "Swagger UI and its assets on ops port" $([ "$c$a" = 200200 ] && echo 0 || echo 1) "docs=$c bundle=$a"
 c=$(curl -s -o /dev/null -w '%{http_code}' $API/docs); check QA-03 "no docs on business port" $(is "$c" 404) "$c"
-h=$(curl -s -i -X OPTIONS "$API/v1/programs/$P/reservations" -H 'Origin: http://127.0.0.1:9464' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-type,idempotency-key' | tr -d '\r')
-check QA-04 "CORS preflight from docs origin" $(echo "$h" | grep -qi '^access-control-allow-origin: http://127.0.0.1:9464' && echo 0 || echo 1) "$(echo "$h" | head -1)"
+h=$(curl -s -i -X OPTIONS "$API/v1/programs/$P/reservations" -H "Origin: http://127.0.0.1:${HOST_PORT_API_OPS:-19464}" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-type,idempotency-key' | tr -d '\r')
+check QA-04 "CORS preflight from docs origin" $(echo "$h" | grep -qi "^access-control-allow-origin: http://127.0.0.1:${HOST_PORT_API_OPS:-19464}" && echo 0 || echo 1) "$(echo "$h" | head -1)"
 h=$(curl -s -i -X OPTIONS "$API/v1/programs/$P/reservations" -H 'Origin: http://evil.example' -H 'Access-Control-Request-Method: POST' | tr -d '\r')
 check QA-04 "no CORS for other origins" $(echo "$h" | grep -qi '^access-control-allow-origin' && echo 1 || echo 0) "no allow-origin header"
 
@@ -187,9 +187,9 @@ check QA-62 "out of order -> late seq skipped" $(is "$v2" "5|300000") "treasury_
 npm run -s simulate -- repayments --tenant bank-a --program "$P" --invoice INV-QA-K --amount 800.00 --seq 6 >/dev/null; sleep 3
 api GET "/v1/programs/$P/reservations/$RK" "$TA"
 check QA-63 "RepaymentReceived x2 releases the reservation" $([ "$(j .status)" = RELEASED ] && [ "$(j '.releases|length')" = 2 ] && echo 0 || echo 1) "$(j .status) releases=$(j '.releases|length')"
-d0=$(curl -s http://localhost:9465/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
+d0=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
 npm run -s simulate -- poison-message --tenant bank-a --program "$P" --new-limit 4000.00 --seq 8 >/dev/null; sleep 4
-d1=$(curl -s http://localhost:9465/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
+d1=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
 lim=$(sql "select credit_limit_minor from program where id='$P'")
 check QA-64 "poison: good message behind it applied" $(is "$lim" 400000) "limit_minor=$lim"
 check QA-64 "poison: worker dlq_messages_total +2" $([ $(( ${d1%.*} - ${d0%.*} )) -ge 2 ] && echo 0 || echo 1) "dlq_messages_total $d0 -> $d1"
@@ -212,10 +212,10 @@ api POST "/v1/programs/$P/reservations" "$TA" '{"invoiceId":"INV-QA-GBP2","amoun
 check QA-91 "FX rate older than 24 h -> 422 fx-rate-unavailable" $([ "$S" = 422 ] && [ "$(j .type)" = https://errors.capacity.example/fx-rate-unavailable ] && echo 0 || echo 1) "$S $(j .type)"
 g=$(sql "select count(*) from fx_rate where base='GBP' and quote='USD'")
 check QA-91 "DB stores the stale rate anyway" $([ "$g" -ge 1 ] && echo 0 || echo 1) "rows=$g"
-d0=$(curl -s http://localhost:9465/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
+d0=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
 pub '[{"kind":"raw","topic":"treasury.fx-rates.v1","key":"EURUSD","value":"{\"messageId\":\"bad-fx\",\"type\":\"FxRatePublished\"}"}]'
-d1=$(curl -s http://localhost:9465/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
-check QA-92 "malformed FX message -> treasury.fx-rates.v1.dlq" $([ $(( ${d1%.*} - ${d0%.*} )) -ge 1 ] && echo 0 || echo 1) "dlq_messages_total $d0 -> $d1; $(curl -s http://localhost:9465/metrics | grep '^dlq_messages_total{topic="treasury.fx-rates.v1"' | head -1)"
+d1=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
+check QA-92 "malformed FX message -> treasury.fx-rates.v1.dlq" $([ $(( ${d1%.*} - ${d0%.*} )) -ge 1 ] && echo 0 || echo 1) "dlq_messages_total $d0 -> $d1; $(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | grep '^dlq_messages_total{topic="treasury.fx-rates.v1"' | head -1)"
 
 pub "[{\"kind\":\"limit\",\"tenant\":\"bank-a\",\"program\":\"$P\",\"seq\":$((seq+1)),\"limit\":\"4000.00\",\"currency\":\"USD\",\"status\":\"SUSPENDED\"}]"
 api POST "/v1/programs/$P/reservations" "$TA" '{"invoiceId":"INV-QA-SUS","amount":{"value":"1.00","currency":"USD"}}'
@@ -226,16 +226,16 @@ pub "[{\"kind\":\"limit\",\"tenant\":\"bank-a\",\"program\":\"$P\",\"seq\":$((se
 api POST "/v1/programs/$P/reservations" "$TA" '{"invoiceId":"INV-QA-SUS","amount":{"value":"1.00","currency":"USD"}}'
 check QA-93 "ACTIVE again -> reserve 201" $(is "$S" 201) "$S"
 
-d0=$(curl -s http://localhost:9465/metrics | grep '^dlq_messages_total{topic="treasury.capacity.v1",reason="tenant-mismatch"}' | awk '{print $2+0}'); d0=${d0:-0}
+d0=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | grep '^dlq_messages_total{topic="treasury.capacity.v1",reason="tenant-mismatch"}' | awk '{print $2+0}'); d0=${d0:-0}
 pub "[{\"kind\":\"raw\",\"topic\":\"treasury.capacity.v1\",\"key\":\"bank-b:$P\",\"value\":\"{\\\"messageId\\\":\\\"mm-$RUN\\\",\\\"type\\\":\\\"ProgramLimitSet\\\",\\\"schemaVersion\\\":1,\\\"tenantId\\\":\\\"bank-a\\\",\\\"programId\\\":\\\"$P\\\",\\\"seq\\\":$((seq+50)),\\\"occurredAt\\\":\\\"2026-10-28T00:00:00Z\\\",\\\"payload\\\":{\\\"creditLimit\\\":{\\\"value\\\":\\\"1.00\\\",\\\"currency\\\":\\\"USD\\\"}}}\"}]"
-d1=$(curl -s http://localhost:9465/metrics | grep '^dlq_messages_total{topic="treasury.capacity.v1",reason="tenant-mismatch"}' | awk '{print $2+0}')
+d1=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | grep '^dlq_messages_total{topic="treasury.capacity.v1",reason="tenant-mismatch"}' | awk '{print $2+0}')
 lim=$(sql "select credit_limit_minor from program where id='$P' and tenant_id='bank-a'")
 check QA-94 "Kafka key names another tenant -> DLQ tenant-mismatch, no effect" $([ "${d1:-0}" -gt "$d0" ] && [ "$lim" = 400000 ] && echo 0 || echo 1) "tenant-mismatch $d0 -> $d1, limit_minor=$lim"
 
-d0=$(curl -s http://localhost:9465/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
+d0=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
 pub "[{\"kind\":\"repay\",\"tenant\":\"bank-a\",\"program\":\"$P\",\"seq\":$((seq+3)),\"invoice\":\"INV-NOPE\",\"ref\":\"nope-1\",\"amount\":\"1.00\",\"currency\":\"USD\"}]"
-d1=$(curl -s http://localhost:9465/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
-reason=$(curl -s http://localhost:9465/metrics | grep '^dlq_messages_total{topic="treasury.capacity.v1"' | sort -t' ' -k2 | tr '\n' ' ' | head -c 300)
+d1=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^dlq_messages_total/{s+=$2} END{print s+0}')
+reason=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | grep '^dlq_messages_total{topic="treasury.capacity.v1"' | sort -t' ' -k2 | tr '\n' ' ' | head -c 300)
 check QA-95 "RepaymentReceived for an unknown invoice -> DLQ" $([ $(( ${d1%.*} - ${d0%.*} )) -ge 1 ] && echo 0 || echo 1) "dlq $d0 -> $d1"
 
 pub "[{\"kind\":\"limit\",\"tenant\":\"bank-b\",\"program\":\"$P\",\"seq\":1,\"limit\":\"777.00\",\"currency\":\"EUR\"}]"
@@ -296,7 +296,7 @@ IFS='|' read -r a b c <<<"$inv"
 check QA-80 "I1/I5: reserved = open reservations = ledger sum" $([ "$a" = "$b" ] && [ "$b" = "$c" ] && echo 0 || echo 1) "$inv"
 upd=$(sql "update ledger_entry set actor='x' where program_id='$P'" 2>&1 | head -1)
 check QA-81 "ledger is append-only (UPDATE refused)" $(echo "$upd" | grep -q 'append-only' && echo 0 || echo 1) "$upd"
-m=$(curl -s http://localhost:9465/metrics | awk '/^invariant_mismatch_programs/{print $2}')
+m=$(curl -s http://localhost:${HOST_PORT_WORKER_OPS:-19465}/metrics | awk '/^invariant_mismatch_programs/{print $2}')
 check QA-82 "invariant job reports 0 mismatches" $(is "${m:-x}" 0) "invariant_mismatch_programs=$m"
 
 echo "TOTAL pass=$pass fail=$fail program=$P"

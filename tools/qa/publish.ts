@@ -100,7 +100,7 @@ function build(spec: Spec): ProducedMessage {
 }
 
 const specs = JSON.parse(process.argv[2] ?? '[]') as Spec[];
-const producer = await connectProducer(['localhost:29092']);
+const producer = await connectProducer([`localhost:${process.env['HOST_PORT_KAFKA'] ?? '39092'}`]);
 await producer.send(specs.map(build));
 await producer.close();
 console.log(`published ${specs.length}`);
