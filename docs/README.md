@@ -28,6 +28,7 @@ Optional, when you need them: [repository-map.md](repository-map.md) (what every
 | [qa.md](qa.md) | QA test cases on the live stack: every endpoint and Kafka message, with DB, Kafka and metric checks (`make qa`) |
 | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) | Every assumption and trade-off, with links to ADRs; known limits |
 | [infrastructure-choices.md](infrastructure-choices.md) | PgBouncer, Debezium/CDC, Floci/LocalStack, gRPC, Redis: why not now, when |
+| [local-stack.md](local-stack.md) | The compose stack: profiles (`make up`, `make up-all`), every service, ports, how to check each one |
 | [runbook.md](runbook.md) | Alerts, dashboards, what to do when something breaks |
 | [glossary.md](glossary.md) | The words used in code, API and docs |
 | [PRD.md](PRD.md) | Requirements: FR, NFR, acceptance criteria, invariants, stack |

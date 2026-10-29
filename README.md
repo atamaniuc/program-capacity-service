@@ -93,7 +93,7 @@ make down              # stop and delete everything (the tools too)
 
 | URL | What |
 | --- | --- |
-| <http://localhost:3000/v1/…> | Business API (needs a token) |
+| <http://localhost:3000/v1/…> | Business API (needs a token). Every container, port and profile: [docs/local-stack.md](docs/local-stack.md) |
 | <http://localhost:9464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
 | <http://localhost:9464/docs/asyncapi> | AsyncAPI: every Kafka topic the service reads and writes, with headers, keys and an example per message (`make events` tails `capacity.events.v1` live) |
 | <http://localhost:8080> | Kafka UI, after `make up-all` (`make kafka-ui` opens it): topics, every record with key and headers, consumer lag, DLQs; can produce a treasury message ([how to check with it](docs/qa.md#kafka-in-the-browser-kafka-ui)) |
