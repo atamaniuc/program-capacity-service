@@ -2,6 +2,8 @@
   "name": "program-capacity-service",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "repository": "github:atamaniuc/program-capacity-service",
   "type": "module",
   "engines": {
     "node": ">=24"
