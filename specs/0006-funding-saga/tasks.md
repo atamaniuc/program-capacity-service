@@ -95,6 +95,20 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   mappings), `make kind-up`, `make kind-smoke` (`helm test funding`), `make kind-forward`
   (23000–23099), `make kind-down`; kubeconfig only in `.kind/kubeconfig`; doctor warnings.
   proof (planned): `make kind-up`, `make kind-smoke`, `test/architecture/isolation.test.ts#K8-04`
+- [ ] T16a — **API gateway in kind** (ADR 029) **[review]**. Envoy Gateway `v1.9.3` from
+  `oci://docker.io/envoyproxy/gateway-helm` (constant `ENVOY_GATEWAY_VERSION`, release `eg` in
+  `envoy-gateway-system`); chart `deploy/helm/gateway`: `Gateway` with one HTTP listener,
+  `EnvoyProxy` (one replica, `ClusterIP`), `HTTPRoute`s `/v1/programs` → capacity and
+  `/v1/funding-requests` → funding (HTTP ports only, no `hostnames`), one `SecurityPolicy` per
+  route (JWT with the route's audience, `remoteJWKS` via `backendRefs`, `cacheDuration: 30s`,
+  `claimToHeaders` `tenant_id` → `x-tenant-id`, CORS), a `ClientTrafficPolicy` removing a
+  client-sent `x-tenant-id`, a `BackendTrafficPolicy` with a local per-tenant limit
+  (`Distinct`); one `KIND_OAUTH_ISSUER` constant passed to capacity, funding and gateway;
+  services' `CORS_ORIGINS` empty in kind; `make kind-token` sends the issuer's `Host`;
+  `make kind-forward` adds the gateway port; `make helm-check` renders the chart (kubeconform
+  skips the Gateway API and Envoy Gateway kinds by name); `make kind-smoke` also runs
+  `helm test gateway`. proof (planned): `make kind-smoke`,
+  `test/architecture/gateway.test.ts#GW-05`
 - [ ] T17 — **Docs for the delivered MVP** (architect with implementer). `docs/architecture.md`
   C4 context and container views for the branch, `docs/api.md` funding endpoints and the gRPC
   status table, README sections beyond "Why this branch exists", PRD branch note re-checked,
@@ -107,7 +121,8 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
 ---
 
 **Cut line.** Everything above is the minimum viable branch: isolation, workspaces, gRPC,
-funding saga, Helm and kind. The P0 gate is T1–T17 green plus the architect review. The
+funding saga, Helm and kind with its API gateway. The P0 gate is T1–T17 (T16a included)
+green plus the architect review. The
 lane closes only after T18 (owner decision, 2026-10-29): every ADR 021 precondition must hold.
 T19–T24 can follow in the same lane or a successor lane.
 

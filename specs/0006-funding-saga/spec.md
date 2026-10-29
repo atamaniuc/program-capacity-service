@@ -5,7 +5,7 @@ every diff that touches the saga, idempotency, the gRPC boundary or money (fresh
 
 **Branch scope.** This lane exists only on branch `microservices`. `main` is the submitted
 take-home and does not change. The ADRs below supersede `main`'s "no Saga, no Pact, no gRPC
-adapter, no Helm" decisions **on this branch only**.
+adapter, no Helm, no API gateway" decisions **on this branch only**.
 
 ## Why
 
@@ -21,6 +21,9 @@ builds the result the way the ADRs say it should be built:
 - **Saga** (ADR 025): risk check → reserve (gRPC) → disburse (mock payment rail) → on failure,
   compensate by release. Hand-rolled orchestrator, state in PostgreSQL.
 - **Helm and kind** (ADR 026): the whole system deploys to a local kind cluster with a smoke test.
+- **API gateway** (ADR 029): in kind, Envoy Gateway routes both public REST APIs, checks the
+  JWT at the edge and applies CORS and a local per-tenant rate limit; each service still
+  verifies the token itself.
 - **Layout and isolation** (ADR 027): npm workspaces, capacity stays at the root; the branch
   runs side by side with `main`'s stack without collisions.
 - **Contracts package and Pact** (ADR 028): after the MVP cut.
@@ -207,6 +210,44 @@ numbers. proof (planned): `make kind-smoke`
 **K8-04** — GIVEN the kind cluster WHEN `make kind-down` runs THEN only `finverity-ms` is
 deleted. proof (planned): `test/architecture/isolation.test.ts#K8-04`
 
+### API gateway in kind (T16a)
+
+These run in the cluster as `helm test gateway`, through the gateway's `ClusterIP` Service,
+with tokens minted at the cluster issuer (ADR 029). A gateway answer is told apart from a
+service answer by its body: services answer errors as `application/problem+json` (ADR 014),
+Envoy does not.
+
+**GW-01** — GIVEN the gateway WHEN a capacity token calls `GET /v1/programs/{id}` and a funding
+token calls `POST /v1/funding-requests` through it THEN capacity answers 200 with the program
+and funding answers 202 with `Location: /v1/funding-requests/…`; the same calls work through
+`make kind-forward` with `Host: localhost:…`; a path under neither prefix answers 404 from the
+gateway. proof (planned): `make kind-smoke`
+
+**GW-02** — GIVEN the gateway WHEN a request on either route has no token, a token with a bad
+signature, an expired token, a token whose `iss` is not the cluster issuer, or a capacity token
+on the funding route (wrong `aud`) THEN the gateway answers 401 with `WWW-Authenticate: Bearer`
+and a body that is not `application/problem+json`, so the service never saw the request.
+proof (planned): `make kind-smoke`
+
+**GW-03** — GIVEN capacity's and funding's `api` Services WHEN a Pod calls their ClusterIP HTTP
+port directly, bypassing the gateway, without a token or with a foreign-issuer token THEN each
+service answers 401 `application/problem+json` (ADR 011); the gateway is not the only check.
+proof (planned): `make kind-smoke`
+
+**GW-04** — GIVEN the local rate limit of L requests per minute per tenant per route (chart
+value; one gateway replica) WHEN one test-only tenant sends L + 1 valid requests within the
+minute THEN the first L are not 429 and the last is 429; a second tenant's request in the same
+minute is not 429; requests refused with 401 do not use up the bucket; a client-sent
+`x-tenant-id` naming the second tenant does not move the first tenant's request into the
+second's bucket. proof (planned): `make kind-smoke`
+
+**GW-05** — GIVEN `deploy/helm/gateway` WHEN the chart is rendered THEN it holds no `GRPCRoute`,
+`TCPRoute` or `TLSRoute`, the `Gateway` has one HTTP listener, and every `backendRef` names an
+HTTP port, never capacity's gRPC port or an ops port; live, a gRPC call to
+`/finverity.capacity.v1.CapacityService/GetAvailability` through the gateway is not routed (HTTP
+404 or gRPC `UNIMPLEMENTED`) and capacity records no gRPC call.
+proof (planned): `test/architecture/gateway.test.ts#GW-05` (static), `make kind-smoke` (live)
+
 ### After the MVP cut (T18–T23)
 
 **CT-01** — `packages/contracts` holds the proto, the stubs and the event schemas; both services
@@ -259,13 +300,15 @@ second effect. proof (planned): `services/funding/test/kafka/capacity-events.kaf
 
 ## Out of scope
 
-Temporal or any workflow engine; Redis; event sourcing; GraphQL; a CQRS read store; an API
-gateway; a service mesh, mTLS and a real cluster; a real payment rail; pricing or discount
+Temporal or any workflow engine; Redis (as a cache or as a rate-limit store, ADR 029); event
+sourcing; GraphQL; a CQRS read store; a gateway in compose, a global rate limit, TLS at the edge
+(ADR 029); a service mesh, mTLS and a real cluster; a real payment rail; pricing or discount
 maths (the disbursed amount is the invoice amount); FX in funding (capacity converts);
 splitting the capacity service (T1, T2, T4 did not fire); moving capacity to
 `services/capacity` (ADR 027); a Pact Broker; a schema registry.
-`CONSTRAINTS.md` constraint 9 still lists "no Saga, no Pact, no gRPC adapter": it is a locked
-surface, so only the owner can amend it on this branch (see handoff, open questions).
+`CONSTRAINTS.md` constraint 9 is amended on this branch by the owner (DECISIONS, 2026-10-29):
+the "no Saga, no Pact, no gRPC adapter" items are lifted here and the agent amends a rule that
+blocks the evolution, citing the ADR; `main` keeps the original rule.
 
 ## Tasks
 

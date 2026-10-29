@@ -4,6 +4,9 @@
 - Date: 2026-10-29
 - Amends: ADR 017 row "Helm, a real cluster, service mesh" (Helm and a local cluster are built
   on this branch; a real cluster and a service mesh stay out)
+- Amended by: [ADR 029](029-api-gateway.md) (Envoy Gateway in kind: two more releases in
+  `make kind-up`, `helm test gateway` in `make kind-smoke`; an `Ingress` controller stays out,
+  the edge is the Gateway API)
 
 ## Context
 
@@ -58,8 +61,9 @@ Under `deploy/helm/`, one chart per owner:
 
 ### Out of scope, still
 
-A real cluster or cloud account, ingress, HPA, NetworkPolicies (kind's default CNI does not
-enforce them), service mesh and mTLS, GitOps, image registry. A kind job in CI is optional and
+A real cluster or cloud account, an `Ingress` controller (the edge is the Gateway API of
+ADR 029), HPA, NetworkPolicies (kind's default CNI does not enforce them), service mesh and
+mTLS, GitOps, image registry. A kind job in CI is optional and
 comes after the MVP cut.
 
 ## Consequences

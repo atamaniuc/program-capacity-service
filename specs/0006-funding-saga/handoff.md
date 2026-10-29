@@ -6,7 +6,8 @@ Branch `microservices` is a documented evolution demo, not the submission (`main
 covers the job description's microservices, gRPC, Saga and Kubernetes asks by firing the revisit
 triggers `main` wrote down: T3 new bounded context (ADR 023), gRPC adapter (ADR 024, supersedes
 ADR 022 here), saga (ADR 025), Helm and kind (ADR 026), layout and side-by-side isolation
-(ADR 027), contracts package and Pact after the cut (ADR 028). Specs: `spec.md`, `tasks.md`.
+(ADR 027), contracts package and Pact after the cut (ADR 028), and an API gateway in kind
+(ADR 029). Specs: `spec.md`, `tasks.md`.
 After this lane is written, the branch moves to the worktree `../finverity-microservices`.
 
 ## What to load
@@ -14,10 +15,14 @@ After this lane is written, the branch moves to the worktree `../finverity-micro
 1. `specs/0006-funding-saga/tasks.md`, then the ACs of the current task in `spec.md`.
 2. The ADR the task names. For T1–T2: ADR 027. T3–T6: ADR 024, then ADR 006 (idempotency) and
    ADR 011 (auth). T7–T13: ADR 025 and ADR 023; ADR 006 for the receiver side. T15–T16: ADR 026.
+   T16a: ADR 029, then ADR 026 (kind targets), ADR 011 (what the services still check) and the
+   issuer paragraph of ADR 027.
 3. Code for T4–T6: `src/capacity/adapters/in/http/{capacity.controller,schemas,problem,auth}.ts`,
    `src/capacity/application/shared/{problem,idempotent,fingerprint}.ts`,
    `.dependency-cruiser.cjs`, `test/support/app.ts`. For T1: `deploy/compose.yaml`, `Makefile`,
-   `tools/doctor.sh`, the files listed in T1.
+   `tools/doctor.sh`, the files listed in T1. For T16a: `deploy/helm/{capacity,funding,local-infra}`
+   values (issuer, CORS, Service ports), the kind targets in `Makefile`,
+   `test/architecture/isolation.test.ts`.
 
 **What NOT to load:** PRD §8 reconciliation and treasury consumer, ADRs 007, 008, 010 and
 013, the reconcile and treasury slices, `docs/*.ru.md`, the PDFs and HTML files in `docs/`,
@@ -31,6 +36,7 @@ only if a task touches them.
 - deploy/observability/**
 - deploy/postgres/**
 - deploy/helm/**
+- deploy/helm/gateway/**
 - deploy/kind/**
 - Makefile
 - .env.example
@@ -53,6 +59,7 @@ only if a task touches them.
 - src/capacity/adapters/in/http/**
 - src/platform/**
 - test/architecture/**
+- test/architecture/gateway.test.ts
 - test/support/**
 - test/e2e/transports.e2e.test.ts
 - test/e2e/grpc.e2e.test.ts
@@ -136,12 +143,18 @@ Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.
   `Reserve` → not ours → `REJECTED`. Reserve retries end inside capacity's 24 h key retention.
   Compensation retries forever (`release_ref` never expires).
 - Rejected and staying rejected even here: Temporal, choreography, 2PC/XA, Redis, event
-  sourcing, GraphQL, API gateway, service mesh, a Pact Broker, a schema registry, Bitnami charts.
+  sourcing, GraphQL, service mesh, a Pact Broker, a schema registry, Bitnami charts. The API gateway
+  is no longer in this list (owner ruling 2026-10-29, ADR 029): Envoy Gateway in kind only, no
+  NestJS gateway, no Kong, no Redis-backed global rate limit.
 - kind: cluster `finverity-ms`, kubeconfig `.kind/kubeconfig`, no host port mappings, smoke runs
   in-cluster (`helm test`), port-forwards on 23000–23099.
 - Known trap (T1, T9, T11): mock-oauth2-server derives `iss` from the request's host. Tokens
   minted from the host carry `http://localhost:18081/default`; a service minting tokens inside
   the network must send the configured issuer's `Host` header, or capacity answers 401.
+- In kind (ADR 029) there is one issuer, the in-cluster FQDN of the mock OAuth2 Service, held in
+  one Makefile constant `KIND_OAUTH_ISSUER` and passed to capacity, funding and the gateway.
+  In-cluster minters call that FQDN, never the short Service name; `make kind-token` sends its
+  `Host`. A compose token is refused in kind by design.
 
 ## Owner decisions (2026-10-29)
 

@@ -27,9 +27,10 @@ service: its reservation transaction, invariants I1–I8 and REST API stay as th
 | No saga ([ADR 017](docs/adr/017-out-of-scope.md)) | A multi-step flow across services | Risk check → reserve → disburse → compensate spans two services and a payment rail | [025](docs/adr/025-funding-saga-orchestration.md) |
 | No Helm, no cluster ([ADR 017](docs/adr/017-out-of-scope.md)) | A target environment | A local kind cluster runs the whole system | [026](docs/adr/026-helm-and-kind.md) |
 | No Pact ([ADR 015](docs/adr/015-contracts.md)) | The first real split | `funding-service` is a real consumer of capacity's contract (after the MVP cut) | [028](docs/adr/028-contracts-package-and-consumer-contracts.md) |
+| No API gateway ([ADR 017](docs/adr/017-out-of-scope.md)) | A second public service needing shared policies | `funding-service`'s REST API joins capacity's; in kind, Envoy Gateway routes both and applies JWT, CORS and a per-tenant rate limit, while each service still verifies the token | [029](docs/adr/029-api-gateway.md) |
 
-Still not built here either: Redis, event sourcing, GraphQL, Temporal, an API gateway, a
-service mesh. The plan, with acceptance criteria and a cut line, is
+Still not built here either: Redis, event sourcing, GraphQL, Temporal, a gateway in compose,
+a service mesh. The plan, with acceptance criteria and a cut line, is
 [specs/0006-funding-saga](specs/0006-funding-saga/spec.md); the layout and the isolation rules
 are in [ADR 027](docs/adr/027-repository-layout-and-side-by-side-isolation.md).
 

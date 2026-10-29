@@ -11,13 +11,13 @@ down avoids relitigating them.
 
 ## Decision
 
-On branch `microservices` (an evolution demo; `main` is the submission) four rows below have
+On branch `microservices` (an evolution demo; `main` is the submission) five rows below have
 fired and point to the ADR that records it. On `main` every row stands as written.
 
 | Not built | Why not now | What would change the answer |
 | --- | --- | --- |
 | GraphQL | No graph-shaped reads; adds auth and N+1 surface | A UI that needs many aggregates in one call |
-| API gateway in this repo | The platform owns routing; the service validates the JWT itself | A second public service needing shared policies |
+| API gateway in this repo | The platform owns routing; the service validates the JWT itself | A second public service needing shared policies. **Fired on branch `microservices`:** `funding-service`'s REST API joins capacity's; Envoy Gateway in kind only, services still verify the JWT, local rate limit without Redis ([ADR 029](029-api-gateway.md)) |
 | Event sourcing | The append-only ledger plus a projection gives the audit trail without replay cost (ADR 010) | A requirement to rebuild state from history |
 | Saga, Temporal | One transaction holds the invariant; release is the compensating action | A multi-step flow across services. **Fired on branch `microservices`:** hand-rolled saga, Temporal still not built ([ADR 025](025-funding-saga-orchestration.md)) |
 | CDC (Debezium) | Infrastructure for one table; a polling relay is enough (ADR 009, [infrastructure-choices](../infrastructure-choices.md#debezium--cdc-change-data-capture)) | Relay throughput becomes the limit |

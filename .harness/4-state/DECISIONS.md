@@ -36,6 +36,7 @@ decisions about how the work is run.
 | 026 | Branch `microservices`: Helm charts and a local kind cluster `finverity-ms` (amends 017) | [026-helm-and-kind](../../docs/adr/026-helm-and-kind.md) |
 | 027 | Branch `microservices`: npm workspaces with capacity at the root; side-by-side isolation from `main` | [027-repository-layout-and-side-by-side-isolation](../../docs/adr/027-repository-layout-and-side-by-side-isolation.md) |
 | 028 | Branch `microservices`: contracts package and Pact, after the MVP cut (amends 015) | [028-contracts-package-and-consumer-contracts](../../docs/adr/028-contracts-package-and-consumer-contracts.md) |
+| 029 | Branch `microservices`: API gateway, Envoy Gateway on the Gateway API in kind only; services still verify the JWT; one cluster issuer; local per-tenant rate limit, no Redis (amends 017 and 026) | [029-api-gateway](../../docs/adr/029-api-gateway.md) |
 
 ---
 
@@ -202,8 +203,8 @@ microservices, gRPC, Saga and Kubernetes asks. Lane 0006 specifies it.
 
 - **Fired on the branch only:** ADR 021 T3 (ADR 023); ADR 022's third revisit trigger, gRPC
   half (ADR 024 supersedes ADR 022); ADR 017 rows "Saga, Temporal" (ADR 025, Temporal still
-  rejected), "Helm, a real cluster" (ADR 026, Helm and kind only), "Pact" (ADR 028) and
-  "gRPC adapter" (ADR 024).
+  rejected), "Helm, a real cluster" (ADR 026, Helm and kind only), "Pact" (ADR 028), "gRPC
+  adapter" (ADR 024) and "API gateway in this repo" (ADR 029, Envoy Gateway in kind only).
 - **Still settled on the branch:** the capacity service is not cut and I1–I8 hold; no Redis,
   event sourcing, GraphQL, CQRS read store, service mesh, Temporal, schema registry; no
   `SELECT … FOR UPDATE` on the idempotency path (D3 closed); zod is the only validator, no
@@ -234,7 +235,10 @@ microservices, gRPC, Saga and Kubernetes asks. Lane 0006 specifies it.
   `/v1/programs…` to capacity and `/v1/funding-requests…` to funding, checks the JWT at the edge,
   applies CORS and rate limits. Each service still validates the JWT itself (ADR 011), so a call
   that bypasses the gateway still gets 401; gRPC is never exposed. No hand-written NestJS
-  gateway, no Kong. AWS analogue: API Gateway or ALB. ADR 029 to follow.
+  gateway, no Kong. AWS analogue: API Gateway or ALB. Recorded in
+  [ADR 029](../../docs/adr/029-api-gateway.md), which also fixes one issuer per kind deployment
+  (the in-cluster FQDN of the mock OAuth2 Service, one Makefile constant for the services and the
+  gateway) and adds lane 0006 task T16a with GW-01 to GW-05.
 - **No Redis, owner ruling (2026-10-29):** Redis stays out on the branch too, both as a cache and
   as a rate-limit backend. Caching capacity data is rejected because availability is money: a
   stale value is a defect, the reserve is checked under the `program` row lock anyway, and ADR
