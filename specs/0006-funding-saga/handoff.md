@@ -92,6 +92,14 @@ ADR 027 but have no service yet; they come with T14. k6 `make load` was not run 
 scenario reads `HOST_PORT_API` and `HOST_PORT_OAUTH`). `docs/architecture.md` keeps container
 ports (3000, 9464) because those are inside the containers.
 
+`make test` after T1 (lead, 2026-10-29): green on the second run, 23/23 integration files,
+100/100 tests. The first run lost two integration files in `beforeAll`: `startPostgres()`
+(`test/support/capacity-world.ts:37`) did not come up, so `world.close()` threw in `afterAll`;
+the same file alone passed 7/7. Not caused by T1, which touched no test support. Suspected Docker
+load with `main`'s stack running alongside; unproven. If it recurs, capture the full log before
+re-running and treat it as a flake to fix (container start timeout or int-project concurrency),
+not as a regression.
+
 Next: T2 (npm workspaces skeleton).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
