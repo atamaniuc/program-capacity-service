@@ -25,6 +25,7 @@ Optional, when you need them: [repository-map.md](repository-map.md) (what every
 | [repository-map.md](repository-map.md) | Every folder and file: purpose and layer |
 | [api.md](api.md) | REST API tour: Swagger UI and curl, error catalogue |
 | [testing.md](testing.md) | Test levels, how to run them, requirement-to-test mapping |
+| [qa.md](qa.md) | QA test cases on the live stack: every endpoint and Kafka message, with DB, Kafka and metric checks (`make qa`) |
 | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) | Every assumption and trade-off, with links to ADRs; known limits |
 | [infrastructure-choices.md](infrastructure-choices.md) | PgBouncer, Debezium/CDC, Floci/LocalStack, gRPC, Redis: why not now, when |
 | [runbook.md](runbook.md) | Alerts, dashboards, what to do when something breaks |

@@ -22,7 +22,7 @@ endif
 step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
-.PHONY: help targets completion status check doctor install up down ps logs seed token demo docs \
+.PHONY: help targets completion status check doctor install up down ps logs seed token demo qa docs \
         verify test test-unit test-int contracts load dlq-replay
 
 ## Help
@@ -58,7 +58,7 @@ install: ## one command from a fresh clone: check requirements, npm ci, start th
 	@npm ci --no-audit --no-fund
 	@$(MAKE) --no-print-directory up
 	@$(MAKE) --no-print-directory seed
-	$(call done,Installed. Try: make docs (Swagger UI) · make token · make demo)
+	$(call done,Installed. Try: make docs (Swagger UI) · make token · make demo · make qa)
 
 ## Session and gate helpers
 status: ## harness check, last logged gate, last commits, next action
@@ -93,6 +93,9 @@ token: ## print a JWT: make token TENANT=bank-a SCOPES="capacity:read"
 
 demo: ## replay every documented scenario against the running stack
 	npm run demo
+
+qa: ## QA pass: every endpoint and treasury message, with DB/Kafka checks (docs/qa.md)
+	@bash tools/qa/run.sh
 
 docs: ## open Swagger UI (try the API in the browser)
 	@open http://localhost:9464/docs 2>/dev/null || xdg-open http://localhost:9464/docs 2>/dev/null || \

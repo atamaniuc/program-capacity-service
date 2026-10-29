@@ -85,6 +85,8 @@ More in the [API tour](docs/api.md). Then:
 ```bash
 make demo              # plays every scenario (limit cut, repayments, late snapshot, duplicate
                        # and out-of-order messages, poison message, stale FX) and checks the results
+make qa                # 98 QA checks: every endpoint and treasury message, plus DB, Kafka and
+                       # metric side effects (test cases in docs/qa.md)
 make down              # stop and delete everything
 ```
 
@@ -150,6 +152,7 @@ Every file, its purpose and its layer: [docs/repository-map.md](docs/repository-
 ```bash
 make verify    # lint, types, layer rules, OpenAPI drift, unit and property tests (~20 s)
 make test      # all tests with real PostgreSQL and Kafka via Testcontainers (~4 min, needs Docker)
+make qa        # 98 QA checks on the running stack: endpoints, Kafka input, DB and events (docs/qa.md)
 make load      # k6 load test against the running stack
 ```
 

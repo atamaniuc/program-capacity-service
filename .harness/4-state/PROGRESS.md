@@ -9,7 +9,8 @@ All five lanes are closed and all queue gates pass. A post-submission review of 
 re-reviewed (APPROVE) and recorded in DECISIONS. Docs were rewritten for human readers
 (`docs/README.md`), the gRPC adapter was declined (ADR 022), `/docs` became an interactive
 Swagger UI, and the k6 numbers were re-measured with a warm-up. Last full run: 95 unit + 100
-integration tests green.
+integration tests green. `make install` sets up a fresh clone in one command (~3 min);
+`make qa` runs the [QA test cases](../../docs/qa.md) on the live stack: 98/98 on 2026-10-29.
 
 ## Done
 
@@ -42,6 +43,10 @@ integration tests green.
   16.76 ms p95 — targets met; hot-program contention documented), ZAP workflow, k8s manifests
   validated by kubeconform; architect review APPROVE with 3 MINOR + 1 NOTE, all addressed; queue
   m4-stretch passing.
+- Post-review DX and QA: `make install`/`make doctor` with a requirements table, FX 24 h
+  freshness warning on `make seed`; `docs/qa.md` + `make qa` (every endpoint, every treasury
+  message type, DB/Kafka/metric side effects). The QA pass corrected two claims in `docs/api.md`
+  (natural-key replay is 200; `release-ref-mismatch` is 422).
 
 ## Next
 
@@ -54,4 +59,4 @@ integration tests green.
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
 - S7 (CI green on GitHub Actions) has no git remote to run against; workflows are written and the local equivalent (`make verify && make test`) is green.
 - CTO questions live in PRD §14.
-_Last updated: 2026-10-28_
+_Last updated: 2026-10-29_

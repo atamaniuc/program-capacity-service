@@ -14,6 +14,10 @@ npx vitest run --project unit src/capacity/domain/money.test.ts
 npx vitest run --project int test/integration/reserve-concurrency.int.test.ts -t "AC-01"
 ```
 
+On the running stack (`make install`), `make demo` plays the scenarios end to end and
+`make qa` runs the [QA test cases](qa.md): every endpoint and treasury message, with the rows,
+events and metrics each one must leave behind.
+
 ## Levels
 
 | Level | Where | What it proves | Needs |
