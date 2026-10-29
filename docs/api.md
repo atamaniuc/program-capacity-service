@@ -102,8 +102,10 @@ Send the same request again with the **same** key: you get the same `201` and th
 write; the stored answer is kept for at least 24 hours. Using the same key with a different
 body returns `422 idempotency-key-mismatch`.
 
-Without a key, the natural key still protects you: a second reservation for the same
-`invoiceId` in the same program returns `409 reservation-conflict`.
+Without a key, the natural key (one reservation per invoice and program) still protects you.
+A second request for the same `invoiceId` with the **same** amount returns `200` with the
+existing reservation, so a retry that lost its key is still harmless. A different amount, or an
+invoice whose reservation is already fully released, returns `409 reservation-conflict`.
 
 ## 5. Release
 
@@ -115,8 +117,8 @@ curl -s -X POST localhost:3000/v1/programs/prg_grand_usd/reservations/<reservati
 ```
 
 Omit `amount` to release the whole remainder. `releaseRef` identifies the repayment: the same
-`releaseRef` with the same amount is a no-op; with a different amount it is
-`409 release-ref-mismatch`.
+`releaseRef` with the same amount is a no-op that returns the original result; with a
+different amount or reason it is `422 release-ref-mismatch`.
 
 ## 6. Errors
 
@@ -134,12 +136,12 @@ Every error is `application/problem+json` (RFC 9457) with a stable `type`:
 | Status | `type` (suffix) | When |
 | --- | --- | --- |
 | 400 | `validation-error` | Body, path or header fails the schema |
-| 401 | — | Missing, expired or wrong-audience token |
-| 403 | — | Token lacks the scope |
+| 401 | `unauthorized` | Missing, expired or wrong-audience token |
+| 403 | `forbidden` | Token lacks the scope |
 | 404 | `not-found` | Program or reservation does not exist **for this tenant** |
-| 409 | `reservation-conflict`, `release-ref-mismatch` | Natural-key conflicts |
+| 409 | `reservation-conflict` | The invoice already has a reservation on other terms, or it is fully released |
 | 413 | `payload-too-large` | Body over the size limit |
-| 422 | `insufficient-capacity`, `program-over-limit`, `program-suspended`, `release-exceeds-remaining`, `fx-rate-unavailable`, `idempotency-key-mismatch` | Business rule refused the request |
+| 422 | `insufficient-capacity`, `program-over-limit`, `program-suspended`, `release-exceeds-remaining`, `fx-rate-unavailable`, `idempotency-key-mismatch`, `release-ref-mismatch` | Business rule refused the request, or a key/`releaseRef` was reused with another body |
 | 503 | `service-unavailable` | Database or identity provider unreachable; safe to retry with the same key |
 
 Another tenant's program answers `404`, not `403`, so a caller cannot even learn that it
