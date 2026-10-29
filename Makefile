@@ -23,7 +23,7 @@ step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
 .PHONY: help targets completion status check doctor install up down ps logs seed token demo qa docs \
-        docs-events events verify compat test test-unit test-int contracts load dlq-replay
+        docs-events kafka-ui events verify compat test test-unit test-int contracts load dlq-replay
 
 ## Help
 help: ## list every command (the default goal)
@@ -106,6 +106,10 @@ docs-events: ## open the AsyncAPI page: every Kafka topic, message, header and e
 	@open http://localhost:9464/docs/asyncapi 2>/dev/null || \
 	  xdg-open http://localhost:9464/docs/asyncapi 2>/dev/null || \
 	  printf 'Open http://localhost:9464/docs/asyncapi\n'
+
+kafka-ui: ## open Kafka UI: topics, records with headers, consumer groups and lag (docs/qa.md)
+	@open http://localhost:8080 2>/dev/null || xdg-open http://localhost:8080 2>/dev/null || \
+	  printf 'Open http://localhost:8080\n'
 
 events: ## follow capacity.events.v1 from the beginning: headers | key | value (Ctrl-C stops)
 	@$(COMPOSE) exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \

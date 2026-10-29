@@ -164,7 +164,8 @@ zod schemas the code uses (`src/capacity/application/shared/capacity-events.ts` 
 `treasury-messages.ts`), so `make verify` fails when code and contract disagree.
 
 **Watch them live:** `make events` follows the topic from the beginning and prints
-`headers | key | value`.
+`headers | key | value`. Kafka UI at <http://localhost:8080> (`make kafka-ui`) shows the same
+records in a browser, with filters by key and the consumer lag ([checks](qa.md#kafka-in-the-browser-kafka-ui)).
 
 | Event | When | Payload, besides `tenantId`, `programId`, `programSeq` |
 | --- | --- | --- |

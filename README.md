@@ -48,8 +48,8 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 | `make`, `curl` | any (macOS ships GNU Make 3.81, that is enough) | Every command is a make target; the API tour uses curl |
 | `jq` | any; optional | Only `make qa` needs it |
 
-Free ports: 3000 (API), 5432 (PostgreSQL), 8081 (OAuth2), 9464 (api ops + Swagger UI + AsyncAPI),
-9465 (worker ops), 29092 (Kafka). `make doctor` checks all of the above and says how to fix
+Free ports: 3000 (API), 5432 (PostgreSQL), 8080 (Kafka UI), 8081 (OAuth2), 9464 (api ops +
+Swagger UI + AsyncAPI), 9465 (worker ops), 29092 (Kafka). `make doctor` checks all of the above and says how to fix
 what is missing.
 
 ### Install and run
@@ -95,6 +95,7 @@ make down              # stop and delete everything
 | <http://localhost:3000/v1/…> | Business API (needs a token) |
 | <http://localhost:9464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
 | <http://localhost:9464/docs/asyncapi> | AsyncAPI: every Kafka topic the service reads and writes, with headers, keys and an example per message (`make events` tails `capacity.events.v1` live) |
+| <http://localhost:8080> | Kafka UI (`make kafka-ui`): topics, every record with key and headers, consumer lag, DLQs; can produce a treasury message ([how to check with it](docs/qa.md#kafka-in-the-browser-kafka-ui)) |
 | <http://localhost:9464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 9465) |
 | <http://localhost:3001> | Grafana, after `docker compose -f deploy/compose.yaml --profile observability up -d` (Jaeger on 16686) |
 

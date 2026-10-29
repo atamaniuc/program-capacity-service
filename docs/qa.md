@@ -41,6 +41,52 @@ the wire with it: `make events` prints every outbound event as `headers | key | 
 `npm run contracts:events -- --key bank-a:<program>` checks them against `contracts/` for you
 (QA-72).
 
+### Kafka in the browser (Kafka UI)
+
+<http://localhost:8080> (`make kafka-ui`) is [Kafka UI](https://github.com/kafbat/kafka-ui)
+(`kafbat/kafka-ui`, part of `make up`), pointed at the stack's broker. The contract page above
+says what *should* be on a topic; Kafka UI shows what *is* there, and can put a record on one.
+No login, and it can produce and delete: local stack only.
+
+What it shows:
+
+| Where | What to look at |
+| --- | --- |
+| **Topics** | Six topics, 6 partitions each: `treasury.capacity.v1`, `treasury.fx-rates.v1` (input), their `.dlq` twins, `capacity.events.v1` (output) and `capacity.events.v1.dlq` (created for symmetry, the service never writes it) |
+| Topic → **Messages** | Every record with partition, offset, timestamp, key, headers and the JSON value. Filter by key or text, seek by offset or time |
+| **Consumers** | `program-capacity-treasury` is the worker: state `STABLE`, lag per partition of both treasury topics. `contract-check-*` groups are left by `npm run contracts:events` and are harmless |
+| **Brokers** | One KRaft broker, the listeners from `deploy/compose.yaml` |
+
+How to check the service with it:
+
+1. **An event per change.** Reserve something in Swagger UI, then **Topics →
+   `capacity.events.v1` → Messages**, newest first. Expect a `ReservationCreated` with key
+   `bank-a:prg_grand_usd`, headers `event-type`, `event-id`, `program-seq`, and `seq` one
+   above the previous event of that key. Every event of one key sits on one partition.
+2. **Treasury input is applied.** **Topics → `treasury.capacity.v1` → Produce Message**, any
+   partition, key `bank-a:prg_ui_1`, value:
+
+   ```json
+   {"messageId":"ui-prg_ui_1-1","schemaVersion":1,"tenantId":"bank-a","programId":"prg_ui_1",
+    "seq":1,"occurredAt":"2026-10-29T10:00:00.000Z","type":"ProgramLimitSet",
+    "payload":{"creditLimit":{"value":"5000000.00","currency":"USD"},"status":"ACTIVE"}}
+   ```
+
+   Within a second `GET /v1/programs/prg_ui_1/capacity` (bank-a) shows the 5,000,000.00 USD
+   limit and `treasurySeq: 1`, and `capacity.events.v1` has a `ProgramCapacityChanged` with
+   `cause: limit-set`. The other examples on the AsyncAPI page work the same way. Use a new
+   `programId` for each run: a `seq` the program has already seen is not applied again.
+3. **A duplicate is applied once.** Produce the same record again. No second event appears and
+   the consumer lag returns to 0: the inbox deduplicates by `messageId`.
+4. **A broken record is parked.** Produce `{"this is": not json` with key
+   `bank-a:prg_grand_usd` to `treasury.capacity.v1`. It lands in `treasury.capacity.v1.dlq`
+   with headers `x-error-code: schema-invalid`, `x-error-message`, `x-original-topic`,
+   `x-original-partition`, `x-original-offset`; `dlq_messages_total` rises on `:9465/metrics`
+   and the worker keeps consuming (lag 0).
+5. **The worker keeps up.** **Consumers → `program-capacity-treasury`** during `make demo` or
+   `make qa`: lag grows for a moment and returns to 0. Lag that stays above 0 means the worker
+   is down or stuck (`make logs`).
+
 Seeded programs: `bank-a` owns `prg_grand_usd` (USD 10,000,000) and `prg_aegean_eur` (EUR);
 `bank-b` owns `prg_gulf_aed` (AED) and `prg_kuwait_kwd` (KWD, 3 decimals); `bank-c` owns
 `prg_atlas_usd` and `prg_nordic_eur`.
