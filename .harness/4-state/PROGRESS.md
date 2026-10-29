@@ -43,6 +43,10 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
   16.76 ms p95 — targets met; hot-program contention documented), ZAP workflow, k8s manifests
   validated by kubeconform; architect review APPROVE with 3 MINOR + 1 NOTE, all addressed; queue
   m4-stretch passing.
+- S7: pushed to <https://github.com/atamaniuc/program-capacity-service> on 2026-10-29; ci
+  (verify, integration, secrets, image), codeql and ZAP baseline green on `main`. The first
+  run failed the Trivy image scan on CVEs in the npm bundled with the base image; npm is now
+  removed from the runtime stage, and Dependabot no longer proposes major Node.js bumps.
 - Post-review DX and QA: `make install`/`make doctor` with a requirements table, FX 24 h
   freshness warning on `make seed`; `docs/qa.md` + `make qa` (every endpoint, every treasury
   message type, DB/Kafka/metric side effects). The QA pass corrected two claims in `docs/api.md`
@@ -57,6 +61,5 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 
 - Set `.harness/3-environment/locked-baseline` (suggested: bootstrap commit 611505b) — a human act.
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
-- S7 (CI green on GitHub Actions) has no git remote to run against; workflows are written and the local equivalent (`make verify && make test`) is green.
 - CTO questions live in PRD §14.
 _Last updated: 2026-10-29_

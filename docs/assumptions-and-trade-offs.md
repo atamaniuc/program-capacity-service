@@ -60,7 +60,5 @@ Honest list of what this version does not do, or does only partly.
   applied to a real cluster. No Helm chart, no ingress, no network policies.
 - **The ZAP scan is a baseline scan.** It checks headers and the unauthenticated surface, not
   the authenticated API.
-- **CI workflows are written but have not run**: the repository has no remote yet. The same
-  commands pass locally (`make verify && make test`).
 - **Reconciliation input is trusted for size up to `RECON_MAX_RESERVATIONS`** (50,000); larger
   snapshots go to the dead-letter topic.
