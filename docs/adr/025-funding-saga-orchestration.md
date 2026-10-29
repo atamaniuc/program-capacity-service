@@ -52,6 +52,22 @@ reservation is replayed as `CREATED`. `EXISTING` therefore means the invoice alr
 reservation with the same terms, made by someone else (for example a REST client). The saga
 ends `REJECTED` (`invoice-already-reserved`) and never releases that reservation.
 
+**A stale FX rate rejects the funding request; it is not retried** (architect ruling,
+2026-10-30, T4 review). `fx-rate-unavailable` is transient in the world (treasury publishes a
+fresh rate later), but capacity stores it under the `Idempotency-Key` like any business
+rejection (ADR 005, ADR 006) and ADR 024 maps it to `FAILED_PRECONDITION`. The saga's reserve
+key is deterministic, so a retry would only replay the stored 422 for 24 h. The saga therefore
+ends `REJECTED` with reason `fx-rate-unavailable`; no capacity is held (S5), no money moved, and
+the platform submits a new funding request once the rate is fresh. Rejected: mapping it to
+`UNAVAILABLE` and not storing it (changes `main`'s REST semantics and AC-12/AC-17 behaviour);
+per-attempt reserve keys (breaks "every retry of a step is the same request"). Revisit when
+FX rejections become an operational burden: then the fix is a funding-side pre-check of rate
+freshness or a capacity-side change on `main` first, never a new key per attempt.
+
+**`reservation-conflict` (`ALREADY_EXISTS`) is not ours either.** The saga's own retries carry
+the same key and body, so they replay; a conflict means another request reserved the invoice
+with other terms. The saga ends `REJECTED` (reason `reservation-conflict`) and releases nothing.
+
 ### State machine
 
 | From | Outcome | To | Same transaction |

@@ -30,12 +30,12 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   `proto:breaking` (against `PROTO_BASE`, CI sets the PR base), `proto:generate`,
   `proto:check`; all in `make verify`; committed stubs for capacity (server) and funding
   (client). <!-- proof: test/architecture/proto.test.ts#GR-01 -->
-- [ ] T4 — **One driving-adapter boundary** (ADR 024) **[review]**. Move request schemas,
+- [x] T4 — **One driving-adapter boundary** (ADR 024) **[review]**. Move request schemas,
   money parsing, the `Idempotency-Key` schema, the JWT verifier and `Principal` into
   `src/capacity/adapters/in/boundary/`; add the exhaustive problem table
   `{ http, grpc }`; amend the dependency-cruiser rule with the boundary exception. No
   behaviour change: every existing test green, `contracts:check` shows no diff.
-  proof (planned): `src/capacity/adapters/in/boundary/problem-map.test.ts#GR-02`
+  <!-- proof: src/capacity/adapters/in/boundary/problem-map.test.ts#GR-02 -->
 - [ ] T5 — **gRPC server adapter in the `api` role** (ADR 024) **[review]**. Auth interceptor
   before parsing, scope table with default-deny, `idempotency-key` and `x-request-id`
   metadata, `ErrorInfo` details, deadline check before the transaction, `GRPC_PORT` in config

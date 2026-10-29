@@ -158,7 +158,25 @@ green first run (23 int files / 100 tests; log in the session scratchpad `t4-tes
 Also: GR-01 stub-drift test now runs `node_modules/.bin/tsx`, ignores `npm warn` stderr lines and
 asserts on exit code and the `drifted` message; proven to fail on an edited stub.
 
-Next: T5 (gRPC server adapter) once T4 is reviewed.
+T4 reviewed (architect, 2026-10-30, at merge 74acf32): **APPROVE**. REST unchanged (same
+status, `type`, `title`, `WWW-Authenticate`, `Retry-After`; `contracts/openapi.yaml` identical to
+`main`; only import lines of `auth.test.ts` changed); the merge kept main's `/docs/asyncapi` and
+T4's boundary import in `start.ts`. Layer rules probed in a scratch copy: `out/postgres` and
+`in/kafka` importing the boundary, the boundary importing `in/http`, `@nestjs/common`, `express`
+and `@grpc/grpc-js` all fail depcruise. `make verify` green, `make test` green (24 int files /
+102 tests). Ruling on `fx-rate-unavailable` recorded in ADR 025 and DECISIONS.md.
+Carried into T5 (MINOR, fix there):
+- `RETRYABLE_GRPC_CODES` (`boundary/problem.ts`) is narrower than ADR 025's "Unknown" class: it
+  omits `INTERNAL`, `UNKNOWN` and `UNAUTHENTICATED`. Replace the GR-02 check with an allowlist:
+  every `STORED_PROBLEM_TYPES` entry maps to one of ADR 025's definite-failure codes
+  (`FAILED_PRECONDITION`, `NOT_FOUND`, `ALREADY_EXISTS`, `INVALID_ARGUMENT`, `PERMISSION_DENIED`).
+- `boundary-is-for-driving-adapters` (`.dependency-cruiser.cjs`) is a denylist
+  (`out|in/(kafka|jobs)`); a new `in/<x>` adapter could import the boundary. Make it an allowlist:
+  `from: { path: '^src/capacity/adapters/', pathNot: ['^src/capacity/adapters/in/(http|grpc|boundary)/', NOT_TEST] }`.
+- NOTE: the grpc adapter test asserts `GRPC_STATUS` equals `@grpc/grpc-js` `status` for each code
+  it names (the boundary hand-numbers them).
+
+Next: T5 (gRPC server adapter), starting with the two MINORs above.
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and

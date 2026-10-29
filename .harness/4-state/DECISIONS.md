@@ -254,6 +254,24 @@ promised, with the invariants intact.
 **Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
 (ADR 025).
 
+## 2026-10-30 — Architect review of lane 0006 T4 (shared boundary, GR-02): rulings
+
+APPROVE at 74acf32. REST behaviour and `contracts/openapi.yaml` unchanged; layer rules probed.
+
+- **`fx-rate-unavailable` rejects the funding request.** Stored under the key on `main` (ADR 005,
+  006) and `FAILED_PRECONDITION` over gRPC (ADR 024), so the saga's deterministic-key retry would
+  only replay it. The saga ends `REJECTED` with that reason; the platform resubmits a new funding
+  request later. Recorded in ADR 025 (outcome classes). The semantics stay in the ADR, not the code.
+- **`reservation-conflict` → `ALREADY_EXISTS` is "not ours"**, like `EXISTING`: `REJECTED`, nothing
+  released. `service-unavailable` (`UNAVAILABLE`) is a transport problem the use cases cannot
+  return, so it is never stored.
+- **Carried into T5 (MINOR):** the GR-02 non-retryable check becomes an allowlist of ADR 025's
+  definite-failure codes; `boundary-is-for-driving-adapters` becomes an allowlist of
+  `in/(http|grpc)`. Details in the lane handoff.
+
+**Why:** the saga reads gRPC codes as definite or unknown; a stored answer read as unknown
+would be retried against a replay for 12 h.
+
 ## 2026-10-29 — AsyncAPI covers the outbound events and is served at `/docs/asyncapi`
 
 `contracts/asyncapi.yaml` described only the treasury input, while `docs/api.md` called it the
