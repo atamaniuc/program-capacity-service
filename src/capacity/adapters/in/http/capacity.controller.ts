@@ -12,57 +12,30 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import type { ZodType } from 'zod';
 import { GetCapacity } from '#src/capacity/application/use-cases/queries/get-capacity/get-capacity.js';
 import { GetReservation } from '#src/capacity/application/use-cases/queries/get-reservation/get-reservation.js';
 import { ReleaseReservation } from '#src/capacity/application/use-cases/release-reservation/release-reservation.js';
 import { ReserveCapacity } from '#src/capacity/application/use-cases/reserve-capacity/reserve-capacity.js';
 import type { Outcome } from '#src/capacity/application/shared/problem.js';
-import { parseMoney, type Money } from '#src/capacity/domain/index.js';
-import { CurrentPrincipal, ScopeGuard, RequireScope, type Principal } from './auth.js';
-import { PROBLEM_CONTENT_TYPE, problemBody, validationProblem } from './problem.js';
+import type { Principal } from '../boundary/auth.js';
+import { money, parse, requestIdOf } from '../boundary/parse.js';
 import {
   IdempotencyKeyHeader,
   ProgramIdParam,
   ReleaseRequest,
   ReservationParams,
   ReserveRequest,
-} from './schemas.js';
+} from '../boundary/schemas.js';
+import { CurrentPrincipal, ScopeGuard, RequireScope } from './auth.js';
+import { PROBLEM_CONTENT_TYPE, problemBody } from './problem.js';
 
 export const RESERVE_CAPACITY = Symbol('RESERVE_CAPACITY');
 export const RELEASE_RESERVATION = Symbol('RELEASE_RESERVATION');
 export const GET_CAPACITY = Symbol('GET_CAPACITY');
 export const GET_RESERVATION = Symbol('GET_RESERVATION');
 
-export function parse<T>(schema: ZodType<T>, input: unknown, what: string): T {
-  const result = schema.safeParse(input);
-  if (!result.success) {
-    const issue = result.error.issues[0];
-    const path = issue?.path.join('.') ?? '';
-    throw validationProblem(
-      `${what}${path === '' ? '' : `.${path}`}: ${issue?.message ?? 'is invalid'}`,
-    );
-  }
-  return result.data;
-}
-
-function money(amount: { value: string; currency: string }, field: string): Money {
-  const parsed = parseMoney(amount.value, amount.currency);
-  if (parsed.ok) return parsed.value;
-  const reasons = {
-    'unsupported-currency': `${field}.currency is not a supported ISO 4217 code`,
-    'malformed-amount': `${field}.value must be an unsigned decimal string such as "1250.50"`,
-    'wrong-scale': `${field}.value must have exactly the minor-unit digits of ${amount.currency}`,
-    'amount-too-large': `${field}.value is too large`,
-  } as const;
-  throw validationProblem(reasons[parsed.error]);
-}
-
 function requestId(request: Request): string {
-  const supplied = request.headers['x-request-id'];
-  return typeof supplied === 'string' && /^[\x21-\x7e]{1,128}$/.test(supplied)
-    ? supplied
-    : randomUUID();
+  return requestIdOf(request.headers['x-request-id'], randomUUID);
 }
 
 export function send(response: Response, outcome: Outcome<unknown>): void {

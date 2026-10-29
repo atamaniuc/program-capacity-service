@@ -17,7 +17,7 @@ import {
   ReservationParams,
   ReservationResponse,
   ReserveRequest,
-} from './schemas.js';
+} from '../boundary/schemas.js';
 
 const problem = (description: string) => ({
   description,

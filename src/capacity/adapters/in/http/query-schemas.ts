@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { Amount, reservationFields } from './schemas.js';
+import { Amount, reservationFields } from '../boundary/schemas.js';
 
 /** FR-12 contract: list reservations and read the ledger, both keyset-paged (ADR 015). */
 

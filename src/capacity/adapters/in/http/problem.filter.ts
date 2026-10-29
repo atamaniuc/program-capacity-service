@@ -6,7 +6,14 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { HttpProblem, PROBLEM_CONTENT_TYPE, problemBody, type ProblemBody } from './problem.js';
+import { BoundaryProblem } from '../boundary/problem.js';
+import {
+  HttpProblem,
+  PROBLEM_CONTENT_TYPE,
+  fromBoundary,
+  problemBody,
+  type ProblemBody,
+} from './problem.js';
 
 /** PostgreSQL conditions that mean "try again later", not "the request is wrong". */
 const TRANSIENT_PG_CODES = new Set(['55P03', '57014', '40001', '40P01', '57P01', '08006', '08001']);
@@ -79,6 +86,7 @@ const logger = new Logger('ProblemFilter');
 
 /** Maps any thrown value to the problem the client sees; internals go to the log only. */
 export function toProblemResponse(exception: unknown): ProblemResponse {
+  if (exception instanceof BoundaryProblem) return toProblemResponse(fromBoundary(exception));
   if (exception instanceof HttpProblem) {
     return { body: exception.problem, headers: exception.headers };
   }

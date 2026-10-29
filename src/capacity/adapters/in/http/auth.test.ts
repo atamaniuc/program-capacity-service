@@ -1,7 +1,8 @@
 import { Reflector } from '@nestjs/core';
 import type { ExecutionContext } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { RequireScope, ScopeGuard, type Principal } from './auth.js';
+import type { Principal } from '../boundary/auth.js';
+import { RequireScope, ScopeGuard } from './auth.js';
 import { HttpProblem } from './problem.js';
 
 class Handlers {

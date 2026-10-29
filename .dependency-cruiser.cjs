@@ -24,7 +24,26 @@ module.exports = {
         'One adapter (for example in/http) must not import another (for example out/postgres).',
       severity: 'error',
       from: { path: '^src/capacity/adapters/([^/]+/[^/]+)/', pathNot: NOT_TEST },
-      to: { path: '^src/capacity/adapters/', pathNot: '^src/capacity/adapters/$1/' },
+      to: {
+        path: '^src/capacity/adapters/',
+        // ADR 024: a driving adapter (in/http, in/grpc) may import the shared boundary.
+        pathNot: ['^src/capacity/adapters/$1/', '^src/capacity/adapters/in/boundary/'],
+      },
+    },
+    {
+      name: 'boundary-is-for-driving-adapters',
+      comment:
+        'Only the HTTP and gRPC adapters import adapters/in/boundary (ADR 024); outbound and event adapters do not.',
+      severity: 'error',
+      from: { path: '^src/capacity/adapters/(out|in/(kafka|jobs))/', pathNot: NOT_TEST },
+      to: { path: '^src/capacity/adapters/in/boundary/' },
+    },
+    {
+      name: 'boundary-imports-no-transport',
+      comment: 'The boundary holds what both transports share and imports neither (ADR 024).',
+      severity: 'error',
+      from: { path: '^src/capacity/adapters/in/boundary/', pathNot: NOT_TEST },
+      to: { path: '^(node_modules/(@nestjs|express|@grpc)|src/capacity/adapters/in/(http|grpc)/)' },
     },
     {
       name: 'slices-do-not-import-each-other',

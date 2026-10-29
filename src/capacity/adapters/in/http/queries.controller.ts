@@ -2,10 +2,12 @@ import { Controller, Get, Inject, Param, Query, Res, UseGuards } from '@nestjs/c
 import type { Response } from 'express';
 import { GetLedger } from '#src/capacity/application/use-cases/queries/get-ledger/get-ledger.js';
 import { ListReservations } from '#src/capacity/application/use-cases/queries/list-reservations/list-reservations.js';
-import { CurrentPrincipal, RequireScope, ScopeGuard, type Principal } from './auth.js';
-import { parse, send } from './capacity.controller.js';
+import type { Principal } from '../boundary/auth.js';
+import { parse } from '../boundary/parse.js';
+import { CurrentPrincipal, RequireScope, ScopeGuard } from './auth.js';
+import { send } from './capacity.controller.js';
 import { LedgerQuery, ListReservationsQuery } from './query-schemas.js';
-import { ProgramIdParam } from './schemas.js';
+import { ProgramIdParam } from '../boundary/schemas.js';
 
 export const LIST_RESERVATIONS = Symbol('LIST_RESERVATIONS');
 export const GET_LEDGER = Symbol('GET_LEDGER');

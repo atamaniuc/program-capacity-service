@@ -63,6 +63,10 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 - Branch `microservices`, lane 0006 T3 fix: `@bufbuild/protobuf` declared as a runtime dependency
   (root and `services/funding`, with `@grpc/grpc-js`), GR-01 dependency test for `generated/`
   imports, `buf breaking` baseline is `HEAD` locally and the PR base or push `before` in CI.
+- Branch `microservices`, lane 0006 T4 (awaits architect review, not ticked): shared boundary
+  `src/capacity/adapters/in/boundary/` (schemas moved from `in/http`, `JwtVerifier` and `Principal`,
+  `parse`/`money`, exhaustive `PROBLEM_MAP`), HTTP adapter rewired, two depcruise rules. Also the
+  GR-01 drift test no longer fails on `npm warn` stderr (own commit).
 
 ## Next
 
@@ -75,4 +79,4 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
 - CTO questions live in PRD §14.
 
-_Last updated: 2026-10-29 (branch `microservices`: lane 0006 T3 done)_
+_Last updated: 2026-10-29 (branch `microservices`: lane 0006 T4 built, awaiting review)_

@@ -139,7 +139,26 @@ when a package imported under a `generated/` directory is not in the owning work
 `dependencies`. The two stub copies stay duplicated; ADR 028 / T18 moves them to `packages/contracts`.
 Proof: `test/architecture/proto.test.ts` (GR-01, 8 tests).
 
-Next: T4 (one driving-adapter boundary).
+T4 built (2026-10-29), **awaits architect review; the box in tasks.md is NOT ticked** (the proof
+marker is still `proof (planned)`). Files to review: `src/capacity/adapters/in/boundary/{problem,
+parse,auth,schemas}.ts`, `.../boundary/problem-map.test.ts` (GR-02, 4 tests), `.dependency-cruiser.cjs`
+(exception in `adapters-do-not-import-each-other`, new `boundary-is-for-driving-adapters` and
+`boundary-imports-no-transport`), and the HTTP side: `in/http/{problem,problem.filter,auth,
+capacity.controller,queries.controller,query-schemas,openapi}.ts`, `src/platform/bootstrap/start.ts`
+(import path only). Moves: `in/http/schemas.ts` -> `boundary/schemas.ts` (git rename); the verifier
+and `Principal` -> `boundary/auth.ts`; `parse`, `money`, request-id check -> `boundary/parse.ts`.
+The boundary throws a transport-neutral `BoundaryProblem(type, detail)`; the HTTP filter maps it
+through `fromBoundary` (status and title from `PROBLEM_MAP`, `WWW-Authenticate` on 401,
+`Retry-After: 1` on 503). `PROBLEM_MAP` entries are `{ title, http, grpc }` (gRPC as numeric
+`GRPC_STATUS`, so no gRPC import); `STORED_PROBLEM_TYPES` and `RETRYABLE_GRPC_CODES` back the
+GR-02 non-retryable rule. Not built here (T5): `ErrorInfo`/`google.rpc.Status` encoding.
+No existing test edited (only the import lines of `auth.test.ts`); no new dependency.
+`make verify` green (125 unit tests incl. 4 GR-02), `contracts:check` no diff, `make test`
+green first run (23 int files / 100 tests; log in the session scratchpad `t4-test.log`).
+Also: GR-01 stub-drift test now runs `node_modules/.bin/tsx`, ignores `npm warn` stderr lines and
+asserts on exit code and the `drifted` message; proven to fail on an edited stub.
+
+Next: T5 (gRPC server adapter) once T4 is reviewed.
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -187,6 +206,7 @@ Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.
 
 ## First step
 
-T4 **[review]**. Read ADR 024 ("One boundary for both transports"), the T4 line in `tasks.md`
-and the code files the handoff names for T4-T6. Write `problem-map.test.ts` with `GR-02 …` first.
-Run `make verify`. Stubs live in `src/capacity/adapters/in/grpc/generated/` for T5.
+Wait for the architect's verdict on T4 (files listed in State). On approval tick T4 with the
+marker `<!-- proof: src/capacity/adapters/in/boundary/problem-map.test.ts#GR-02 -->`, then start T5
+**[review]**: read ADR 024 (authentication, deadlines), build the grpc adapter on `boundary/` and
+the stubs in `src/capacity/adapters/in/grpc/generated/`.

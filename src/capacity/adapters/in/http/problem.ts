@@ -1,29 +1,12 @@
+import type { Problem } from '#src/capacity/application/shared/problem.js';
 import {
-  PROBLEM_TYPES,
-  type Problem,
-  type ProblemType,
-} from '#src/capacity/application/shared/problem.js';
-import { PROBLEM_TYPE_BASE } from './schemas.js';
+  PROBLEM_MAP,
+  type BoundaryProblem,
+  type TransportProblemType,
+} from '../boundary/problem.js';
+import { PROBLEM_TYPE_BASE } from '../boundary/schemas.js';
 
 export const PROBLEM_CONTENT_TYPE = 'application/problem+json';
-
-/** Problems the transport adds on top of the business catalog. */
-export type TransportProblemType =
-  | ProblemType
-  | 'unauthorized'
-  | 'forbidden'
-  | 'payload-too-large'
-  | 'internal-error'
-  | 'service-unavailable';
-
-export const TRANSPORT_PROBLEM_TYPES: readonly TransportProblemType[] = [
-  ...PROBLEM_TYPES,
-  'unauthorized',
-  'forbidden',
-  'payload-too-large',
-  'internal-error',
-  'service-unavailable',
-];
 
 /** RFC 9457 body: a type URI, a title, the status and a detail free of internals. */
 export interface ProblemBody {
@@ -60,16 +43,26 @@ export class HttpProblem extends Error {
   }
 }
 
+function fromTable(
+  type: TransportProblemType,
+  detail: string,
+  headers: Readonly<Record<string, string>> = {},
+): HttpProblem {
+  const { title, http } = PROBLEM_MAP[type];
+  return new HttpProblem(type, title, http, detail, headers);
+}
+
 export const unauthorized = (detail: string): HttpProblem =>
-  new HttpProblem('unauthorized', 'Unauthorized', 401, detail, { 'WWW-Authenticate': 'Bearer' });
+  fromTable('unauthorized', detail, { 'WWW-Authenticate': 'Bearer' });
 
-export const forbidden = (detail: string): HttpProblem =>
-  new HttpProblem('forbidden', 'Forbidden', 403, detail);
-
-export const validationProblem = (detail: string): HttpProblem =>
-  new HttpProblem('validation-error', 'Validation error', 400, detail);
+export const forbidden = (detail: string): HttpProblem => fromTable('forbidden', detail);
 
 export const serviceUnavailable = (detail: string): HttpProblem =>
-  new HttpProblem('service-unavailable', 'Service unavailable', 503, detail, {
-    'Retry-After': '1',
-  });
+  fromTable('service-unavailable', detail, { 'Retry-After': '1' });
+
+/** The HTTP form of a problem raised at the boundary: status from the table, challenge headers. */
+export function fromBoundary(problem: BoundaryProblem): HttpProblem {
+  if (problem.type === 'unauthorized') return unauthorized(problem.detail);
+  if (problem.type === 'service-unavailable') return serviceUnavailable(problem.detail);
+  return fromTable(problem.type, problem.detail);
+}
