@@ -19,6 +19,10 @@ RUN npm ci --omit=dev --ignore-scripts \
 
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production
+# Every role starts with `node`, so the package managers bundled in the base image are dead
+# weight and their own dependencies are the image's only CVEs: remove them.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY --chown=node:node package.json ./
 COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
