@@ -57,6 +57,9 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
   both stacks ran together and `make down` removed only the branch project.
 - Branch `microservices`, lane 0006 T2: npm workspaces (`services/funding`, `services/payments-mock`
   skeletons), WS-01 architecture test, `make verify`/`make test`/CI run every workspace.
+- Branch `microservices`, lane 0006 T3: `CapacityService` proto (`contracts/proto`), `buf` lint and
+  breaking in `make verify`/CI, committed ts-proto stubs (capacity server, funding client) with a
+  drift check, GR-01 architecture test.
 
 ## Next
 
@@ -69,4 +72,4 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
 - CTO questions live in PRD §14.
 
-_Last updated: 2026-10-29 (branch `microservices`: lane 0006 T2 done)_
+_Last updated: 2026-10-29 (branch `microservices`: lane 0006 T3 done)_

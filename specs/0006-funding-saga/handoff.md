@@ -119,12 +119,33 @@ at the root also hides files when a workspace runs eslint). `make test`: green o
 Proof: `test/architecture/workspaces.test.ts` (WS-01). No new dependencies; `package-lock.json`
 gained only the workspace entries.
 
-Next: T3 (proto contract and buf).
+T3 done (2026-10-29): `contracts/proto/finverity/capacity/v1/capacity_service.proto`
+(`CapacityService` Reserve/Release/GetAvailability, `Money` as decimal string plus
+`currency_code`, `ReserveResult` CREATED/EXISTING, `Capacity` as the REST view), `buf.yaml`
+(STANDARD lint, FILE breaking), `buf.gen.{capacity,funding}.yaml`. Scripts `proto:lint`,
+`proto:breaking`, `proto:generate`, `proto:check` (`tools/proto/{generate.ts,breaking.sh}`), all in
+`make verify` and `.github/workflows/ci.yml` (the verify job now checks out with `fetch-depth: 0`).
+Stubs (ts-proto, `outputServices=grpc-js`) are committed in
+`src/capacity/adapters/in/grpc/generated/` (server) and
+`services/funding/src/clients/capacity/generated/` (client); eslint and prettier ignore `**/generated`.
+Baseline: ADR 024 does not say how the first `buf breaking` baseline works, so
+`proto:breaking` compares with the merge base of `HEAD` and `PROTO_BASE` (default `main`; CI sets
+the PR base). `main` has no `contracts/proto`, so the baseline is empty and the script prints that and
+passes (buf cannot use an empty module as `--against`). From the first merge into a base that
+carries the proto, it runs the real `FILE` check. GR-01 proves the check on a fixture that removes
+a field. Dependencies: `@grpc/grpc-js` 1.14.6 (runtime), `ts-proto` 2.18.3 and `@bufbuild/buf`
+1.75.0 (dev), all re-checked with `npm view` on 2026-10-29. The generated code imports
+`@bufbuild/protobuf/wire`, which resolves as a transitive dependency of `ts-proto` (hoisted); it is
+not declared in `package.json` (question for the architect: declare it as a runtime dependency
+before T5 or T14 builds the images).
+Proof: `test/architecture/proto.test.ts` (GR-01, 6 tests).
+
+Next: T4 (one driving-adapter boundary).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
 `kubectl` are installed in `/usr/local/bin`; `buf` and `kubeconform` are not (use the npm
-`@bufbuild/buf`; kubeconform as in lane 0005). Ask the lead before adding any dependency.
+`@bufbuild/buf`; kubeconform as in lane 0005). Ask the lead before adding any dependency (T3 added the three proto dependencies).
 
 ## Decisions taken
 
@@ -167,6 +188,6 @@ Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.
 
 ## First step
 
-T3. Read ADR 024, ADR 006 and ADR 011, re-check the dated facts with `npm view`, and write
-`test/architecture/proto.test.ts` with `GR-01 …` first. Ask the lead before adding the
-dependencies (`@bufbuild/buf`, `ts-proto`, `@grpc/grpc-js`). Run `make verify`.
+T4 **[review]**. Read ADR 024 ("One boundary for both transports"), the T4 line in `tasks.md`
+and the code files the handoff names for T4-T6. Write `problem-map.test.ts` with `GR-02 …` first.
+Run `make verify`. Stubs live in `src/capacity/adapters/in/grpc/generated/` for T5.

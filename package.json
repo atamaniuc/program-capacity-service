@@ -30,12 +30,17 @@
     "demo": "tsx tools/demo/demo.ts",
     "contracts": "tsx tools/contracts/generate.ts",
     "contracts:check": "tsx tools/contracts/generate.ts --check",
+    "proto:lint": "buf lint contracts/proto",
+    "proto:breaking": "bash tools/proto/breaking.sh",
+    "proto:generate": "tsx tools/proto/generate.ts",
+    "proto:check": "tsx tools/proto/generate.ts --check",
     "dlq-replay": "tsx tools/dlq-replay/replay.ts",
     "simulate": "tsx tools/simulator/cli.ts",
     "load": "docker run --rm -i -v \"$PWD/tools/load:/load\" -e HOST_PORT_API=${HOST_PORT_API:-13000} -e HOST_PORT_OAUTH=${HOST_PORT_OAUTH:-18081} grafana/k6 run --summary-export=/load/summary.json /load/scenario.js"
   },
   "dependencies": {
     "@confluentinc/kafka-javascript": "1.11.0",
+    "@grpc/grpc-js": "1.14.6",
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",
     "@nestjs/platform-express": "12.3.2",
@@ -60,6 +65,7 @@
     "zod-openapi": "6.0.2"
   },
   "devDependencies": {
+    "@bufbuild/buf": "1.75.0",
     "@eslint/js": "10.0.1",
     "@swc/core": "1.16.20",
     "@testcontainers/kafka": "12.2.1",
@@ -80,6 +86,7 @@
     "prettier": "3.9.10",
     "supertest": "7.3.1",
     "testcontainers": "12.2.1",
+    "ts-proto": "2.18.3",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",

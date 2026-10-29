@@ -11,3 +11,4 @@ docs
 test/architecture/fixtures
 *.md
 contracts
+**/generated

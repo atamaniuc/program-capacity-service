@@ -131,6 +131,10 @@ verify: ## lint, types, layer rules, contract drift, unit and property tests
 	@npm run --silent depcruise --workspaces --if-present
 	$(call step,OpenAPI contract matches the zod schemas)
 	@npm run --silent contracts:check
+	$(call step,Proto contract (lint, breaking changes, stub drift))
+	@npm run --silent proto:lint
+	@npm run --silent proto:breaking
+	@npm run --silent proto:check
 	$(call step,Unit and property tests)
 	@npm run --silent test:unit
 	@npm run --silent test:unit --workspaces --if-present

@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+// Internal gRPC contract of the Program Capacity Service (ADR 024). Within v1 only additive
+// changes; a breaking change is a new package v2. Money is a decimal string with an ISO 4217
+// code, exactly as in the REST JSON (ADR 004): no float, double or integer money field.
+package finverity.capacity.v1;
+
+// Reserve and Release need scope capacity:write, GetAvailability needs capacity:read. The
+// tenant comes from the bearer token in the authorization metadata, never from a message.
+service CapacityService {
+  // Reserves capacity for one invoice. Metadata idempotency-key makes a retry replay the stored
+  // outcome (ADR 006).
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+  // Releases a reservation fully or partially; release_ref is the natural key of the release.
+  rpc Release(ReleaseRequest) returns (ReleaseResponse);
+  // Returns the same capacity view as GET /v1/programs/{id}/capacity.
+  rpc GetAvailability(GetAvailabilityRequest) returns (GetAvailabilityResponse);
+}
+
+// A decimal string at the currency scale, for example "1250.50", with its ISO 4217 code.
+message Money {
+  string value = 1;
+  string currency_code = 2;
+}
+
+message ReserveRequest {
+  string program_id = 1;
+  string invoice_id = 2;
+  // Invoice amount in invoice currency; greater than zero.
+  Money amount = 3;
+}
+
+// How the stored outcome of a Reserve relates to this caller (ADR 024).
+enum ReserveResult {
+  RESERVE_RESULT_UNSPECIFIED = 0;
+  // The stored outcome is 201: this call, or an earlier call under the same key, created it.
+  RESERVE_RESULT_CREATED = 1;
+  // The stored outcome is 200: the invoice already had a reservation with the same terms,
+  // made by another request (a natural-key replay).
+  RESERVE_RESULT_EXISTING = 2;
+}
+
+message ReserveResponse {
+  ReserveResult result = 1;
+  Reservation reservation = 2;
+  Capacity capacity = 3;
+}
+
+message ReleaseRequest {
+  string program_id = 1;
+  string reservation_id = 2;
+  string release_ref = 3;
+  // Repaid amount in invoice currency. Unset: the whole remainder.
+  Money amount = 4;
+  ReleaseReason reason = 5;
+}
+
+enum ReleaseReason {
+  RELEASE_REASON_UNSPECIFIED = 0;
+  RELEASE_REASON_REPAID = 1;
+  RELEASE_REASON_CANCELLED = 2;
+}
+
+message ReleaseResponse {
+  Reservation reservation = 1;
+  Capacity capacity = 2;
+}
+
+message GetAvailabilityRequest {
+  string program_id = 1;
+}
+
+message GetAvailabilityResponse {
+  Capacity capacity = 1;
+}
+
+enum ReservationStatus {
+  RESERVATION_STATUS_UNSPECIFIED = 0;
+  RESERVATION_STATUS_ACTIVE = 1;
+  RESERVATION_STATUS_PARTIALLY_RELEASED = 2;
+  RESERVATION_STATUS_RELEASED = 3;
+}
+
+message Reservation {
+  string reservation_id = 1;
+  string invoice_id = 2;
+  ReservationStatus status = 3;
+  Money invoice_amount = 4;
+  // In program currency, rounded up.
+  Money reserved_amount = 5;
+  Money released_amount = 6;
+  Money remaining_amount = 7;
+  FxRate fx = 8;
+  // RFC 3339 UTC timestamp.
+  string created_at = 9;
+}
+
+message FxRate {
+  // Decimal string, for example "1.0800000000".
+  string rate = 1;
+  string source = 2;
+  // RFC 3339 UTC timestamp.
+  string as_of = 3;
+}
+
+// The same view as the REST Capacity schema; amounts are in program currency.
+message Capacity {
+  string program_id = 1;
+  string currency_code = 2;
+  Money limit = 3;
+  Money reserved = 4;
+  // Never negative.
+  Money available = 5;
+  // Zero unless a limit cut left reserved above the limit.
+  Money over_limit_by = 6;
+  // reserved / limit, four decimal places, as a decimal string.
+  string utilization = 7;
+  int64 version = 8;
+  int64 treasury_seq = 9;
+}

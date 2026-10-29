@@ -23,13 +23,13 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   every workspace; architecture test for cross-service imports; `harnessimo.config.json`
   scans `services/` and `packages/`; CI runs the same make targets.
   <!-- proof: test/architecture/workspaces.test.ts#WS-01 -->
-- [ ] T3 — **Proto contract and buf** (ADR 024). `contracts/proto/finverity/capacity/v1/`
+- [x] T3 — **Proto contract and buf** (ADR 024). `contracts/proto/finverity/capacity/v1/`
   with `CapacityService` (`Reserve`, `Release`, `GetAvailability`), `Money` as decimal string
   plus `currency_code`, `ReserveResponse.result` (`CREATED`/`EXISTING`); `@bufbuild/buf`,
   `ts-proto` and `@grpc/grpc-js` pinned (check dated facts); `npm run proto:lint`,
   `proto:breaking` (against `PROTO_BASE`, CI sets the PR base), `proto:generate`,
   `proto:check`; all in `make verify`; committed stubs for capacity (server) and funding
-  (client). proof (planned): `test/architecture/proto.test.ts#GR-01`
+  (client). <!-- proof: test/architecture/proto.test.ts#GR-01 -->
 - [ ] T4 — **One driving-adapter boundary** (ADR 024) **[review]**. Move request schemas,
   money parsing, the `Idempotency-Key` schema, the JWT verifier and `Principal` into
   `src/capacity/adapters/in/boundary/`; add the exhaustive problem table
