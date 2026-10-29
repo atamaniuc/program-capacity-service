@@ -217,8 +217,8 @@ Operating notes (alerts, dashboards, what to do when the DLQ grows): [docs/runbo
 
 With AI coding agents working under a written process: requirements first, five milestone
 lanes, a test per acceptance criterion, and an independent review of every change touching
-money or concurrency. Each milestone gate is logged with a timestamp in `.harness/4-state/BUDGET.md` (optional reading).
-Details: [docs/development-process.md](docs/development-process.md). <!-- proof: .harness/4-state/BUDGET.md -->
+money or concurrency. Each milestone gate is logged with a timestamp in
+`.harness/4-state/BUDGET.md` (optional reading). Details: [docs/development-process.md](docs/development-process.md). <!-- proof: .harness/4-state/BUDGET.md -->
 
 ## License
 

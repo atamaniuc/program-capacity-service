@@ -16,7 +16,8 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 
 - Repository initialised; harnessimo 0.10.1 adopted from npm (no divergence from upstream templates).
 - PRD edits per bootstrap §5 / review §7: FR-16 renamed "gRPC adapter (P2)"; Evolution
-  section gains split preconditions and when Pact or a schema registry appear; cut order recorded in §11; OpenAPI-from-zod and `/docs` placement in §10; dated facts
+  section gains split preconditions and when Pact or a schema registry appear; cut order
+  recorded in §11; OpenAPI-from-zod and `/docs` placement in §10; dated facts
   re-checked on 2026-10-28 (Node 26 enters LTS today, Drizzle v1 is an RC, TS 7 is `latest`
   but Nest CLI 12 pins TS 6); repo tree shows `specs/` and `.harness/`.
   Review items already present in the PRD before this session: D4/D5 (contiguous watermark,
@@ -62,4 +63,5 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 - Set `.harness/3-environment/locked-baseline` (suggested: bootstrap commit 611505b) — a human act.
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
 - CTO questions live in PRD §14.
+
 _Last updated: 2026-10-29_
