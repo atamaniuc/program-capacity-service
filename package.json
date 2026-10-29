@@ -39,6 +39,7 @@
     "load": "docker run --rm -i -v \"$PWD/tools/load:/load\" -e HOST_PORT_API=${HOST_PORT_API:-13000} -e HOST_PORT_OAUTH=${HOST_PORT_OAUTH:-18081} grafana/k6 run --summary-export=/load/summary.json /load/scenario.js"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
     "@confluentinc/kafka-javascript": "1.11.0",
     "@grpc/grpc-js": "1.14.6",
     "@nestjs/common": "12.3.2",

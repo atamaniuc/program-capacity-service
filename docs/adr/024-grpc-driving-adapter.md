@@ -39,6 +39,11 @@ REST stays the public API, described by `contracts/openapi.yaml`. Nothing in it 
 - `buf` from the npm package `@bufbuild/buf` (pinned; no system install). `buf lint`
   (STANDARD) and `buf breaking` (FILE rules) run in `make verify` and CI. Within `v1` only
   additive changes; a breaking change is a new package `v2`.
+- Breaking-change baseline: `buf breaking` compares the working tree with a commit that already
+  carries the proto, never with `main` alone (which may not). Locally the baseline is `HEAD`, so
+  an uncommitted breaking edit fails. In CI it is the PR base on `pull_request` and
+  `github.event.before` on `push` (skipped for the all-zero SHA of a new branch). A baseline
+  without `contracts/proto` is empty: the script says so and passes.
 - TypeScript stubs are generated with `ts-proto` for `@grpc/grpc-js`, committed, and checked
   for drift (`npm run proto:check`), the same rule as `contracts:check` (ADR 015).
 

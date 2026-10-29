@@ -60,6 +60,9 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 - Branch `microservices`, lane 0006 T3: `CapacityService` proto (`contracts/proto`), `buf` lint and
   breaking in `make verify`/CI, committed ts-proto stubs (capacity server, funding client) with a
   drift check, GR-01 architecture test.
+- Branch `microservices`, lane 0006 T3 fix: `@bufbuild/protobuf` declared as a runtime dependency
+  (root and `services/funding`, with `@grpc/grpc-js`), GR-01 dependency test for `generated/`
+  imports, `buf breaking` baseline is `HEAD` locally and the PR base or push `before` in CI.
 
 ## Next
 

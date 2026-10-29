@@ -9,6 +9,10 @@
   "imports": {
     "#src/*": "./src/*"
   },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@grpc/grpc-js": "1.14.6"
+  },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",

@@ -128,17 +128,16 @@ T3 done (2026-10-29): `contracts/proto/finverity/capacity/v1/capacity_service.pr
 Stubs (ts-proto, `outputServices=grpc-js`) are committed in
 `src/capacity/adapters/in/grpc/generated/` (server) and
 `services/funding/src/clients/capacity/generated/` (client); eslint and prettier ignore `**/generated`.
-Baseline: ADR 024 does not say how the first `buf breaking` baseline works, so
-`proto:breaking` compares with the merge base of `HEAD` and `PROTO_BASE` (default `main`; CI sets
-the PR base). `main` has no `contracts/proto`, so the baseline is empty and the script prints that and
-passes (buf cannot use an empty module as `--against`). From the first merge into a base that
-carries the proto, it runs the real `FILE` check. GR-01 proves the check on a fixture that removes
-a field. Dependencies: `@grpc/grpc-js` 1.14.6 (runtime), `ts-proto` 2.18.3 and `@bufbuild/buf`
+Baseline (T3 fix): `proto:breaking` compares the working tree with `HEAD` locally and, in CI, with
+the PR base (`pull_request`) or `github.event.before` (`push`, skipped for the all-zero SHA); a base
+without `contracts/proto` prints that and passes (buf cannot use an empty module as `--against`).
+Rule recorded in ADR 024. GR-01 proves the check on a fixture that removes a field. Dependencies: `@grpc/grpc-js` 1.14.6 (runtime), `ts-proto` 2.18.3 and `@bufbuild/buf`
 1.75.0 (dev), all re-checked with `npm view` on 2026-10-29. The generated code imports
-`@bufbuild/protobuf/wire`, which resolves as a transitive dependency of `ts-proto` (hoisted); it is
-not declared in `package.json` (question for the architect: declare it as a runtime dependency
-before T5 or T14 builds the images).
-Proof: `test/architecture/proto.test.ts` (GR-01, 6 tests).
+`@bufbuild/protobuf/wire`: declared as a runtime dependency (2.16.0, what ts-proto 2.18.3 resolves)
+in the root `package.json`, and with `@grpc/grpc-js` in `services/funding/package.json`; GR-01 fails
+when a package imported under a `generated/` directory is not in the owning workspace's
+`dependencies`. The two stub copies stay duplicated; ADR 028 / T18 moves them to `packages/contracts`.
+Proof: `test/architecture/proto.test.ts` (GR-01, 8 tests).
 
 Next: T4 (one driving-adapter boundary).
 

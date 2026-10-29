@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# buf breaking (FILE rules) against the merge base with PROTO_BASE (default: main; CI sets the PR
-# base). When the base has no contracts/proto yet (the first baseline, ADR 024), the baseline is
-# empty and the check passes.
+# buf breaking (FILE rules) of the working tree against a baseline commit (ADR 024):
+#   PROTO_BASE unset  -> HEAD (local: catches an uncommitted breaking edit)
+#   PROTO_BASE=<ref>  -> that ref; CI passes the PR base on pull_request and github.event.before
+#                        on push. An empty or all-zero ref (a new branch) skips the check.
+# When the baseline commit has no contracts/proto yet, the baseline is empty and the check passes.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-base="${PROTO_BASE:-main}"
+base="${PROTO_BASE:-HEAD}"
+if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+  echo "proto:breaking: no baseline commit (new branch); nothing to compare"
+  exit 0
+fi
 if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
   base="origin/$base"
 fi
-ref="$(git merge-base HEAD "$base")"
+ref="$(git rev-parse "$base^{commit}")"
 if git cat-file -e "$ref:contracts/proto/buf.yaml" 2>/dev/null; then
   exec node_modules/.bin/buf breaking contracts/proto --against ".git#ref=$ref,subdir=contracts/proto"
 fi

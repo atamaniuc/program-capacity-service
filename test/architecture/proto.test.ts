@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -28,6 +28,42 @@ function protoFiles(dir: string): string[] {
     if (statSync(path).isDirectory()) return protoFiles(path);
     return name.endsWith('.proto') ? [path] : [];
   });
+}
+
+function generatedFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.name === 'node_modules' || entry.name === '.git') return [];
+    if (!entry.isDirectory()) return [];
+    return entry.name === 'generated' ? tsFiles(path) : generatedFiles(path);
+  });
+}
+
+function tsFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return tsFiles(path);
+    return entry.name.endsWith('.ts') ? [path] : [];
+  });
+}
+
+function owningManifest(file: string): string {
+  let dir = dirname(file);
+  while (`${dir}/`.startsWith(root)) {
+    const candidate = join(dir, 'package.json');
+    try {
+      statSync(candidate);
+      return candidate;
+    } catch {
+      dir = dirname(dir);
+    }
+  }
+  throw new Error(`no package.json above ${file}`);
+}
+
+function barePackage(specifier: string): string {
+  const parts = specifier.split('/');
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
 }
 
 const scratch: string[] = [];
@@ -91,6 +127,38 @@ describe('GR-01 proto contract', () => {
 
     const same = run(buf, ['breaking', base, '--against', base]);
     expect(same.status).toBe(0);
+  });
+
+  it('GR-01 breaking.sh defaults to HEAD and skips the all-zero SHA of a new branch', () => {
+    const script = readFileSync(join(root, 'tools/proto/breaking.sh'), 'utf8');
+    expect(script).toContain('PROTO_BASE:-HEAD');
+    const skipped = spawnSync('bash', ['tools/proto/breaking.sh'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PROTO_BASE: '0000000000000000000000000000000000000000' },
+    });
+    expect(skipped.status).toBe(0);
+    expect(skipped.stdout).toContain('no baseline commit');
+  });
+
+  it('GR-01 generated stubs only import packages their workspace lists in dependencies', () => {
+    const files = generatedFiles(root);
+    expect(files.length).toBeGreaterThan(1);
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      const specifiers = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1] ?? '');
+      const bare = specifiers.filter(
+        (s) => !s.startsWith('.') && !s.startsWith('#') && !s.startsWith('node:'),
+      );
+      expect(bare.length, file).toBeGreaterThan(0);
+      const manifest = owningManifest(file);
+      const pkg = JSON.parse(readFileSync(manifest, 'utf8')) as {
+        dependencies?: Record<string, string>;
+      };
+      for (const name of new Set(bare.map(barePackage))) {
+        expect(Object.keys(pkg.dependencies ?? {}), `${name} imported by ${file}`).toContain(name);
+      }
+    }
   });
 
   it('GR-01 wires proto:lint, proto:breaking, proto:generate and proto:check into make verify', () => {
