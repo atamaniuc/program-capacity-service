@@ -219,6 +219,12 @@ proof (planned): `services/funding/test/pact/capacity.consumer.pact.test.ts#CT-0
 **CT-03** — Capacity verifies the committed pact against its real gRPC server and PostgreSQL.
 proof (planned): `test/pact/capacity.provider.pact.test.ts#CT-03`
 
+**CT-04** — An event schema change that would break an existing consumer fails `make verify`:
+compared with the merge base, removing or renaming a field, adding a required field, or
+narrowing a type is refused; adding an optional field passes. This is the build-time substitute
+for a schema registry (ADR 028).
+proof (planned): `packages/contracts/test/schema-compat.test.ts#CT-04`
+
 **FS-15** — The funding outbox relay publishes `funding.events.v1` in per-request order under a
 lease with epoch fencing (ADR 009 pattern).
 proof (planned): `services/funding/test/kafka/outbox-relay.kafka.test.ts#FS-15`

@@ -33,7 +33,9 @@ Order when a trigger fires:
 Preconditions for any split: the trigger is written down as an ADR; contracts live in their own
 package; the inbox and outbox already guard the boundary being cut; the acceptance suite runs
 against both sides of the split. Consumer-driven contracts (Pact) and a schema registry arrive
-with the first split, when a second deployable consumes `capacity.events.v1`.
+with the first split, when a second deployable consumes `capacity.events.v1`. On branch
+`microservices` the registry is replaced by build-time compatibility checks while both services
+share one repository ([ADR 028](028-contracts-package-and-consumer-contracts.md#no-schema-registry-what-replaces-it-and-when-it-arrives)).
 
 ## Consequences
 

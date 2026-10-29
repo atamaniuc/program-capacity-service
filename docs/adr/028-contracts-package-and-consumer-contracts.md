@@ -44,6 +44,36 @@ saga (ADR 025). That is what a consumer contract is for.
 - The provider verification runs in capacity's `make test` against the real gRPC server and a
   real PostgreSQL; a broken pact fails the build.
 
+### No schema registry: what replaces it, and when it arrives
+
+ADR 021 says Pact and a schema registry "arrive with the first split, when a second deployable
+consumes `capacity.events.v1`". This branch is the first split, but its second deployable talks
+to capacity over gRPC; it consumes `capacity.events.v1` only in P2 (T24). So the registry's own
+trigger has not fired, and even when it does, the registry would solve a problem this repository
+does not have.
+
+A schema registry (Confluent, Apicurio) checks schema compatibility **at run time**, when a
+producer registers a new version. It earns its place when many producers and consumers live in
+different repositories and release independently, so nobody can see every schema at build
+time, and when the payload is a binary format (Avro, Protobuf) whose reader needs the writer's
+schema id from the message.
+
+Here both services live in one repository and ship from one CI run, and events are JSON with
+versioned topic names. Compatibility is checked **at build time** instead:
+
+| What a registry would do | What does it here |
+| --- | --- |
+| Single source of event schemas | zod → committed JSON Schemas and `asyncapi.yaml` in `@finverity/contracts`; `test/kafka/contracts.test.ts` fails on drift |
+| Refuse an incompatible new version | JSON Schema backward-compatibility check against the merge base in `make verify` (T18): removing or renaming a field, adding a required one, or narrowing a type fails |
+| Refuse an incompatible gRPC change | `buf breaking` (ADR 024) |
+| Prove what the consumer relies on | Pact: gRPC now, message pact on `capacity.events.v1` with T24 |
+| Breaking change, when it is wanted | a new topic `capacity.events.v2` with both published during migration, never an in-place edit |
+
+**When to add a registry:** a topic is read by a team or service from another repository; or
+the event payload moves to Avro or Protobuf; or producers deploy independently of the
+contracts package. Then the JSON Schemas move into the registry with `BACKWARD` compatibility,
+and the build-time check stays as the early warning.
+
 ### Fallback
 
 If the protobuf plugin cannot run reliably in CI (it is a downloaded native binary; arm64 and
@@ -59,7 +89,8 @@ acceptance suite (GR-03), and record the decision here. The message pact on
 
 ## Alternatives rejected
 
-- **A schema registry** (Avro or JSON Schema with compatibility rules): extra infrastructure;
-  the JSON Schemas in the package plus CI checks do the job at this size.
+- **A schema registry** (Avro or JSON Schema with compatibility rules): run-time infrastructure
+  for a cross-repository problem; see "No schema registry" above for what replaces it and the
+  triggers that would bring it in.
 - **Pact only, without `buf breaking`.** Pact checks only what the consumer exercises; `buf`
   checks the whole wire contract.

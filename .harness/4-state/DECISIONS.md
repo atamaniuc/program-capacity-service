@@ -213,8 +213,20 @@ microservices, gRPC, Saga and Kubernetes asks. Lane 0006 specifies it.
   `buf lint`/`buf breaking`; Helm and kind; contracts package and Pact allowed to follow the
   MVP cut; the branch runs side by side with `main` (ports +10000, project
   `program-capacity-ms`, kind cluster `finverity-ms`).
-- **Not changed, on purpose:** `CONSTRAINTS.md` constraint 9 is a locked surface; only the
-  owner can amend it on this branch. Until then it is read together with ADR 023's branch scope.
+- **Constraint 9, owner ruling (2026-10-29):** on this branch the Saga, Pact and gRPC items are
+  lifted, and the agent amends any rule that blocks showing the evolution, citing the ADR. The
+  `CONSTRAINTS.md` change is committed by the owner, because `harnessimo locked` refuses agent
+  commits on that file. `main` keeps the original rule.
+- **Lane close and docs, owner ruling (2026-10-29):** lane 0006 closes after T18, so every ADR
+  021 precondition holds; branch Russian docs are new `docs/micro-srv-*.ru.md`, `main`'s are not
+  edited.
+- **No schema registry, review finding (2026-10-29):** ADR 021 promised one "with the first
+  split", and ADR 028 dismissed it in one line. Its trigger (a second deployable consuming
+  `capacity.events.v1`) fires only at T24, and a registry is a run-time check for schemas spread
+  across repositories. ADR 028 now says what replaces it at build time (contracts package, JSON
+  Schema backward-compatibility check added to T18, `buf breaking`, Pact, `.v2` topics for a
+  wanted break) and the triggers that bring it in (another repository reads a topic, Avro or
+  Protobuf payloads, producers deploying independently of the contracts package).
 
 **Why:** the trigger table in ADR 021 is only credible if a firing produces the structure it
 promised, with the invariants intact.
