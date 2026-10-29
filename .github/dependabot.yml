@@ -11,6 +11,9 @@ updates:
     ignore:
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # Nest CLI 12 pins TypeScript 6 (PRD §10); TypeScript 7 waits for a Nest release that allows it.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
