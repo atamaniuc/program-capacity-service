@@ -8,9 +8,13 @@ All five lanes are closed and all queue gates pass. A post-submission review of 
 0003–0005 found 1 BLOCKER and 5 MAJOR items; all are fixed,
 re-reviewed (APPROVE) and recorded in DECISIONS. Docs were rewritten for human readers
 (`docs/README.md`), the gRPC adapter was declined (ADR 022), `/docs` became an interactive
-Swagger UI, and the k6 numbers were re-measured with a warm-up. Last full run: 95 unit + 100
-integration tests green. `make install` sets up a fresh clone in one command (~3 min);
-`make qa` runs the [QA test cases](../../docs/qa.md) on the live stack: 98/98 on 2026-10-29.
+Swagger UI, and the k6 numbers were re-measured with a warm-up. On 2026-10-29 the Kafka
+contract was completed: AsyncAPI now covers `capacity.events.v1` and both DLQs, is generated
+from the zod schemas that type the outbox payloads, is served at `/docs/asyncapi`, and every
+real event is checked against it; `make compat` (CI) blocks breaking contract changes. Last
+full run: 106 unit + 102 integration tests green. `make install` sets up a fresh clone in one
+command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the live stack:
+103/103 on 2026-10-29.
 
 ## Done
 
@@ -53,6 +57,12 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
   message type, DB/Kafka/metric side effects). The QA pass corrected two claims in `docs/api.md`
   (natural-key replay is 200; `release-ref-mismatch` is 422).
 
+- AsyncAPI and contract compatibility (2026-10-29, post-lane like the Swagger UI): event
+  schemas in `capacity-events.ts`, builder in `src/platform/contracts/`, `/docs/asyncapi`,
+  `make events`, `make docs-events`, `npm run contracts:events` (QA-72), `make compat` (oasdiff
+  + message-schema rule, CI); architect review CHANGES REQUIRED (2 MAJOR + 11 MINOR), all
+  addressed; rulings in DECISIONS and ADR 015; rules for changing a contract in `docs/api.md` §8.
+
 ## Next
 
 1. Owner review of the finished submission (M0–M4).
@@ -63,5 +73,7 @@ integration tests green. `make install` sets up a fresh clone in one command (~3
 - Set `.harness/3-environment/locked-baseline` (suggested: bootstrap commit 611505b) — a human act.
 - PRD §10 dated fact is stale: `npm view drizzle version` = 1.4.0 (PRD says v1 rc, latest 0.45). PRD is frozen for agents.
 - CTO questions live in PRD §14.
+- Drift amounts in `ReconciliationDriftDetected` are minor units without currency (documented
+  exception); unifying them is a `v2` of that event — owner's call.
 
 _Last updated: 2026-10-29_

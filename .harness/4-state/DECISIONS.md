@@ -22,7 +22,7 @@ decisions about how the work is run.
 | 012 | Data access with Kysely and SQL migrations | [012-kysely-sql-migrations](../../docs/adr/012-kysely-sql-migrations.md) |
 | 013 | OpenTelemetry instead of `@nestjs/observe` | [013-opentelemetry](../../docs/adr/013-opentelemetry.md) |
 | 014 | API conventions: `/v1`, problem types, cursor pagination, `ETag` | [014-api-conventions](../../docs/adr/014-api-conventions.md) |
-| 015 | Contracts and compatibility: zod to OpenAPI, AsyncAPI, `oasdiff`; no Pact until the first split | [015-contracts](../../docs/adr/015-contracts.md) |
+| 015 | Contracts and compatibility: zod to OpenAPI and AsyncAPI (treasury in, DLQs, `capacity.events.v1` out), served on the ops port; real events checked against the schemas; `oasdiff`; no Pact until the first split | [015-contracts](../../docs/adr/015-contracts.md) |
 | 016 | Testing strategy: Testcontainers, property tests, AC-named tests | [016-testing-strategy](../../docs/adr/016-testing-strategy.md) |
 | 017 | Out of scope and why: GraphQL, gateway, event sourcing, Saga, CDC, Kubernetes, AWS emulation | [017-out-of-scope](../../docs/adr/017-out-of-scope.md) |
 | 018 | Architecture: hexagonal, vertical slices, tactical DDD; no monorepo tooling | [018-hexagonal-architecture](../../docs/adr/018-hexagonal-architecture.md) |
@@ -185,3 +185,74 @@ MINOR items; all were fixed in one commit and re-reviewed.
 Lesson for future lanes: a change that adds a lookup across tenants, or a table shared between
 concurrent executions, is checked against PRD A12/AC-16 and against a concurrent duplicate
 delivery before it is written.
+
+---
+
+## 2026-10-29 — AsyncAPI covers the outbound events and is served at `/docs/asyncapi`
+
+`contracts/asyncapi.yaml` described only the treasury input, while `docs/api.md` called it the
+event contract, `repository-map.md` said "in and out" and PRD §7 promised schema validation of
+outbound events. The outbox payloads had no schema at all (`payload: unknown`). Now
+([ADR 015](../../docs/adr/015-contracts.md), amended):
+
+- **One source.** `application/shared/capacity-events.ts` holds zod schemas of the four events
+  and their Kafka headers; `OutboxEvent` is a union of the inferred payload types, so every use
+  case builds a payload the contract describes. DLQ headers, the consumer group and the DLQ
+  topic name moved into `treasury-messages.ts` and are used by the consumer.
+- **One document.** `src/platform/contracts/asyncapi.ts` builds AsyncAPI 3.1 (version 1.1.0): both treasury topics, both DLQs, `capacity.events.v1`, Kafka keys and
+  consumer group bindings, header schemas, delivery and evolution rules, and an example per
+  message. `npm run contracts` writes it with one draft-07 JSON Schema per message;
+  `contracts:check` now covers every file in `contracts/`, so `make verify` and CI catch
+  AsyncAPI drift (before, only `make test` did).
+- **Open schemas, strict tests.** Published schemas allow unknown fields (consumers must ignore
+  them; `v1` grows additively). Tests compile a strict variant from the same zod source; the
+  full-stack test `capacity-events.kafka.test.ts` validates every real record of all four types
+  against both, plus headers, key and gap-free `seq`. Mutation probe: an extra payload field in
+  `ReservationCreated` fails it (`must NOT have additional properties`). All 314 events already
+  on the local stack's topic, produced before the change, passed the strict check.
+- **Served offline.** `/docs/asyncapi` renders the document with `@asyncapi/react-component`
+  (devDependency; the image copies only the standalone bundle, stylesheet and licences, ~3 MB).
+  Swagger UI and the AsyncAPI page link to each other.
+- **QA.** QA-05 (page on the ops port only), QA-72 (`npm run contracts:events` per program, all
+  four types). `make qa`: 103/103.
+
+**Why:** the event stream is half of the published language (PRD §7); without a schema a
+consumer can only reverse-engineer it, and a reviewer reading the docs would find the claim
+false.
+
+**Rejected:** a hand-written AsyncAPI file (drift), JSON Schema 2020-12 files (AsyncAPI schema
+objects are draft-07, a second copy would be needed), closed published schemas (every additive
+change would break strict consumers), the viewer from a CDN or as a runtime dependency (offline
+docs; image size and scan surface), a schema registry (no consumer yet; arrives with the first
+split).
+
+- **Treasury schema files changed format, not meaning.** They moved from JSON Schema 2020-12
+  with `$defs` to self-contained draft-07, so an `Ajv2020` consumer of those files must switch
+  to draft-07. `contracts:compat` against efa1d4f, which inlines references first, reports no
+  semantic change.
+- **Compatibility is now checked, not only drift** (review M1). The docs said `oasdiff` ran in
+  CI; nothing did. `npm run contracts:compat` (CI on every push and pull request, `make compat`)
+  runs oasdiff on `openapi.yaml` and a field-by-field rule on the message and header schemas:
+  only a new optional field, a new `event-type` value and documentation may change within `v1`.
+  Enums are closed, event types open.
+- **`ProgramCapacityChanged.status`** (review m1): every applied `ProgramLimitSet` emits the
+  event, including a suspend or resume, but the payload had no status, so a consumer could not
+  see a suspension. Added as an optional field (older records lack it); the Kafka test checks
+  the code always sends it.
+- **Architect review (fresh context): CHANGES REQUIRED, 2 MAJOR + 11 MINOR, all addressed.** M2:
+  `docs/WIP.md` added to `.git/info/exclude`. m2/m3/m4: the AsyncAPI description states that
+  reconciliation is reported per program, not per reservation, the drift-amount exception to
+  the money rule, and the enum policy. m5: the DLQ test checks the published `DlqHeaders`. m6:
+  `toEnvelope` is typed against the contract envelope. m7: the builder moved from the
+  application layer to `src/platform/contracts/`; its tests to `test/contracts/` (unit). m8:
+  `contracts:events` stops at the partitions' high watermark instead of an idle timer. m9: the
+  viewer fallback is unit-tested; ADR 015 says the bundle hides its dependencies from the scan
+  rather than removing them. m11: PROGRESS and BUDGET updated. Notes: QA-71 wording, FX age,
+  `releaseRef` text, the `MAX_DRIFTS_IN_EVENT` re-export, `programId` bound, and the Kafka test
+  deduplicates by `messageId` before counting.
+
+**Left as found, for the owner:** drift amounts in `ReconciliationDriftDetected` are integer
+minor units without a currency, unlike every other amount; the contract documents them as they
+are. Changing them is a payload change on the reconciliation path, and with this check in place
+a `v2` of the event.
+

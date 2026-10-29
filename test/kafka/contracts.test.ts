@@ -1,33 +1,27 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { Ajv2020 } from 'ajv/dist/2020.js';
-import { default as addFormatsModule } from 'ajv-formats';
+import type { ValidateFunction } from 'ajv';
 import { describe, expect, it } from 'vitest';
-import { renderAsyncApi, renderJsonSchemas } from '../../tools/simulator/contracts.js';
+import { renderAsyncApiYaml, renderJsonSchemas } from '../../tools/contracts/render.js';
 import { fxRate, limitSet, repayment, snapshot } from '../../tools/simulator/messages.js';
 import { buildScenario, defaultContext, SCENARIO_NAMES } from '../../tools/simulator/scenarios.js';
+import { contractValidators } from '../../tools/contracts/validators.js';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 
-async function validator() {
-  const ajv = new Ajv2020({ strict: false, allErrors: true });
-  (addFormatsModule as unknown as (instance: Ajv2020) => void)(ajv);
-  const schemas = new Map<string, ReturnType<typeof ajv.compile>>();
-  for (const name of renderJsonSchemas().keys()) {
-    const file = await readFile(resolve(ROOT, 'contracts/json-schema', name), 'utf8');
-    schemas.set(name.replace('.schema.json', ''), ajv.compile(JSON.parse(file) as object));
-  }
-  return schemas;
+/** Validators of the committed schema files, by message type. */
+async function validator(): Promise<Map<string, ValidateFunction>> {
+  return new Map((await contractValidators()).committed);
 }
 
 describe('treasury message contracts', () => {
   it('T1 schemas: the committed JSON Schema files and asyncapi.yaml match the zod source', async () => {
     for (const [name, content] of renderJsonSchemas()) {
       const committed = await readFile(resolve(ROOT, 'contracts/json-schema', name), 'utf8');
-      expect(committed, `${name} is stale; run npm run simulate -- export-contracts`).toBe(content);
+      expect(committed, `${name} is stale; run npm run contracts`).toBe(content);
     }
     const asyncapi = await readFile(resolve(ROOT, 'contracts/asyncapi.yaml'), 'utf8');
-    expect(asyncapi).toBe(renderAsyncApi());
+    expect(asyncapi).toBe(renderAsyncApiYaml());
   });
 
   it('T1 schemas: every message the simulator produces validates against the exported JSON Schema', async () => {

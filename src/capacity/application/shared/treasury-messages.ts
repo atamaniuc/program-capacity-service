@@ -107,6 +107,26 @@ export type TreasuryCapacityMessage = z.infer<typeof treasuryCapacityMessageSche
 
 export const TOPIC_CAPACITY = 'treasury.capacity.v1';
 export const TOPIC_FX_RATES = 'treasury.fx-rates.v1';
+/** The worker's consumer group on both treasury topics. */
+export const TREASURY_CONSUMER_GROUP = 'program-capacity-treasury';
+
+/** The DLQ of a treasury topic: the original key and bytes, plus why the message was parked. */
+export const dlqTopic = (topic: string): string => `${topic}.dlq`;
+
+export const dlqHeadersSchema = z
+  .object({
+    'x-error-code': z
+      .string()
+      .min(1)
+      .meta({ description: 'Why the message was parked, for example schema-invalid.' }),
+    'x-error-message': z.string().max(1000),
+    'x-original-topic': z.string().min(1),
+    'x-original-partition': z.string().regex(/^\d+$/),
+    'x-original-offset': z.string().regex(/^\d+$/),
+  })
+  .meta({ id: 'DlqHeaders' });
+
+export type DlqHeaders = z.infer<typeof dlqHeadersSchema>;
 
 /** The partition key of a capacity message; per-program order rides on it (PRD §8). */
 export function messageKey(tenantId: string, programId: string): string {

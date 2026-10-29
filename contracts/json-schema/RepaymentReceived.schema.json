@@ -1,93 +1,85 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$ref": "#/$defs/RepaymentReceived",
-  "$defs": {
-    "RepaymentReceived": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RepaymentReceived",
+  "type": "object",
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "programId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "type": {
+      "type": "string",
+      "const": "RepaymentReceived"
+    },
+    "payload": {
       "type": "object",
       "properties": {
-        "messageId": {
+        "invoiceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "releaseRef": {
           "type": "string",
           "minLength": 1,
           "maxLength": 200
         },
-        "schemaVersion": {
-          "type": "number",
-          "const": 1
-        },
-        "tenantId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
-        },
-        "programId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
-        },
-        "seq": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 9007199254740991
-        },
-        "occurredAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-        },
-        "type": {
-          "type": "string",
-          "const": "RepaymentReceived"
-        },
-        "payload": {
+        "amount": {
           "type": "object",
           "properties": {
-            "invoiceId": {
-              "type": "string",
-              "minLength": 1
+            "value": {
+              "type": "string"
             },
-            "releaseRef": {
+            "currency": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            },
-            "amount": {
-              "$ref": "#/$defs/Money"
+              "pattern": "^[A-Z]{3}$"
             }
           },
           "required": [
-            "invoiceId",
-            "releaseRef",
-            "amount"
+            "value",
+            "currency"
           ]
         }
       },
       "required": [
-        "messageId",
-        "schemaVersion",
-        "tenantId",
-        "programId",
-        "seq",
-        "occurredAt",
-        "type",
-        "payload"
-      ]
-    },
-    "Money": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string"
-        },
-        "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
-        }
-      },
-      "required": [
-        "value",
-        "currency"
+        "invoiceId",
+        "releaseRef",
+        "amount"
       ]
     }
   },
-  "title": "RepaymentReceived"
+  "required": [
+    "messageId",
+    "schemaVersion",
+    "tenantId",
+    "programId",
+    "seq",
+    "occurredAt",
+    "type",
+    "payload"
+  ]
 }

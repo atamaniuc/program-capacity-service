@@ -12,6 +12,10 @@ import {
   type TreasuryLogger,
   type TreasuryResult,
 } from '../../shared/treasury-errors.js';
+import {
+  MAX_DRIFTS_IN_EVENT,
+  type ReconciliationDriftDetectedPayload,
+} from '../../shared/capacity-events.js';
 import { moneyOf, type ProgramReconciled } from '../../shared/treasury-messages.js';
 import { capacityView } from '../../shared/views.js';
 import {
@@ -54,8 +58,6 @@ interface Prepared {
 }
 
 const ACTOR = 'treasury';
-/** Keeps ReconciliationDriftDetected far below Kafka's 1 MB limit; the full list is in the logs. */
-export const MAX_DRIFTS_IN_EVENT = 100;
 
 /**
  * Reconciliation (PRD §8, CP-4). The diff is planned outside the program lock from plain reads;
@@ -204,6 +206,7 @@ export class ReconcileProgram {
           programSeq: updated.platformSeq,
           cause: 'reconciliation',
           snapshotSeq: seq,
+          status: updated.status,
           capacity: capacityView(updated),
         },
       });
@@ -413,7 +416,7 @@ function stagedRows(snapshot: Snapshot) {
   }));
 }
 
-function driftView(drift: Drift): Record<string, unknown> {
+function driftView(drift: Drift): ReconciliationDriftDetectedPayload['drifts'][number] {
   const amounts = (side: Drift['ours']) =>
     side === null
       ? null

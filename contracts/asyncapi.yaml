@@ -1,22 +1,67 @@
-asyncapi: 3.0.0
+asyncapi: 3.1.0
 info:
-  title: Program Capacity Service - treasury input
-  version: 1.0.0
-  description: "Treasury message shapes are an assumption (PRD A2): the assignment
-    does not define them. JSON, one envelope (messageId, type, schemaVersion,
-    tenantId, programId, seq, occurredAt, payload). Money is a decimal string
-    with its ISO 4217 currency. A message that fails validation is published
-    unchanged to <topic>.dlq with x-error-code, x-error-message and x-original-*
-    headers."
+  title: Program Capacity Service - Kafka
+  version: 1.1.0
+  description: >-
+    Every Kafka topic the service reads or writes. Treasury message shapes are an assumption (PRD
+    A2): the assignment does not define them.
+
+
+    **Envelope.** Every message is JSON with one envelope: `messageId`, `type`, `schemaVersion`,
+    `tenantId`, `programId`, `seq`, `occurredAt`, `payload`. Money is a decimal string at the ISO
+    4217 scale, never a JSON number; its currency is the `currency` beside it or, in `capacity`
+    objects, the program currency. One exception: drift amounts in `ReconciliationDriftDetected` are
+    integer minor-unit strings (`invoiceMinor`, `programMinor`), as the ledger stores them.
+
+
+    **Order.** Capacity messages and events are keyed `tenantId:programId`, so one program stays on
+    one partition and in order.
+
+
+    **Delivery.** At least once in both directions. The service deduplicates treasury messages by
+    `messageId` (inbox); consumers of `capacity.events.v1` deduplicate by `messageId` and can detect
+    a gap or a replay with `seq`, which is gap-free per program.
+
+
+    **Outbound events** are written to the outbox in the same transaction as the change and
+    published by the worker's relay after commit, so an event exists exactly when its change
+    committed. While Kafka is down they wait in the outbox (metric `outbox_lag`).
+
+
+    **Evolution.** Within `v1` the only changes are a new optional field and a new event type:
+    consumers must ignore fields and event types they do not know. Enums (`status`, `reason`,
+    `cause`, `kind`, `mode`) are closed; a new value, like any other breaking change, gets a new
+    topic (`capacity.events.v2`) and a new `schemaVersion`. CI enforces this (`npm run
+    contracts:compat`).
+
+
+    **Not a full reservation log.** Reconciliation can adjust, adopt or release reservations; it
+    reports that as one `ProgramCapacityChanged` (cause `reconciliation`) plus a
+    `ReconciliationDriftDetected` with at most 100 drifts, not as per-reservation events. A consumer
+    that needs every reservation's state reads it from the REST API after such an event.
+
+
+    **Invalid input.** A treasury message that fails validation is published unchanged to
+    `<topic>.dlq` with `x-error-*` and `x-original-*` headers and the consumer moves on; `npm run
+    dlq-replay` sends it back.
+defaultContentType: application/json
 servers:
   local:
     host: localhost:29092
     protocol: kafka
+    description: The compose broker seen from the host (`make up`). PLAINTEXT, local only.
+  compose:
+    host: kafka:9092
+    protocol: kafka
+    description: The same broker inside the compose network, as the service sees it.
 channels:
   treasuryCapacity:
     address: treasury.capacity.v1
-    description: Keyed by tenantId:programId; one message in flight per partition
-      keeps program order.
+    title: Treasury capacity messages
+    description: "Limits, repayments and reconciliation snapshots. Keyed tenantId:programId; the
+      consumer keeps one message in flight per partition, so program order holds. `seq` is
+      treasury’s per-program sequence: a message at or below the program’s last applied seq is
+      skipped."
     messages:
       ProgramLimitSet:
         $ref: "#/components/messages/ProgramLimitSet"
@@ -26,41 +71,548 @@ channels:
         $ref: "#/components/messages/ProgramReconciled"
   treasuryFxRates:
     address: treasury.fx-rates.v1
-    description: 'Keyed by currency pair. Rates are global: tenantId and programId
-      carry "*"; seq is not used for ordering, the newest asOf wins.'
+    title: Treasury FX rates
+    description: 'Keyed by currency pair. Rates are global: tenantId and programId carry "*"; seq is not
+      used for ordering, the newest asOf wins.'
     messages:
       FxRatePublished:
         $ref: "#/components/messages/FxRatePublished"
+  capacityEvents:
+    address: capacity.events.v1
+    title: Capacity events
+    description: "Every committed change of a program, in commit order per program: reservations created
+      and released (through the API or a treasury repayment), limit and status changes,
+      reconciliation results. Reconciliation changes are reported per program, not per reservation.
+      Keyed tenantId:programId; `seq` (and the `program-seq` header) is the gap-free per-program
+      platform sequence, the same number treasury echoes back as `platformWatermark`."
+    messages:
+      ReservationCreated:
+        $ref: "#/components/messages/ReservationCreated"
+      ReservationReleased:
+        $ref: "#/components/messages/ReservationReleased"
+      ProgramCapacityChanged:
+        $ref: "#/components/messages/ProgramCapacityChanged"
+      ReconciliationDriftDetected:
+        $ref: "#/components/messages/ReconciliationDriftDetected"
+  treasuryCapacityDlq:
+    address: treasury.capacity.v1.dlq
+    title: Parked treasury capacity messages
+    description: Messages from treasury.capacity.v1 that failed validation or can never apply (for
+      example an unknown program); retrying would not help.
+    messages:
+      DeadLetter:
+        $ref: "#/components/messages/DeadLetter"
+  treasuryFxRatesDlq:
+    address: treasury.fx-rates.v1.dlq
+    title: Parked FX rate messages
+    description: Messages from treasury.fx-rates.v1 that failed validation or can never apply.
+    messages:
+      DeadLetter:
+        $ref: "#/components/messages/DeadLetter"
 operations:
   receiveCapacity:
     action: receive
     channel:
       $ref: "#/channels/treasuryCapacity"
     summary: Limits, repayments and reconciliation snapshots from treasury
+    bindings:
+      kafka:
+        groupId:
+          type: string
+          enum:
+            - program-capacity-treasury
+        bindingVersion: 0.5.0
   receiveFxRates:
     action: receive
     channel:
       $ref: "#/channels/treasuryFxRates"
     summary: FX rates from treasury
+    bindings:
+      kafka:
+        groupId:
+          type: string
+          enum:
+            - program-capacity-treasury
+        bindingVersion: 0.5.0
+  publishCapacityEvents:
+    action: send
+    channel:
+      $ref: "#/channels/capacityEvents"
+    summary: "Outbox relay: every committed change, acks=all, idempotent producer"
+  parkCapacityMessage:
+    action: send
+    channel:
+      $ref: "#/channels/treasuryCapacityDlq"
+    summary: A treasury capacity message that cannot be applied
+  parkFxRate:
+    action: send
+    channel:
+      $ref: "#/channels/treasuryFxRatesDlq"
+    summary: An FX rate message that cannot be applied
 components:
   messages:
     ProgramLimitSet:
       name: ProgramLimitSet
+      title: ProgramLimitSet
+      summary: Treasury sets the credit limit of a program, and optionally suspends it.
       contentType: application/json
       payload:
         $ref: ./json-schema/ProgramLimitSet.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: raise-limit
+          summary: Limit raised to 12M USD
+          payload:
+            messageId: limit-bank-a-prg_grand_usd-7
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 7
+            occurredAt: 2026-10-29T10:00:00.000Z
+            type: ProgramLimitSet
+            payload:
+              creditLimit:
+                value: "12000000.00"
+                currency: USD
+              status: ACTIVE
     RepaymentReceived:
       name: RepaymentReceived
+      title: RepaymentReceived
+      summary: Treasury received a repayment; the reservation of the invoice is released by it.
       contentType: application/json
       payload:
         $ref: ./json-schema/RepaymentReceived.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: partial-repayment
+          summary: Part of INV-1003 repaid
+          payload:
+            messageId: repayment-bank-a-prg_grand_usd-9
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 9
+            occurredAt: 2026-10-29T13:00:00.000Z
+            type: RepaymentReceived
+            payload:
+              invoiceId: INV-1003
+              releaseRef: repayment-2026-10-29-2
+              amount:
+                value: "25000.00"
+                currency: EUR
     ProgramReconciled:
       name: ProgramReconciled
+      title: ProgramReconciled
+      summary: "Treasury snapshot of a program: limit and every open reservation, with the watermark of
+        platform events treasury has applied."
       contentType: application/json
       payload:
         $ref: ./json-schema/ProgramReconciled.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: snapshot
+          summary: Treasury applied platform events 1..44; one open reservation
+          payload:
+            messageId: snapshot-bank-a-prg_grand_usd-8
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 8
+            occurredAt: 2026-10-29T12:00:05.000Z
+            type: ProgramReconciled
+            payload:
+              asOf: 2026-10-29T12:00:00.000Z
+              creditLimit:
+                value: "12500000.00"
+                currency: USD
+              platformWatermark: 44
+              reservations:
+                - invoiceId: INV-1003
+                  outstandingInvoiceAmount:
+                    value: "75000.00"
+                    currency: EUR
+                  outstandingReservedAmount:
+                    value: "81000.00"
+                    currency: USD
     FxRatePublished:
       name: FxRatePublished
+      title: FxRatePublished
+      summary: Treasury FX rate; usable for FX_MAX_AGE (24 hours by default), the newest asOf wins.
       contentType: application/json
       payload:
         $ref: ./json-schema/FxRatePublished.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: Currency pair, base then quote, for example EURUSD.
+          bindingVersion: 0.5.0
+      examples:
+        - name: eur-usd
+          summary: EUR to USD rate
+          payload:
+            messageId: fx-EURUSD-2026-10-29T08:00:00.000Z
+            type: FxRatePublished
+            schemaVersion: 1
+            tenantId: "*"
+            programId: "*"
+            seq: 1
+            occurredAt: 2026-10-29T08:00:00.000Z
+            payload:
+              base: EUR
+              quote: USD
+              rate: "1.0800000000"
+              asOf: 2026-10-29T08:00:00.000Z
+              source: treasury
+    ReservationCreated:
+      name: ReservationCreated
+      title: ReservationCreated
+      summary: A reservation was created through the API.
+      contentType: application/json
+      headers:
+        $ref: "#/components/schemas/CapacityEventHeaders"
+      payload:
+        $ref: ./json-schema/ReservationCreated.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: eur-invoice
+          summary: A EUR invoice reserved on a USD program, converted and rounded up
+          headers:
+            event-id: 01937a2e-5c4c-7a21-8b40-6d2f9e0a1c35
+            event-type: ReservationCreated
+            schema-version: "1"
+            tenant-id: bank-a
+            program-id: prg_grand_usd
+            program-seq: "42"
+            content-type: application/json
+          payload:
+            messageId: 01937a2e-5c4c-7a21-8b40-6d2f9e0a1c35
+            type: ReservationCreated
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 42
+            occurredAt: 2026-10-29T09:15:02.311Z
+            payload:
+              tenantId: bank-a
+              programId: prg_grand_usd
+              programSeq: 42
+              reservationId: 01937a2e-5c4b-7d10-9a3f-2b6c8e1d4f70
+              invoiceId: INV-1003
+              status: ACTIVE
+              invoiceAmount:
+                value: "125000.00"
+                currency: EUR
+              reservedAmount:
+                value: "135000.00"
+                currency: USD
+              releasedAmount:
+                value: "0.00"
+                currency: USD
+              remainingAmount:
+                value: "135000.00"
+                currency: USD
+              fx:
+                rate: "1.0800000000"
+                source: treasury
+                asOf: 2026-10-29T08:00:00.000Z
+              createdAt: 2026-10-29T09:15:02.311Z
+              capacity:
+                limit: "10000000.00"
+                reserved: "2545500.00"
+                available: "7454500.00"
+                version: 42
+    ReservationReleased:
+      name: ReservationReleased
+      title: ReservationReleased
+      summary: A reservation was released, fully or in part, through the API or by a treasury repayment.
+      contentType: application/json
+      headers:
+        $ref: "#/components/schemas/CapacityEventHeaders"
+      payload:
+        $ref: ./json-schema/ReservationReleased.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: partial-repayment
+          summary: Part of the invoice repaid; the rest stays reserved
+          headers:
+            event-id: 01937b04-11aa-7c3e-9d52-7e8f0a1b2c3d
+            event-type: ReservationReleased
+            schema-version: "1"
+            tenant-id: bank-a
+            program-id: prg_grand_usd
+            program-seq: "43"
+            content-type: application/json
+          payload:
+            messageId: 01937b04-11aa-7c3e-9d52-7e8f0a1b2c3d
+            type: ReservationReleased
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 43
+            occurredAt: 2026-10-29T09:40:11.002Z
+            payload:
+              tenantId: bank-a
+              programId: prg_grand_usd
+              programSeq: 43
+              releaseRef: repayment-2026-10-29-1
+              reservationId: 01937a2e-5c4b-7d10-9a3f-2b6c8e1d4f70
+              reservationStatus: PARTIALLY_RELEASED
+              reason: REPAID
+              invoiceAmount:
+                value: "50000.00"
+                currency: EUR
+              releasedAmount:
+                value: "54000.00"
+                currency: USD
+              remainingAmount:
+                value: "81000.00"
+                currency: USD
+              capacity:
+                limit: "10000000.00"
+                reserved: "2491500.00"
+                available: "7508500.00"
+                version: 43
+    ProgramCapacityChanged:
+      name: ProgramCapacityChanged
+      title: ProgramCapacityChanged
+      summary: Treasury applied a ProgramLimitSet (every one, including a suspend, a resume or the same
+        limit again), or a snapshot changed the limit or the reservations. Carries the program
+        status and the full capacity view.
+      contentType: application/json
+      headers:
+        $ref: "#/components/schemas/CapacityEventHeaders"
+      payload:
+        $ref: ./json-schema/ProgramCapacityChanged.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: limit-set
+          summary: Treasury raised the limit
+          headers:
+            event-id: 01937c6b-2f10-7b44-8c61-1a2b3c4d5e6f
+            event-type: ProgramCapacityChanged
+            schema-version: "1"
+            tenant-id: bank-a
+            program-id: prg_grand_usd
+            program-seq: "44"
+            content-type: application/json
+          payload:
+            messageId: 01937c6b-2f10-7b44-8c61-1a2b3c4d5e6f
+            type: ProgramCapacityChanged
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 44
+            occurredAt: 2026-10-29T10:00:00.420Z
+            payload:
+              tenantId: bank-a
+              programId: prg_grand_usd
+              programSeq: 44
+              cause: limit-set
+              status: ACTIVE
+              capacity:
+                programId: prg_grand_usd
+                currency: USD
+                limit: "12000000.00"
+                reserved: "2491500.00"
+                available: "9508500.00"
+                overLimitBy: "0.00"
+                utilization: "0.2076"
+                version: 44
+                treasurySeq: 7
+        - name: reconciliation
+          summary: A treasury snapshot changed the limit
+          headers:
+            event-id: 01937d9a-8e21-7f05-a3b4-5c6d7e8f9a0b
+            event-type: ProgramCapacityChanged
+            schema-version: "1"
+            tenant-id: bank-a
+            program-id: prg_grand_usd
+            program-seq: "45"
+            content-type: application/json
+          payload:
+            messageId: 01937d9a-8e21-7f05-a3b4-5c6d7e8f9a0b
+            type: ProgramCapacityChanged
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 45
+            occurredAt: 2026-10-29T12:00:05.730Z
+            payload:
+              tenantId: bank-a
+              programId: prg_grand_usd
+              programSeq: 45
+              cause: reconciliation
+              snapshotSeq: 8
+              status: ACTIVE
+              capacity:
+                programId: prg_grand_usd
+                currency: USD
+                limit: "12500000.00"
+                reserved: "2491500.00"
+                available: "10008500.00"
+                overLimitBy: "0.00"
+                utilization: "0.1993"
+                version: 45
+                treasurySeq: 8
+    ReconciliationDriftDetected:
+      name: ReconciliationDriftDetected
+      title: ReconciliationDriftDetected
+      summary: A treasury snapshot disagreed with the platform beyond tolerance.
+      contentType: application/json
+      headers:
+        $ref: "#/components/schemas/CapacityEventHeaders"
+      payload:
+        $ref: ./json-schema/ReconciliationDriftDetected.schema.json
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: tenantId:programId, for example bank-a:prg_grand_usd.
+          bindingVersion: 0.5.0
+      examples:
+        - name: held
+          summary: Treasury no longer lists a reservation it has seen; HOLD keeps it and reports it
+          headers:
+            event-id: 01937d9a-8e22-7a16-b4c5-6d7e8f9a0b1c
+            event-type: ReconciliationDriftDetected
+            schema-version: "1"
+            tenant-id: bank-a
+            program-id: prg_grand_usd
+            program-seq: "46"
+            content-type: application/json
+          payload:
+            messageId: 01937d9a-8e22-7a16-b4c5-6d7e8f9a0b1c
+            type: ReconciliationDriftDetected
+            schemaVersion: 1
+            tenantId: bank-a
+            programId: prg_grand_usd
+            seq: 46
+            occurredAt: 2026-10-29T12:00:05.731Z
+            payload:
+              tenantId: bank-a
+              programId: prg_grand_usd
+              programSeq: 46
+              snapshotSeq: 8
+              asOf: 2026-10-29T12:00:00.000Z
+              mode: HOLD
+              driftCount: 1
+              truncated: false
+              drifts:
+                - kind: HELD
+                  invoiceId: INV-0990
+                  ours:
+                    invoiceMinor: "1000000"
+                    programMinor: "1000000"
+                  treasury: null
+    DeadLetter:
+      name: DeadLetter
+      title: DeadLetter
+      summary: The original record, unchanged, with the reason it was parked.
+      contentType: application/octet-stream
+      headers:
+        $ref: "#/components/schemas/DlqHeaders"
+      payload:
+        description: The original value bytes, unchanged; usually JSON, but a message that failed to parse
+          is kept as it arrived.
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: The original key, unchanged.
+          bindingVersion: 0.5.0
+  schemas:
+    CapacityEventHeaders:
+      title: CapacityEventHeaders
+      type: object
+      properties:
+        event-id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        event-type:
+          type: string
+          enum:
+            - ReservationCreated
+            - ReservationReleased
+            - ProgramCapacityChanged
+            - ReconciliationDriftDetected
+        schema-version:
+          type: string
+          const: "1"
+        tenant-id:
+          type: string
+          minLength: 1
+        program-id:
+          type: string
+          minLength: 1
+        program-seq:
+          type: string
+          pattern: ^[1-9]\d*$
+        content-type:
+          type: string
+          const: application/json
+      required:
+        - event-id
+        - event-type
+        - schema-version
+        - tenant-id
+        - program-id
+        - program-seq
+        - content-type
+    DlqHeaders:
+      title: DlqHeaders
+      type: object
+      properties:
+        x-error-code:
+          type: string
+          minLength: 1
+          description: Why the message was parked, for example schema-invalid.
+        x-error-message:
+          type: string
+          maxLength: 1000
+        x-original-topic:
+          type: string
+          minLength: 1
+        x-original-partition:
+          type: string
+          pattern: ^\d+$
+        x-original-offset:
+          type: string
+          pattern: ^\d+$
+      required:
+        - x-error-code
+        - x-error-message
+        - x-original-topic
+        - x-original-partition
+        - x-original-offset

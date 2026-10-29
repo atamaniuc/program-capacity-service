@@ -1,5 +1,6 @@
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 import type { TreasuryLogger } from '#src/capacity/application/shared/treasury-errors.js';
+import { dlqTopic, type DlqHeaders } from '#src/capacity/application/shared/treasury-messages.js';
 import { classify } from './errors.js';
 import type { MessageHandler, RawMessage } from './treasury-handler.js';
 
@@ -234,7 +235,7 @@ export class TreasuryConsumerRunner {
   private async publishToDlq(raw: RawMessage, code: string, message: string): Promise<void> {
     if (this.producer === null) throw new Error('producer is not connected');
     await this.producer.send({
-      topic: `${raw.topic}.dlq`,
+      topic: dlqTopic(raw.topic),
       messages: [
         {
           key: raw.key,
@@ -245,7 +246,7 @@ export class TreasuryConsumerRunner {
             'x-original-topic': raw.topic,
             'x-original-partition': String(raw.partition),
             'x-original-offset': raw.offset.toString(),
-          },
+          } satisfies DlqHeaders,
         },
       ],
     });

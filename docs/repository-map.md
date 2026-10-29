@@ -92,7 +92,8 @@ bounded shutdown.
 | `idempotent.ts` | Runs a use case under an `Idempotency-Key`: claim, replay or store the outcome |
 | `fingerprint.ts` | Canonical-JSON hash of a request, to detect a key reused with a different body |
 | `problem.ts` | Business problem catalogue (`insufficient-capacity`, `not-found`, …) |
-| `treasury-messages.ts` | zod schemas of the treasury Kafka messages and the topic names |
+| `treasury-messages.ts` | zod schemas of the treasury Kafka messages and DLQ headers, the topic names and the consumer group |
+| `capacity-events.ts` | zod schemas of the four outbound events and their Kafka headers; the outbox payload types come from them |
 | `treasury-errors.ts` | Permanent errors that send a message to the DLQ |
 | `views.ts` | Response shapes (capacity, reservation) built from domain objects |
 | `cursor.ts` | Opaque page cursors |
@@ -150,7 +151,8 @@ NestJS module that wires ports to adapters for the `api` role.
 | `bootstrap/app.module.ts` | Root Nest module; closes the pool last on shutdown |
 | `bootstrap/shutdown.ts` | The 25 s shutdown deadline |
 | `health/ops-server.ts` | The internal ops port: `/health/live`, `/health/ready`, `/metrics`, documents |
-| `health/api-docs.ts` | Swagger UI at `/docs` and the OpenAPI JSON it loads |
+| `contracts/asyncapi.ts`, `asyncapi-examples.ts` | Builds the AsyncAPI 3.1 document (every topic, in and out) and the message JSON Schemas from the zod schemas, with one example per message |
+| `health/api-docs.ts` | Swagger UI at `/docs` and the OpenAPI JSON it loads; the AsyncAPI viewer at `/docs/asyncapi` and `/docs/asyncapi.json` |
 | `logging/logger.ts` | pino JSON logger, also used by Nest |
 | `telemetry/register.ts`, `otel.ts`, `trace-context.ts` | OpenTelemetry start-up (when `OTEL_ENABLED=true`) and trace ids in log lines |
 | `telemetry/metrics.ts`, `http-metrics.ts` | Prometheus metrics: HTTP RED, outbox lag, invariant mismatches, over-limit programs, DLQ count, retention |
@@ -166,8 +168,9 @@ requirement it proves (`AC-…`, `FR-…`, `NFR-…`, `SK-…`).
 | `architecture/layers.test.ts` + `fixtures/layer-leaks/` | unit | The layer rules reject deliberately leaking code, and pass on the real tree |
 | `property/*.property.test.ts` | unit | Random reserve/release sequences never break the invariants (fast-check) |
 | `integration/*.int.test.ts` | int | Real PostgreSQL: concurrency (`reserve-concurrency`), idempotency races, releases, FX, reconciliation, invariant job and retention, migrations, schema guards |
-| `e2e/*.e2e.test.ts` | int | The HTTP app with a real JWT issuer: auth and tenants, capacity, queries, OpenAPI contract and Swagger, ops port, metrics and traces |
-| `kafka/*.kafka.test.ts` | int | Real Kafka: treasury consumer (redelivery, DLQ, order), outbox relay (order, fencing), message contracts, the `all` role |
+| `e2e/*.e2e.test.ts` | int | The HTTP app with a real JWT issuer: auth and tenants, capacity, queries, OpenAPI contract, Swagger and AsyncAPI pages, ops port, metrics and traces |
+| `kafka/*.kafka.test.ts` | int | Real Kafka: treasury consumer (redelivery, DLQ, order), outbox relay (order, fencing), message contracts, every published event against the AsyncAPI contract (`capacity-events`), the `all` role |
+| `contracts/*.test.ts` | unit | The AsyncAPI document (official parser, examples), the compatibility rule, the AsyncAPI page and its fallback |
 | `fault/*.fault.test.ts` | int | Outages and shutdown: Kafka or PostgreSQL down, SIGTERM drain |
 | `support/` | — | Helpers: start PostgreSQL (`postgres.ts`), a test app (`app.ts`, `fault-app.ts`), a JWT issuer (`auth.ts`), in-memory ports for unit tests (`in-memory-ports.ts`, `capacity-world.ts`), outage containers |
 | `kafka/support/` | — | Kafka container and topics, in-memory treasury world |
@@ -177,8 +180,8 @@ requirement it proves (`AC-…`, `FR-…`, `NFR-…`, `SK-…`).
 | File | Purpose |
 | --- | --- |
 | `openapi.yaml` | REST contract, **generated** from the zod schemas (`make contracts`); `make verify` fails if it is stale |
-| `asyncapi.yaml` | Kafka topics and messages, in and out |
-| `json-schema/*.schema.json` | JSON Schemas of the four treasury messages; the simulator and tests validate against them |
+| `asyncapi.yaml` | Kafka contract, **generated** (AsyncAPI 3.1): treasury topics, their DLQs and `capacity.events.v1`, with keys, headers, consumer group and examples; served at `/docs/asyncapi` |
+| `json-schema/*.schema.json` | **Generated** JSON Schema (draft-07) of each Kafka message: four treasury messages in, four events out; `asyncapi.yaml` references them, the simulator and tests validate against them |
 
 ## `deploy/` — running it
 
@@ -196,11 +199,14 @@ requirement it proves (`AC-…`, `FR-…`, `NFR-…`, `SK-…`).
 | Path | Behind | Purpose |
 | --- | --- | --- |
 | `token/token.ts` | `make token` | Prints a JWT from the local OAuth2 server |
-| `simulator/` | `npm run simulate` | Treasury simulator: builds and publishes Kafka messages for named scenarios; also writes the message contracts |
+| `simulator/` | `npm run simulate` | Treasury simulator: builds and publishes Kafka messages for named scenarios |
 | `demo/demo.ts` | `make demo` | Plays every scenario against the running stack and checks the results through the API |
 | `dlq-replay/replay.ts` | `make dlq-replay` | Republishes fixed DLQ records to their source topic |
 | `load/scenario.js` | `make load` | k6 load test (warm-up, spread phase with NFR-03 thresholds, hot phase) |
-| `contracts/generate.ts`, `render.ts` | `make contracts` | Regenerates or checks `contracts/openapi.yaml` |
+| `contracts/generate.ts`, `render.ts` | `make contracts` | Regenerates or checks (`--check`) every file under `contracts/` |
+| `contracts/compat.ts`, `compare-schemas.ts` | `make compat`, CI | No breaking contract change against a base commit: oasdiff for OpenAPI, a field-by-field rule for the message schemas |
+| `contracts/validators.ts` | tests, `check-events.ts` | ajv validators of the committed schemas, their strict variants and the header schemas |
+| `contracts/check-events.ts` | `npm run contracts:events` | Reads `capacity.events.v1` on a running broker and checks every event against `contracts/` (QA-72) |
 | `doctor.sh` | `make doctor`, `make install` | Checks the machine: Docker and its memory, Compose ≥ 2.20, Node.js 24, npm, curl, jq, free ports; says how to fix what is missing |
 | `qa/run.sh`, `qa/publish.ts` | `make qa` | The [QA test cases](qa.md) as a script: every endpoint and treasury message, with database, Kafka and metric checks; `publish.ts` sends FX, snapshot and malformed records the simulator has no scenario for |
 | `status.sh` | `make status` | Process checker result, last logged gate, last commits, next action |

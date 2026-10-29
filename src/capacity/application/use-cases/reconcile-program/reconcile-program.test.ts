@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryTreasuryWorld } from '../../../../../test/kafka/support/in-memory-treasury.js';
 import { programReconciledSchema } from '../../shared/treasury-messages.js';
 import { ReserveCapacity } from '../reserve-capacity/reserve-capacity.js';
-import { MAX_DRIFTS_IN_EVENT, ReconcileProgram } from './reconcile-program.js';
+import { MAX_DRIFTS_IN_EVENT } from '../../shared/capacity-events.js';
+import { ReconcileProgram } from './reconcile-program.js';
 
 const SOURCE = {
   consumer: 'treasury-capacity',

@@ -23,7 +23,7 @@ Optional, when you need them: [repository-map.md](repository-map.md) (what every
 | [how-it-works.md](how-it-works.md) | The domain in plain words, with a worked example |
 | [architecture.md](architecture.md) | C4 context, containers and components; sequence diagrams; data model |
 | [repository-map.md](repository-map.md) | Every folder and file: purpose and layer |
-| [api.md](api.md) | REST API tour: Swagger UI and curl, error catalogue |
+| [api.md](api.md) | API tour: Swagger UI and curl, error catalogue, the events on Kafka and their AsyncAPI page, and the rules for changing a contract |
 | [testing.md](testing.md) | Test levels, how to run them, requirement-to-test mapping |
 | [qa.md](qa.md) | QA test cases on the live stack: every endpoint and Kafka message, with DB, Kafka and metric checks (`make qa`) |
 | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) | Every assumption and trade-off, with links to ADRs; known limits |
@@ -54,7 +54,7 @@ Each ADR is one page: context, decision, consequences, rejected alternatives.
 | [012](adr/012-kysely-sql-migrations.md) | Kysely and plain SQL migrations instead of an ORM |
 | [013](adr/013-opentelemetry.md) | OpenTelemetry and Prometheus metrics |
 | [014](adr/014-api-conventions.md) | API conventions: `/v1`, problem types, cursors, `ETag` |
-| [015](adr/015-contracts.md) | Contracts: OpenAPI from zod, AsyncAPI, JSON Schema, drift check |
+| [015](adr/015-contracts.md) | Contracts: OpenAPI and AsyncAPI (in and out) from zod, JSON Schema, drift check, real events checked |
 | [016](adr/016-testing-strategy.md) | Testing: Testcontainers, property tests, tests named by requirement |
 | [017](adr/017-out-of-scope.md) | Out of scope and why |
 | [018](adr/018-hexagonal-architecture.md) | Hexagonal architecture with vertical slices |

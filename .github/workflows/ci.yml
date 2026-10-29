@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The compatibility check compares contracts/ with the base commit.
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -29,8 +32,13 @@ jobs:
         run: npm run typecheck
       - name: Layer rules
         run: npm run depcruise
-      - name: OpenAPI contract matches the zod schemas
+      - name: OpenAPI, AsyncAPI and JSON Schema contracts match the zod schemas
         run: npm run contracts:check
+      - name: No breaking change to the contracts (oasdiff, message schemas)
+        run: npm run contracts:compat -- --base "$BASE" --require-oasdiff
+        env:
+          # A pull request is compared with its target branch, a push with what it replaced.
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
       - name: Unit and property tests with coverage gate
         run: npm run test:unit
 

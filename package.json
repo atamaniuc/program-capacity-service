@@ -26,6 +26,8 @@
     "demo": "tsx tools/demo/demo.ts",
     "contracts": "tsx tools/contracts/generate.ts",
     "contracts:check": "tsx tools/contracts/generate.ts --check",
+    "contracts:compat": "tsx tools/contracts/compat.ts",
+    "contracts:events": "tsx tools/contracts/check-events.ts",
     "dlq-replay": "tsx tools/dlq-replay/replay.ts",
     "simulate": "tsx tools/simulator/cli.ts",
     "load": "docker run --rm -i -v \"$PWD/tools/load:/load\" -e API_URL=http://host.docker.internal:3000 -e OAUTH_TOKEN_ISSUER=http://host.docker.internal:8081/default grafana/k6 run --summary-export=/load/summary.json /load/scenario.js"
@@ -56,6 +58,8 @@
     "zod-openapi": "6.0.2"
   },
   "devDependencies": {
+    "@asyncapi/parser": "3.6.6",
+    "@asyncapi/react-component": "3.2.2",
     "@eslint/js": "10.0.1",
     "@swc/core": "1.16.20",
     "@testcontainers/kafka": "12.2.1",

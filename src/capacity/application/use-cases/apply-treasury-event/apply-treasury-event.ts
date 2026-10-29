@@ -108,6 +108,7 @@ export class ApplyTreasuryEvent {
         programId,
         programSeq: updated.platformSeq,
         cause: 'limit-set',
+        status: updated.status,
         capacity: capacityView(updated),
       },
     });

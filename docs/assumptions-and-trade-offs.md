@@ -11,7 +11,7 @@ configuration switch, not a code change.
 | # | Assumption | Why | If wrong |
 | --- | --- | --- | --- |
 | A1 | **Treasury owns credit limits**; this service owns its reservations until treasury has acknowledged them | Banks keep limits in their own core systems | Limits could also be set over REST; the use case already exists for Kafka |
-| A2 | We define the treasury message contract (envelope, per-program increasing `seq`, snapshots with a watermark) | The assignment gives no format | Only the Kafka adapter (`treasury-handler.ts`) changes; JSON Schemas in `contracts/json-schema/` |
+| A2 | We define the treasury message contract (envelope, per-program increasing `seq`, snapshots with a watermark) | The assignment gives no format | Only the Kafka adapter (`treasury-handler.ts`) and the zod schemas change; the contract is `contracts/asyncapi.yaml` with JSON Schemas in `contracts/json-schema/` |
 | A3 | Treasury learns about our reservations from `capacity.events.v1` | It needs them to report a watermark | — |
 | A4 | FX rates come from treasury, are valid 24 h (`FX_MAX_AGE`), and are fixed at reservation time | Exposure must not move with the market after approval | `FX_MAX_AGE` is configurable |
 | A5 | A reservation lives from approval until repayment or cancellation; no separate "utilised" state | Simplest model that answers "how much is available" | A disbursed state would be a new status, not a new table |
@@ -41,7 +41,7 @@ Questions we would ask the product owner are listed in [PRD §14](PRD.md#14-assu
 | **Append-only ledger + projection**, not event sourcing | Full audit trail, simple reads | Cannot rebuild state by replaying events (the invariant job checks the projection instead) | [ADR 010](adr/010-ledger-projection.md) |
 | **JWT checked by the service itself** (JWKS), no gateway in this repo | Works anywhere, testable locally | The platform's gateway would duplicate the check | [ADR 011](adr/011-auth.md) |
 | **Kysely + plain SQL migrations**, not an ORM | The locking and set-based SQL are visible and reviewable | More SQL to write by hand | [ADR 012](adr/012-kysely-sql-migrations.md) |
-| **OpenAPI generated from zod** | One schema for validation and docs; CI fails if they differ | No decorator-based Swagger | [ADR 015](adr/015-contracts.md) |
+| **OpenAPI and AsyncAPI generated from zod** | One schema for validation, outbox payload types and docs; CI fails if they differ; tests check real responses and real events against them | No decorator-based Swagger; no schema registry until a second deployable consumes the events | [ADR 015](adr/015-contracts.md) |
 | **Real PostgreSQL and Kafka in tests** (Testcontainers) | Tests prove the real locking and delivery behaviour | Integration suite takes about 4 minutes and needs Docker | [ADR 016](adr/016-testing-strategy.md) |
 | **No gRPC** | One boundary to validate, secure and version | Callers that want gRPC use REST | [ADR 022](adr/022-no-grpc-adapter.md) |
 | **No PgBouncer, Debezium or AWS emulator** | Less to run and explain | Added when their triggers fire | [infrastructure-choices.md](infrastructure-choices.md) |

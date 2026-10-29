@@ -246,7 +246,7 @@ Order of the split, when a trigger fires:
 
 **Preconditions for any split.** A trigger above has fired and is written down as an ADR; contracts live in their own package; the inbox and outbox already guard the boundary being cut; the AC suite runs against both sides of the split.
 
-**When contract tooling grows.** Today contract control is OpenAPI generated from zod, `oasdiff` in CI, and JSON Schema / AsyncAPI validation of simulator output and outbound events: there is one provider and no real consumer to verify against. Consumer-driven contracts (Pact) or a schema registry (Avro or JSON Schema with compatibility rules) appear with the first real split, when a second deployable consumes `capacity.events.v1`.
+**When contract tooling grows.** Today contract control is OpenAPI and AsyncAPI generated from zod, `oasdiff` in CI, and JSON Schema / AsyncAPI validation of simulator output and outbound events (ADR 015): there is one provider and no real consumer to verify against. Consumer-driven contracts (Pact) or a schema registry (Avro or JSON Schema with compatibility rules) appear with the first real split, when a second deployable consumes `capacity.events.v1`.
 
 Never split by write operation while one invariant spans those operations, and never add Redis or a read store without metrics that ask for it.
 
@@ -389,7 +389,7 @@ Idempotency-Key: 6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90
 | `capacity.events.v1` | Out | `tenantId:programId` | `ReservationCreated`, `ReservationReleased`, `ProgramCapacityChanged`, `ReconciliationDriftDetected` |
 | `<topic>.dlq` | Out | Original key | Original bytes plus `x-error-*` headers |
 
-Treasury message shapes are an assumption (A2): the assignment does not define them, so the repo publishes them as JSON Schema and AsyncAPI and the simulator produces them. A `ProgramReconciled` snapshot carries each open reservation's outstanding amount in invoice and in program currency, plus a contiguous `platformWatermark` (section 8).
+Treasury message shapes are an assumption (A2): the assignment does not define them, so the repo publishes them as JSON Schema and AsyncAPI and the simulator produces them. The same AsyncAPI 3.1 document (`contracts/asyncapi.yaml`, served at `/docs/asyncapi`) covers the outbound events and both DLQs, generated from the zod schemas that type the outbox payloads. A `ProgramReconciled` snapshot carries each open reservation's outstanding amount in invoice and in program currency, plus a contiguous `platformWatermark` (section 8).
 
 **Auth model**
 
@@ -415,7 +415,7 @@ The stack is NestJS 12, PostgreSQL and Kafka, with everything else earning its p
 | Data access | Kysely, SQL migrations | Locks, `ON CONFLICT`, `RETURNING` and isolation stay visible in review | Prisma (raw SQL on the critical path anyway), TypeORM (implicit behaviour), Drizzle (v1 still a release candidate, `1.0.0-rc.5`, with 0.45 as `latest` on 2026-10-28) |
 | Pooling | `pg` pool in process; pooler-safe design | Nothing to tune locally | PgBouncer in compose; production uses RDS Proxy or PgBouncer transaction mode |
 | Messaging | Apache Kafka 4 (KRaft); `@confluentinc/kafka-javascript` | Official librdkafka-based client; manual offset control | kafkajs (last stable release 2.2.4, February 2023), NestJS Kafka transport (built on kafkajs, hides offsets); alternative: `@platformatic/kafka` |
-| Contracts | OpenAPI 3.1 generated from the zod schemas (`zod-openapi`) and committed as `contracts/openapi.yaml`; JSON Schema and AsyncAPI for topics; `oasdiff` in CI; e2e tests validate real responses against the generated schema | Versioning and backward compatibility are checked, not promised; one schema source, no duplicated DTOs | `@nestjs/swagger` decorators and class-validator DTOs (a second copy of every schema); Pact (no real consumer or provider to verify; arrives with the first split, section 7), Avro with Schema Registry (extra infra; production option) |
+| Contracts | OpenAPI 3.1 generated from the zod schemas (`zod-openapi`) and committed as `contracts/openapi.yaml`; AsyncAPI 3.1 and JSON Schema for every topic, in and out, generated from zod too; `oasdiff` in CI; e2e tests validate real responses against the generated schema | Versioning and backward compatibility are checked, not promised; one schema source, no duplicated DTOs | `@nestjs/swagger` decorators and class-validator DTOs (a second copy of every schema); Pact (no real consumer or provider to verify; arrives with the first split, section 7), Avro with Schema Registry (extra infra; production option) |
 | API docs | Interactive docs served from the committed OpenAPI file at `/docs`, on the internal ops port or behind a dev flag | Useful to reviewers and operators | A business endpoint for docs: never routed by ingress |
 | Idempotency | PostgreSQL, same transaction as the write | Atomic with the effect; no lease needed | Redis: cannot commit together with the database |
 | Caching | None | Capacity read is a primary-key lookup | Redis: cache must be invalidated in the same transaction, for no measurable gain |
@@ -504,7 +504,7 @@ A reviewer clones the repo, runs `make up && make demo`, and sees every critical
 │  │     └─ out/kafka/             outbox relay, producer
 │  ├─ platform/                    config, logging, telemetry, health, APP_ROLE bootstrap
 │  └─ main.ts
-├─ contracts/                      openapi.yaml (generated from zod), asyncapi.yaml, json-schema/
+├─ contracts/                      openapi.yaml, asyncapi.yaml, json-schema/ (all generated from zod)
 ├─ tools/simulator/                treasury scenario CLI
 ├─ db/seeds/
 ├─ test/                           integration, e2e, property, fault

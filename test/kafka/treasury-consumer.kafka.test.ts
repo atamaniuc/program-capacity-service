@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOPIC_CAPACITY } from '#src/capacity/application/shared/treasury-messages.js';
+import { contractValidators } from '../../tools/contracts/validators.js';
 import { limitSet, repayment, snapshot } from '../../tools/simulator/messages.js';
 import { count, programRow, seedFxRate } from '../support/capacity-world.js';
 import { startTreasuryWorld, waitFor, type TreasuryWorld } from './support/world.js';
@@ -92,9 +93,15 @@ describe('treasury consumer', () => {
     expect(parked[1]?.value?.toString()).toBe(
       JSON.stringify({ messageId: 'bad', type: 'ProgramLimitSet', payload: {} }),
     );
+    const validators = await contractValidators();
     for (const record of parked) {
       expect(record?.key?.toString()).toBe(`${TENANT}:prg-poison`);
       const headers = record?.headers as Record<string, Buffer>;
+      // The DlqHeaders schema published in contracts/asyncapi.yaml.
+      const asText = Object.fromEntries(
+        Object.entries(headers).map(([name, value]) => [name, value.toString()]),
+      );
+      expect(validators.dlqHeaders(asText), validators.errors(validators.dlqHeaders)).toBe(true);
       expect(headers['x-error-code']?.toString()).toBe('schema-invalid');
       expect(headers['x-error-message']?.toString().length).toBeGreaterThan(0);
       expect(headers['x-original-topic']?.toString()).toBe(TOPIC_CAPACITY);

@@ -3,9 +3,10 @@
 Manual and scripted acceptance checks against the running stack: every HTTP endpoint, every
 treasury message type, and what each one must leave behind in PostgreSQL, on Kafka and in the
 metrics. The automated tests (`make test`) prove the same rules in isolation; this page is
-for a person who wants to see them on a live system, in Swagger or a terminal.
+for a person who wants to see them on a live system, in Swagger, the AsyncAPI page or a
+terminal.
 
-**Last run:** 2026-10-29, `make qa` → `TOTAL pass=98 fail=0`, stack from `make install`.
+**Last run:** 2026-10-29, `make qa` → `TOTAL pass=103 fail=0`, stack from `make install`.
 
 ## How to run
 
@@ -31,6 +32,15 @@ snapshots, malformed and cross-tenant records) are published by
 3. Pick an operation → **Try it out**. Bodies and `Idempotency-Key` are pre-filled from the
    zod schemas → **Execute**.
 
+### The Kafka contract in the browser
+
+Open <http://localhost:9464/docs/asyncapi> (`make docs-events`). The sidebar lists the servers,
+the five topics (treasury input, its two DLQs, `capacity.events.v1`) and every message; each
+message shows its headers, Kafka key, payload schema and an example. Compare what you see on
+the wire with it: `make events` prints every outbound event as `headers | key | value`, and
+`npm run contracts:events -- --key bank-a:<program>` checks them against `contracts/` for you
+(QA-72).
+
 Seeded programs: `bank-a` owns `prg_grand_usd` (USD 10,000,000) and `prg_aegean_eur` (EUR);
 `bank-b` owns `prg_gulf_aed` (AED) and `prg_kuwait_kwd` (KWD, 3 decimals); `bank-c` owns
 `prg_atlas_usd` and `prg_nordic_eur`.
@@ -52,15 +62,16 @@ Side effects, used in the "Check also" columns below:
 # SQL (the stack's database)
 docker compose -f deploy/compose.yaml exec -T postgres psql -U capacity -d capacity -c "<query>"
 
-# outbound events
-docker compose -f deploy/compose.yaml exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 --topic capacity.events.v1 --from-beginning \
-  --property print.key=true --timeout-ms 8000
+# outbound events: headers | key | value (Ctrl-C stops)
+make events
+
+# outbound events checked against contracts/ (schemas, headers, key, gap-free seq)
+npm run contracts:events -- --key bank-a:<program>
 
 # a dead-letter topic, with the x-error-* headers
 docker compose -f deploy/compose.yaml exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic treasury.capacity.v1.dlq --from-beginning \
-  --property print.headers=true --timeout-ms 8000
+  --formatter-property print.headers=true --timeout-ms 8000
 
 # metrics: api (HTTP RED) and worker (outbox, DLQ, invariants)
 curl -s localhost:9464/metrics | grep http_requests_total
@@ -80,6 +91,7 @@ Treasury input from a terminal: `npm run simulate -- <scenario> --tenant bank-a 
 | QA-02 | Metrics split by role | `GET :9464/metrics`, `GET :9465/metrics` | api exposes `http_requests_total`; worker exposes `outbox_lag`, `outbox_oldest_unpublished_age_seconds`, `invariant_mismatch_programs`, `programs_over_limit` | `dlq_messages_total` appears on the worker after the first dead letter |
 | QA-03 | Swagger UI is local and ops-only | `GET :9464/docs`, `GET :9464/docs/swagger-ui-bundle.js`, `GET :3000/docs` | `200`, `200`, `404` | Works with the network off: no CDN requests |
 | QA-04 | CORS only for the docs origin | `OPTIONS :3000/v1/…/reservations` with `Origin: http://127.0.0.1:9464`, then with `Origin: http://evil.example` | `204` with `access-control-allow-origin`; the second has no allow-origin header | Origins come from `CORS_ORIGINS` |
+| QA-05 | AsyncAPI page is local and ops-only | `GET :9464/docs/asyncapi`, `GET :9464/docs/asyncapi-ui.js`, `GET :9464/docs/asyncapi.json`, `GET :3000/docs/asyncapi` | `200`, `200`, a 3.1.0 document with the channels `treasury.capacity.v1`, `treasury.fx-rates.v1`, both `.dlq` topics and `capacity.events.v1`, then `404` | The page links to Swagger UI and back; the viewer is served by the service, no CDN |
 
 ## B. Authentication and tenants
 
@@ -189,7 +201,8 @@ watermark covers R1 and R2 but not R3.
 | ID | Case | Steps | Expected | Check also |
 | --- | --- | --- | --- | --- |
 | QA-70 | Events reach Kafka | Consume the topic, filter key `bank-a:<program>` | `ProgramCapacityChanged`, `ReservationCreated`, `ReservationReleased` | Key is `tenant:program`, so one program's events stay in order on one partition |
-| QA-71 | No gaps, nothing stuck | `select program_seq, published_at from outbox_event where tenant_id=… and program_id=…` | `program_seq` 1, 2, 3 … with no gaps, every `published_at` set | Worker `outbox_lag` and `outbox_oldest_unpublished_age_seconds` near 0. Consumers use `programSeq` to drop duplicates and spot gaps |
+| QA-71 | No gaps, nothing stuck | `select program_seq, published_at from outbox_event where tenant_id=… and program_id=…` | `program_seq` 1, 2, 3 … with no gaps, every `published_at` set | Worker `outbox_lag` and `outbox_oldest_unpublished_age_seconds` near 0. Consumers drop duplicates by `messageId` and spot gaps with `programSeq` |
+| QA-72 | Events match the published contract | `npm run contracts:events -- --key bank-a:<program>` for the main QA program and for the reconciliation program of section K (together: all four event types) | `violations=0`: every record validates against `contracts/json-schema/<type>.schema.json` and, strictly, has no field the contract leaves out; headers match the `CapacityEventHeaders` schema and the envelope; `seq` is gap-free from 1 | Without `--key` it checks the whole topic. The same check runs in `test/kafka/capacity-events.kafka.test.ts` |
 
 ## I. Invariants
 

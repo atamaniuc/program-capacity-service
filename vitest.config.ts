@@ -30,6 +30,7 @@ export default defineConfig({
             'src/**/*.test.ts',
             'test/architecture/**/*.test.ts',
             'test/property/**/*.test.ts',
+            'test/contracts/**/*.test.ts',
           ],
         },
       },

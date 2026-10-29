@@ -26,6 +26,12 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack 
 WORKDIR /app
 COPY --chown=node:node package.json ./
 COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
+# The AsyncAPI viewer behind /docs/asyncapi is a devDependency: the page needs only its prebuilt
+# browser bundle and stylesheet, not the parser's dependency tree, so only those files ship.
+ARG ASYNCAPI_UI=node_modules/@asyncapi/react-component
+COPY --chown=node:node --from=deps /app/${ASYNCAPI_UI}/package.json /app/${ASYNCAPI_UI}/LICENSE ./${ASYNCAPI_UI}/
+COPY --chown=node:node --from=deps /app/${ASYNCAPI_UI}/browser/standalone/index.js /app/${ASYNCAPI_UI}/browser/standalone/index.js.LICENSE.txt ./${ASYNCAPI_UI}/browser/standalone/
+COPY --chown=node:node --from=deps /app/${ASYNCAPI_UI}/styles/default.min.css ./${ASYNCAPI_UI}/styles/
 # The compiled tree takes the place of src/, so the package.json "imports" map (#src/*)
 # resolves to the same layout in the image as it does in the repository.
 COPY --chown=node:node --from=build /app/dist ./src
