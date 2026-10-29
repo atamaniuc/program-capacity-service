@@ -43,6 +43,7 @@ Questions we would ask the product owner are listed in [PRD §14](PRD.md#14-assu
 | **Kysely + plain SQL migrations**, not an ORM | The locking and set-based SQL are visible and reviewable | More SQL to write by hand | [ADR 012](adr/012-kysely-sql-migrations.md) |
 | **OpenAPI generated from zod** | One schema for validation and docs; CI fails if they differ | No decorator-based Swagger | [ADR 015](adr/015-contracts.md) |
 | **Real PostgreSQL and Kafka in tests** (Testcontainers) | Tests prove the real locking and delivery behaviour | Integration suite takes about 4 minutes and needs Docker | [ADR 016](adr/016-testing-strategy.md) |
+| **Saga reserve retries bounded by capacity's 24 h key retention** (branch `microservices`): normal path 2 min, resolution up to 12 h | Exactly-once reserve across the gRPC hop without a distributed transaction | A reserve not resolved within 12 h stops retrying and goes to `NEEDS_ATTENTION` for an operator | [ADR 025](adr/025-funding-saga-orchestration.md#exactly-once-effect-across-the-grpc-hop), [runbook](runbook.md#funding-the-reserve-retry-window-branch-microservices) |
 | **No gRPC** | One boundary to validate, secure and version | Callers that want gRPC use REST | [ADR 022](adr/022-no-grpc-adapter.md) |
 | **No PgBouncer, Debezium or AWS emulator** | Less to run and explain | Added when their triggers fire | [infrastructure-choices.md](infrastructure-choices.md) |
 

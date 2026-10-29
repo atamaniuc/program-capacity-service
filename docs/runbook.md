@@ -140,6 +140,31 @@ Expected after a limit cut below `reserved` (A10). New reservations answer 422
 releases bring `reserved` under the limit; nothing to repair. Escalate only if treasury did not
 intend the cut.
 
+### Funding: the reserve retry window (branch `microservices`)
+
+The saga repeats the `Reserve` call under one `Idempotency-Key` (`funding:<id>:reserve`) until
+capacity gives a definite answer. A repeat is safe only while capacity still remembers that key:
+**24 hours** (NFR-11, `RETENTION_IDEMPOTENCY_SECONDS`; capacity refuses to start with less).
+After that, a repeat would meet the natural key `(tenant, program, invoice)`, get `EXISTING`,
+and the saga would take its own reservation for someone else's and reject the request. So
+reserve retries are bounded well inside the window ([ADR 025](adr/025-funding-saga-orchestration.md#exactly-once-effect-across-the-grpc-hop)):
+
+| Setting | Default | What happens when it runs out |
+| --- | --- | --- |
+| `FUNDING_RESERVE_DEADLINE` | 2 min | The normal path stops waiting and moves to resolution |
+| `FUNDING_RESERVE_RESOLUTION_LIMIT` | 12 h (half the retention) | The request goes to `NEEDS_ATTENTION` and is no longer retried |
+
+On call:
+
+- A request in `NEEDS_ATTENTION` after the reserve step may or may not hold a reservation in
+  capacity. Do not re-drive it by hand under the same key once 24 hours have passed since its
+  first reserve attempt: the key is gone and the answer would be `EXISTING`. The operator
+  resolution procedure arrives with lane 0006 T22.
+- Do not raise `FUNDING_RESERVE_RESOLUTION_LIMIT`: funding refuses to start with a value above
+  12 h. Capacity's retention can only go up (24 h floor), which only widens the margin.
+- `Release` (the compensation) has no such limit. `release_ref` is a permanent natural key in
+  capacity (ADR 006), so a compensation retried days later still replays its stored result.
+
 ## Deploys and shutdown
 
 The service handles SIGTERM: readiness turns false at once so the load balancer drains, in-flight
