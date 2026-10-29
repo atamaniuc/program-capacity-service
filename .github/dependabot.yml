@@ -18,6 +18,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The service runs on the Node.js LTS line (engines, .nvmrc). A major Node.js upgrade is a
+    # deliberate change, not a weekly bump, and odd majors never become LTS.
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
     groups:
       docker-all:
         patterns: ['*']
