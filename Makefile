@@ -122,21 +122,27 @@ docs: ## open Swagger UI (try the API in the browser)
 verify: ## lint, types, layer rules, contract drift, unit and property tests
 	$(call step,Lint and format)
 	@npm run --silent lint
+	@npm run --silent lint --workspaces --if-present
 	$(call step,Types)
 	@npm run --silent typecheck
+	@npm run --silent typecheck --workspaces --if-present
 	$(call step,Layer rules)
 	@npm run --silent depcruise
+	@npm run --silent depcruise --workspaces --if-present
 	$(call step,OpenAPI contract matches the zod schemas)
 	@npm run --silent contracts:check
 	$(call step,Unit and property tests)
 	@npm run --silent test:unit
+	@npm run --silent test:unit --workspaces --if-present
 	$(call done,verify passed)
 
 test: ## every test level, real containers via Testcontainers
 	$(call step,Unit and property tests)
 	@npm run --silent test:unit
+	@npm run --silent test:unit --workspaces --if-present
 	$(call step,Integration · e2e · Kafka · fault tests (Docker))
 	@npm run --silent test:int
+	@npm run --silent test:int --workspaces --if-present
 	$(call done,all tests passed)
 
 test-unit: ## unit and property tests only (no Docker)

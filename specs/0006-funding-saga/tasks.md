@@ -17,12 +17,12 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   names now (`KIND_CLUSTER := finverity-ms`, `.kind/` gitignored).
   <!-- proof: test/architecture/isolation.test.ts#MS-01 --> <!-- proof: test/architecture/isolation.test.ts#MS-03 --> <!-- proof: make isolation-live -->
   (MS-02 evidence: both `docker compose -p … ps` outputs quoted in the handoff.)
-- [ ] T2 — **npm workspaces skeleton** (ADR 027). Root `workspaces`; `services/funding` and
+- [x] T2 — **npm workspaces skeleton** (ADR 027). Root `workspaces`; `services/funding` and
   `services/payments-mock` with `package.json`, `tsconfig.json`, Vitest projects,
   dependency-cruiser config and one trivial unit test each; `make verify` and `make test` run
   every workspace; architecture test for cross-service imports; `harnessimo.config.json`
   scans `services/` and `packages/`; CI runs the same make targets.
-  proof (planned): `test/architecture/workspaces.test.ts#WS-01`
+  <!-- proof: test/architecture/workspaces.test.ts#WS-01 -->
 - [ ] T3 — **Proto contract and buf** (ADR 024). `contracts/proto/finverity/capacity/v1/`
   with `CapacityService` (`Reserve`, `Release`, `GetAvailability`), `Money` as decimal string
   plus `currency_code`, `ReserveResponse.result` (`CREATED`/`EXISTING`); `@bufbuild/buf`,

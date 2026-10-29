@@ -1,0 +1,19 @@
+{
+  "name": "@finverity/funding",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "depcruise": "depcruise src --config .dependency-cruiser.cjs",
+    "test:unit": "vitest run --project unit",
+    "test:int": "vitest run --project int"
+  }
+}

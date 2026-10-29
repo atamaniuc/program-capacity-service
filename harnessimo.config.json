@@ -37,10 +37,10 @@
     "commands": ["npm ci"]
   },
   "cleanExit": {
-    "scan": ["src/", "test/", "tools/"],
+    "scan": ["src/", "test/", "tools/", "services/", "packages/"],
     "allow": [".harness/", "specs/"],
     "progressFile": ".harness/4-state/PROGRESS.md",
-    "codePrefixes": ["src/", "test/", "tools/", "db/", "deploy/"]
+    "codePrefixes": ["src/", "test/", "tools/", "db/", "deploy/", "services/", "packages/"]
   },
   "instructions": {
     "limits": {

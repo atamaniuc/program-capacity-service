@@ -5,6 +5,10 @@
   "license": "MIT",
   "repository": "github:atamaniuc/program-capacity-service",
   "type": "module",
+  "workspaces": [
+    "services/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=24"
   },

@@ -25,14 +25,22 @@ jobs:
         run: npx harnessimo check
       - name: Lint
         run: npm run lint
+      - name: lint in every workspace
+        run: npm run lint --workspaces --if-present
       - name: Typecheck
         run: npm run typecheck
+      - name: typecheck in every workspace
+        run: npm run typecheck --workspaces --if-present
       - name: Layer rules
         run: npm run depcruise
+      - name: depcruise in every workspace
+        run: npm run depcruise --workspaces --if-present
       - name: OpenAPI contract matches the zod schemas
         run: npm run contracts:check
       - name: Unit and property tests with coverage gate
         run: npm run test:unit
+      - name: test:unit in every workspace
+        run: npm run test:unit --workspaces --if-present
 
   integration:
     runs-on: ubuntu-latest
@@ -45,6 +53,8 @@ jobs:
       - run: npm ci
       - name: Integration and e2e tests (Testcontainers)
         run: npm run test:int
+      - name: test:int in every workspace
+        run: npm run test:int --workspaces --if-present
 
   image:
     runs-on: ubuntu-latest

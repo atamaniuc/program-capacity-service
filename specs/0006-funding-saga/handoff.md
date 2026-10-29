@@ -100,7 +100,19 @@ load with `main`'s stack running alongside; unproven. If it recurs, capture the 
 re-running and treat it as a flake to fix (container start timeout or int-project concurrency),
 not as a regression.
 
-Next: T2 (npm workspaces skeleton).
+T2 done (2026-10-29): root `workspaces: ["services/*", "packages/*"]`; `services/funding` and
+`services/payments-mock` each with `package.json` (scripts lint, typecheck, depcruise, test:unit,
+test:int), `tsconfig.json` (extends the root), `vitest.config.ts` (projects `unit`, `int`),
+`.dependency-cruiser.cjs` (rule `no-cross-service-imports`; the hexagonal rules arrive with
+funding's code) and one unit test. `make verify`, `make test` and `.github/workflows/ci.yml`
+run `npm run <script> --workspaces --if-present` after the root step; `harnessimo.config.json`
+scans `services/` and `packages/`. Root eslint still lints the services (no ignore: an ignore
+at the root also hides files when a workspace runs eslint). `make test`: green on the first run,
+23/23 integration files, 100/100 tests, 113 unit tests; the flake did not recur.
+Proof: `test/architecture/workspaces.test.ts` (WS-01). No new dependencies; `package-lock.json`
+gained only the workspace entries.
+
+Next: T3 (proto contract and buf).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -142,6 +154,6 @@ Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.
 
 ## First step
 
-T2. Read ADR 027 "Layout", then write `test/architecture/workspaces.test.ts` with `WS-01 …`
-first (it fails: no workspaces yet), then add the root `workspaces`, `services/funding` and
-`services/payments-mock` skeletons. Ask the lead before adding any dependency. Run `make verify`.
+T3. Read ADR 024, ADR 006 and ADR 011, re-check the dated facts with `npm view`, and write
+`test/architecture/proto.test.ts` with `GR-01 …` first. Ask the lead before adding the
+dependencies (`@bufbuild/buf`, `ts-proto`, `@grpc/grpc-js`). Run `make verify`.
