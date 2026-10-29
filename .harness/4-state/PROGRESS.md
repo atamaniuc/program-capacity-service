@@ -71,7 +71,13 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
 - Branch `microservices`, lane 0006 T4 (awaits architect review, not ticked): shared boundary
   `src/capacity/adapters/in/boundary/` (schemas moved from `in/http`, `JwtVerifier` and `Principal`,
   `parse`/`money`, exhaustive `PROBLEM_MAP`), HTTP adapter rewired, two depcruise rules. Also the
-  GR-01 drift test no longer fails on `npm warn` stderr (own commit).
+  GR-01 drift test no longer fails on `npm warn` stderr (own commit). T4 approved 2026-10-30; its
+  review carry-overs (GR-02 allowlist, boundary allowlist rule, OpenAPI `servers` host from
+  `HOST_PORT_API`) are committed.
+- Branch `microservices`, lane 0006 T5 (awaits architect review, not ticked): gRPC server in
+  `src/capacity/adapters/in/grpc/` (auth interceptor with default-deny scope table, ErrorInfo in
+  `google.rpc.Status`, deadline check, RED metrics and spans, drain on SIGTERM), `GRPC_PORT`,
+  readiness `grpc`, compose host port 60051. Tests GR-04..GR-07.
 
 - AsyncAPI and contract compatibility (2026-10-29, post-lane like the Swagger UI): event
   schemas in `capacity-events.ts`, builder in `src/platform/contracts/`, `/docs/asyncapi`,
@@ -92,4 +98,4 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
 - Drift amounts in `ReconciliationDriftDetected` are minor units without currency (documented
   exception); unifying them is a `v2` of that event — owner's call.
 
-_Last updated: 2026-10-29 (branch `microservices`: lane 0006 T4 built, awaiting review)_
+_Last updated: 2026-10-30 (branch `microservices`: lane 0006 T5 built, awaiting review)_

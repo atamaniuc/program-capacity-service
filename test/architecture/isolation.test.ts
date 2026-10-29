@@ -142,6 +142,7 @@ describe('side-by-side isolation from main', () => {
       ['HOST_PORT_KAFKA', 39092],
       ['HOST_PORT_OAUTH', 18081],
       ['HOST_PORT_API', 13000],
+      ['HOST_PORT_API_GRPC', 60051],
       ['HOST_PORT_API_OPS', 19464],
       ['HOST_PORT_WORKER_OPS', 19465],
       ['HOST_PORT_KAFKA_UI', 18080],

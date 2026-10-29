@@ -15,6 +15,8 @@ const port = z.coerce.number().int().min(1).max(65535);
 const schema = z.object({
   APP_ROLE: z.enum(['api', 'worker', 'all']).default('all'),
   HTTP_PORT: port.default(3000),
+  /** Internal gRPC port of the api role (ADR 024); the worker role never binds it. */
+  GRPC_PORT: port.default(50051),
   OPS_PORT: port.default(9464),
   DATABASE_URL: z
     .string()
@@ -51,6 +53,7 @@ export type AppRole = 'api' | 'worker' | 'all';
 export interface Config {
   readonly appRole: AppRole;
   readonly httpPort: number;
+  readonly grpcPort: number;
   readonly opsPort: number;
   readonly databaseUrl: string;
   readonly kafkaBrokers: readonly string[];
@@ -93,6 +96,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   return {
     appRole: data.APP_ROLE,
     httpPort: data.HTTP_PORT,
+    grpcPort: data.GRPC_PORT,
     opsPort: data.OPS_PORT,
     databaseUrl: data.DATABASE_URL,
     kafkaBrokers: data.KAFKA_BROKERS,

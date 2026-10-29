@@ -10,6 +10,7 @@ export interface FaultApp {
   readonly app: RunningApp;
   readonly baseUrl: string;
   readonly opsUrl: string;
+  readonly grpcTarget: string;
   readonly issuer: TestIssuer;
   token(): Promise<string>;
   get(path: string): Promise<{ status: number; body: unknown }>;
@@ -33,10 +34,12 @@ export async function startFaultApp(options: {
   if (options.migrateFirst !== false) await migrate(options.databaseUrl);
   const issuer = await startTestIssuer();
   const httpPort = await freePort();
+  const grpcPort = await freePort();
   const env = {
     APP_ROLE: options.role,
     HTTP_PORT: String(httpPort),
     OPS_PORT: String(await freePort()),
+    GRPC_PORT: String(grpcPort),
     DATABASE_URL: options.databaseUrl,
     KAFKA_BROKERS: options.kafkaBrokers ?? '127.0.0.1:1',
     OAUTH_ISSUER: issuer.issuer,
@@ -78,6 +81,7 @@ export async function startFaultApp(options: {
     app,
     baseUrl,
     opsUrl,
+    grpcTarget: `127.0.0.1:${grpcPort}`,
     issuer,
     token,
     get: (path) => call('GET', path),

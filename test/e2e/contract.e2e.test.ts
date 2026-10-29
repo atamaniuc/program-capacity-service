@@ -119,7 +119,7 @@ describe('contract', () => {
       servers: { url: string }[];
       components: { securitySchemes: Record<string, { type: string; flows?: unknown }> };
     };
-    expect(served.servers[0]?.url).toBe('http://localhost:3000');
+    expect(served.servers[0]?.url).toBe('http://localhost:13000');
     expect(served.components.securitySchemes['localOAuth']).toMatchObject({
       type: 'oauth2',
       flows: { clientCredentials: { tokenUrl: 'http://oauth.local/default/token' } },

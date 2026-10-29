@@ -279,3 +279,13 @@ in order of preference: keep the old field and add the new one beside it; make a
 optional; or, if the change really is breaking, version it as above. `make compat
 BASE=<ref>` compares with another commit. The check compares only files that exist at the base,
 so a brand-new message is free to change until it is merged.
+
+## gRPC (branch `microservices`, ADR 024)
+
+`finverity.capacity.v1.CapacityService` (`Reserve`, `Release`, `GetAvailability`) runs in the
+`api` role on `GRPC_PORT` (container 50051, host 60051). It is internal: plaintext HTTP/2, and
+every call needs `authorization: Bearer <jwt>` metadata (same issuer, audience and scopes as REST).
+`idempotency-key` and `x-request-id` are metadata; a key first used over REST replays over gRPC.
+Money is `{ value: "1250.50", currency_code: "USD" }`. Errors carry `google.rpc.Status` in
+`grpc-status-details-bin` with an `ErrorInfo` (`reason` = the REST problem `type`, `domain` =
+`capacity.finverity`, `metadata.detail`). Contract: `contracts/proto/`.

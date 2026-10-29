@@ -6,7 +6,7 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { BoundaryProblem } from '../boundary/problem.js';
+import { BoundaryProblem, isTransient } from '../boundary/problem.js';
 import {
   HttpProblem,
   PROBLEM_CONTENT_TYPE,
@@ -14,17 +14,6 @@ import {
   problemBody,
   type ProblemBody,
 } from './problem.js';
-
-/** PostgreSQL conditions that mean "try again later", not "the request is wrong". */
-const TRANSIENT_PG_CODES = new Set(['55P03', '57014', '40001', '40P01', '57P01', '08006', '08001']);
-const TRANSIENT_NODE_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT']);
-
-function isTransient(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null)?.code;
-  return (
-    typeof code === 'string' && (TRANSIENT_PG_CODES.has(code) || TRANSIENT_NODE_CODES.has(code))
-  );
-}
 
 function fromHttpException(exception: HttpException): ProblemBody {
   const status = exception.getStatus();

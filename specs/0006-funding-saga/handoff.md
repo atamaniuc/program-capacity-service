@@ -176,7 +176,45 @@ Carried into T5 (MINOR, fix there):
 - NOTE: the grpc adapter test asserts `GRPC_STATUS` equals `@grpc/grpc-js` `status` for each code
   it names (the boundary hand-numbers them).
 
-Next: T5 (gRPC server adapter), starting with the two MINORs above.
+T4 carry-overs done (commit 0292242): GR-02 now asserts the ADR 025 definite-failure allowlist
+(proved by mapping `fx-rate-unavailable` to `INTERNAL`; reverted), `RETRYABLE_GRPC_CODES` removed;
+`boundary-is-for-driving-adapters` is an allowlist (proved with a probe `in/cli/probe.ts`:
+`error boundary-is-for-driving-adapters`; removed); `buildOpenApiDocument({ localApiHost })`
+and `tools/contracts/render.ts` take `HOST_PORT_API` (default 13000), `contracts/openapi.yaml`
+regenerated (`servers` only); `contracts:compat`: "OpenAPI: no breaking change; breaking=0".
+
+T5 built (2026-10-30), **awaits architect review; the box in tasks.md is NOT ticked** (proof
+marker still `proof (planned)`). Files to review: `src/capacity/adapters/in/grpc/{server,mapping,
+status-details,status.test}.ts`; `boundary/problem.ts` (`isTransient` moved here from
+`http/problem.filter.ts`); `src/platform/bootstrap/start.ts` (gRPC wiring, drain, `grpc` readiness,
+`RunningApp.grpcPort`); `src/platform/config/config.ts` (+test) `GRPC_PORT`; `deploy/compose.yaml`,
+`Makefile`, `.env.example`, `tools/doctor.sh` (host port `HOST_PORT_API_GRPC` 60051 -> 50051, the
+ADR 027 plan), `test/architecture/isolation.test.ts`; `test/support/{grpc-client,app,fault-app}.ts`;
+`test/e2e/grpc.e2e.test.ts` (GR-04, GR-05, GR-06), `test/fault/grpc-shutdown.fault.test.ts` (GR-07);
+README and `docs/api.md` (short gRPC notes). No new dependency.
+Design notes for the reviewer:
+- Auth is a `ServerInterceptor` (`authenticate` + scope table, default-deny). It holds the message
+  and half-close back until authentication resolves, so no use case or zod parse runs for an
+  unauthenticated call. grpc-js itself already protobuf-decodes the message before the interceptor
+  sees it; that cannot be avoided with the public API. The principal reaches the handler through a
+  `WeakMap<Metadata, Principal>` (the handler's `call.metadata` is the interceptor's object;
+  proven by the tests).
+- `google.rpc.Status` + `ErrorInfo` are encoded by hand with `BinaryWriter` from the already
+  declared `@bufbuild/protobuf` (no googleapis stub dependency); the test decoder is in
+  `test/support/grpc-client.ts`.
+- Deadline: checked after authentication, before the use case; grpc-js answers the client
+  `DEADLINE_EXCEEDED` itself and the handler is not cancelled once the use case runs (GR-05).
+- Proto gaps (additive follow-up for the architect, not changed here): `ReleaseResponse.reservation`
+  has no field for `release_ref`, `reason` or the repaid amount, so `invoice_id`, `fx`,
+  `reserved_amount`, `created_at` stay default and `invoice_amount` carries the repaid amount;
+  the `Capacity` echoed by Reserve/Release fills program id, currency, limit, reserved,
+  available, version only (`over_limit_by`, `utilization`, `treasury_seq` unset).
+- `test/e2e/ops.e2e.test.ts` (not in Owns) starts the app with the default `GRPC_PORT` 50051; safe
+  because the int project runs files serially, but it should pass a free port.
+
+Next: architect review of T5; on APPROVE tick T5 with markers
+`test/e2e/grpc.e2e.test.ts#GR-04`, `#GR-05`, `#GR-06` and `test/fault/grpc-shutdown.fault.test.ts#GR-07`,
+then T6 (acceptance cases over both transports).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -232,7 +270,6 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 
 ## First step
 
-Wait for the architect's verdict on T4 (files listed in State). On approval tick T4 with the
-marker `<!-- proof: src/capacity/adapters/in/boundary/problem-map.test.ts#GR-02 -->`, then start T5
-**[review]**: read ADR 024 (authentication, deadlines), build the grpc adapter on `boundary/` and
-the stubs in `src/capacity/adapters/in/grpc/generated/`.
+Wait for the architect's verdict on T5 (files listed in State). On approval tick T5 with the four
+markers named in State, then start T6 in `test/support/` and
+`test/e2e/transports.e2e.test.ts`.

@@ -68,4 +68,11 @@ describe('config', () => {
     ).toEqual(['http://localhost:9464', 'http://127.0.0.1:9464']);
     expect(() => loadConfig({ ...valid, CORS_ORIGINS: 'not a url' })).toThrow(/CORS_ORIGINS/);
   });
+
+  it('GR-04 defaults GRPC_PORT to 50051 and rejects a bad value at boot, naming the field', () => {
+    expect(loadConfig(valid).grpcPort).toBe(50051);
+    expect(loadConfig({ ...valid, GRPC_PORT: '60051' }).grpcPort).toBe(60051);
+    expect(() => loadConfig({ ...valid, GRPC_PORT: '70000' })).toThrow(/GRPC_PORT/);
+    expect(() => loadConfig({ ...valid, GRPC_PORT: 'grpc' })).toThrow(/GRPC_PORT/);
+  });
 });

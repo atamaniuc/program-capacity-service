@@ -24,6 +24,9 @@ export async function freePort(): Promise<number> {
 export interface TestApp {
   readonly baseUrl: string;
   readonly opsUrl: string;
+  /** host:port of the gRPC server. */
+  readonly grpcTarget: string;
+  readonly databaseUrl: string;
   readonly persistence: Persistence;
   readonly issuer: TestIssuer;
   /** A valid bearer token; defaults to tenant `bank-a` with both scopes. */
@@ -47,10 +50,12 @@ export async function startTestApp(env: Record<string, string> = {}): Promise<Te
   await migrate(postgres.url);
   const issuer = await startTestIssuer();
   const httpPort = await freePort();
+  const grpcPort = await freePort();
   const config = loadConfig({
     APP_ROLE: 'api',
     HTTP_PORT: String(httpPort),
     OPS_PORT: String(await freePort()),
+    GRPC_PORT: String(grpcPort),
     DATABASE_URL: postgres.url,
     KAFKA_BROKERS: 'localhost:9092',
     OAUTH_ISSUER: issuer.issuer,
@@ -74,6 +79,8 @@ export async function startTestApp(env: Record<string, string> = {}): Promise<Te
   return {
     baseUrl,
     opsUrl: `http://127.0.0.1:${app.opsPort}`,
+    grpcTarget: `127.0.0.1:${grpcPort}`,
+    databaseUrl: postgres.url,
     persistence,
     issuer,
     token,

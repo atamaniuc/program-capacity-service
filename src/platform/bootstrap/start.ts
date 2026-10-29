@@ -7,7 +7,16 @@ import { createPersistence } from '#src/capacity/adapters/out/postgres/db.js';
 import { latestMigration } from '#src/capacity/adapters/out/postgres/migrate.js';
 import type { Config } from '../config/config.js';
 import { JwtVerifier } from '#src/capacity/adapters/in/boundary/auth.js';
+import { createGrpcServer, type GrpcServer } from '#src/capacity/adapters/in/grpc/server.js';
 import { createAuthMiddleware } from '#src/capacity/adapters/in/http/auth.js';
+import {
+  GET_CAPACITY,
+  RELEASE_RESERVATION,
+  RESERVE_CAPACITY,
+} from '#src/capacity/adapters/in/http/capacity.controller.js';
+import type { GetCapacity } from '#src/capacity/application/use-cases/queries/get-capacity/get-capacity.js';
+import type { ReleaseReservation } from '#src/capacity/application/use-cases/release-reservation/release-reservation.js';
+import type { ReserveCapacity } from '#src/capacity/application/use-cases/reserve-capacity/reserve-capacity.js';
 import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js';
 import { buildAsyncApiDocument } from '#src/platform/contracts/asyncapi.js';
 import { startOpsServer, type OpsServer } from '../health/ops-server.js';
@@ -25,10 +34,15 @@ import { createTreasuryConsumer, startWorkerComponents, type WorkerComponents } 
  */
 const CONSUMER_DRAIN_MS = Math.floor(SHUTDOWN_DEADLINE_MS * 0.4);
 
+/** ADR 024: in-flight gRPC calls get 40 % of the NFR-07 budget, then the server is forced down. */
+const GRPC_DRAIN_MS = CONSUMER_DRAIN_MS;
+
 export interface RunningApp {
   readonly opsPort: number;
   /** Null for the `worker` role, which has no business HTTP listener. */
   readonly httpPort: number | null;
+  /** Null for the `worker` role: only the api role serves gRPC (ADR 024). */
+  readonly grpcPort: number | null;
   /** Drain readiness, close intake, then the pool and the ops server. Idempotent. */
   close(): Promise<void>;
 }
@@ -47,6 +61,8 @@ export async function startApp(
     serveHttp ? { fxMaxAgeSeconds: config.fxMaxAgeSeconds } : undefined,
   );
   let app: INestApplication | INestApplicationContext;
+  let grpc: GrpcServer | null = null;
+  let grpcPort: number | null = null;
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
     http.use(httpMetrics(registry));
@@ -60,17 +76,25 @@ export async function startApp(
       });
     }
     // Mounted before Nest registers the body parser (at init), so authentication comes first.
-    http.use(
-      '/v1',
-      createAuthMiddleware(
-        new JwtVerifier({
-          issuer: config.oauthIssuer,
-          audience: config.oauthAudience,
-          jwksUrl: config.oauthJwksUrl,
-        }),
-      ),
-    );
+    const verifier = new JwtVerifier({
+      issuer: config.oauthIssuer,
+      audience: config.oauthAudience,
+      jwksUrl: config.oauthJwksUrl,
+    });
+    http.use('/v1', createAuthMiddleware(verifier));
     await http.listen(config.httpPort, '0.0.0.0');
+    // The same use cases, verifier and metrics registry as REST (ADR 024).
+    grpc = createGrpcServer({
+      verifier,
+      reserveCapacity: http.get<ReserveCapacity>(RESERVE_CAPACITY),
+      releaseReservation: http.get<ReleaseReservation>(RELEASE_RESERVATION),
+      getCapacity: http.get<GetCapacity>(GET_CAPACITY),
+      registry,
+      onError: (error) => {
+        logger.error({ err: error }, 'gRPC call failed');
+      },
+    });
+    grpcPort = await grpc.listen(config.grpcPort);
     app = http;
   } else {
     app = await NestFactory.createApplicationContext(module, { logger: nestLogger });
@@ -107,12 +131,18 @@ export async function startApp(
                  AS migrated`.execute(persistence.db);
         if (rows[0]?.migrated !== true) throw new Error('schema is not migrated');
       },
+      ...(grpc === null ? {} : { grpc: () => grpc.check() }),
       ...(consumer === null ? {} : { kafka: () => consumer.check() }),
     },
   });
 
   logger.info(
-    { role: config.appRole, httpPort: serveHttp ? config.httpPort : null, opsPort: ops.port() },
+    {
+      role: config.appRole,
+      httpPort: serveHttp ? config.httpPort : null,
+      grpcPort,
+      opsPort: ops.port(),
+    },
     'service started',
   );
 
@@ -120,9 +150,12 @@ export async function startApp(
   return {
     opsPort: ops.port(),
     httpPort: serveHttp ? config.httpPort : null,
+    grpcPort,
     close: () => {
       closing ??= (async () => {
         ops.markDraining();
+        // Refuse new gRPC calls and let in-flight ones finish before the pool can close.
+        await grpc?.drain(GRPC_DRAIN_MS);
         // Stop intake first: an in-flight message finishes its transaction before the pool closes.
         await consumer?.stop();
         // Background work next: it uses the pool that the app closes last.

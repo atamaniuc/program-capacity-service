@@ -132,3 +132,15 @@ export const validationProblem = (detail: string): BoundaryProblem =>
   new BoundaryProblem('validation-error', detail);
 export const serviceUnavailableProblem = (detail: string): BoundaryProblem =>
   new BoundaryProblem('service-unavailable', detail);
+
+/** PostgreSQL conditions that mean "try again later", not "the request is wrong". */
+const TRANSIENT_PG_CODES = new Set(['55P03', '57014', '40001', '40P01', '57P01', '08006', '08001']);
+const TRANSIENT_NODE_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT']);
+
+/** True for a lock, statement or connection failure: `service-unavailable` on both transports. */
+export function isTransient(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return (
+    typeof code === 'string' && (TRANSIENT_PG_CODES.has(code) || TRANSIENT_NODE_CODES.has(code))
+  );
+}

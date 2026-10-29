@@ -136,12 +136,15 @@ services:
       <<: *service-env
       APP_ROLE: api
       HTTP_PORT: 3000
+      # Internal gRPC (ADR 024): JWT on every call; published on the branch-only host port 60051.
+      GRPC_PORT: 50051
       OPS_PORT: 9464
       # Swagger UI on the ops port calls the API from the browser (local development only).
       CORS_ORIGINS: http://localhost:${HOST_PORT_API_OPS:-19464},http://127.0.0.1:${HOST_PORT_API_OPS:-19464}
       OAUTH_TOKEN_URL: http://localhost:${HOST_PORT_OAUTH:-18081}/default/token
     ports:
       - '${HOST_PORT_API:-13000}:3000'
+      - '${HOST_PORT_API_GRPC:-60051}:50051'
       - '${HOST_PORT_API_OPS:-19464}:9464'
 
   worker:

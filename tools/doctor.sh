@@ -60,7 +60,7 @@ done
 echo
 echo "Ports (this branch's stack, project program-capacity-ms; main's stack keeps its own)"
 # Same variables and defaults as the Makefile and deploy/compose.yaml (ADR 027).
-ports=("${HOST_PORT_API:-13000}" "${HOST_PORT_POSTGRES:-15432}" "${HOST_PORT_OAUTH:-18081}"
+ports=("${HOST_PORT_API:-13000}" "${HOST_PORT_API_GRPC:-60051}" "${HOST_PORT_POSTGRES:-15432}" "${HOST_PORT_OAUTH:-18081}"
   "${HOST_PORT_API_OPS:-19464}" "${HOST_PORT_WORKER_OPS:-19465}" "${HOST_PORT_KAFKA:-39092}")
 if [[ -n "$(docker compose -f deploy/compose.yaml ps -q 2>/dev/null)" ]]; then
   ok ports "the stack is already running and holds them"

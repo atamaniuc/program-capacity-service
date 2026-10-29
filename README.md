@@ -48,6 +48,7 @@ cd ../finverity-microservices
 | Compose project | `program-capacity` | `program-capacity-ms` |
 | PostgreSQL, Kafka, OAuth2 | 5432, 29092, 8081 | 15432, 39092, 18081 |
 | Capacity API, api ops, worker ops | 3000, 9464, 9465 | 13000, 19464, 19465 |
+| Capacity gRPC (internal, JWT on every call) | none | 60051 |
 | Capacity gRPC, funding API, payments mock | none | 60051, 13100, 13200 |
 | Prometheus, Grafana, Jaeger, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |
 | Kubernetes | none | kind cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` (never `~/.kube/config`) |
