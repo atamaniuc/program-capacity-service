@@ -205,9 +205,9 @@ microservices, gRPC, Saga and Kubernetes asks. Lane 0006 specifies it.
   rejected), "Helm, a real cluster" (ADR 026, Helm and kind only), "Pact" (ADR 028) and
   "gRPC adapter" (ADR 024).
 - **Still settled on the branch:** the capacity service is not cut and I1–I8 hold; no Redis,
-  event sourcing, GraphQL, CQRS read store, API gateway, service mesh, Temporal, schema
-  registry; no `SELECT … FOR UPDATE` on the idempotency path (D3 closed); zod is the only
-  validator, no `@nestjs/swagger`.
+  event sourcing, GraphQL, CQRS read store, service mesh, Temporal, schema registry; no
+  `SELECT … FOR UPDATE` on the idempotency path (D3 closed); zod is the only validator, no
+  `@nestjs/swagger`.
 - **Owner rulings recorded in the ADRs:** split by T3 not by cutting capacity; hand-rolled
   orchestrator persisted in PostgreSQL; database per service; gRPC alongside REST with
   `buf lint`/`buf breaking`; Helm and kind; contracts package and Pact allowed to follow the
@@ -227,6 +227,22 @@ microservices, gRPC, Saga and Kubernetes asks. Lane 0006 specifies it.
   Schema backward-compatibility check added to T18, `buf breaking`, Pact, `.v2` topics for a
   wanted break) and the triggers that bring it in (another repository reads a topic, Avro or
   Protobuf payloads, producers deploying independently of the contracts package).
+- **API gateway, owner ruling (2026-10-29):** ADR 017's gateway trigger ("a second public
+  service needing shared policies") fires: `funding-service` exposes `POST /v1/funding-requests`
+  next to capacity's REST, and both need the same JWT, CORS, rate-limit and routing policy.
+  Envoy Gateway on the Kubernetes Gateway API, in kind only (no gateway in compose): routes
+  `/v1/programs…` to capacity and `/v1/funding-requests…` to funding, checks the JWT at the edge,
+  applies CORS and rate limits. Each service still validates the JWT itself (ADR 011), so a call
+  that bypasses the gateway still gets 401; gRPC is never exposed. No hand-written NestJS
+  gateway, no Kong. AWS analogue: API Gateway or ALB. ADR 029 to follow.
+- **No Redis, owner ruling (2026-10-29):** Redis stays out on the branch too, both as a cache and
+  as a rate-limit backend. Caching capacity data is rejected because availability is money: a
+  stale value is a defect, the reserve is checked under the `program` row lock anyway, and ADR
+  017's trigger (measured read load on the primary) has not fired. Envoy Gateway's global rate
+  limit needs a Redis backend, so the gateway uses **local** rate limiting: a counter per
+  gateway replica, so a tenant's effective limit is N × the configured value with N replicas.
+  With one replica in kind that is exact. Trigger to revisit: several gateway replicas plus a
+  contractual per-tenant quota.
 
 **Why:** the trigger table in ADR 021 is only credible if a firing produces the structure it
 promised, with the invariants intact.
