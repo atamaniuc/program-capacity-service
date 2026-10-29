@@ -9,8 +9,9 @@ import type { Config } from '../config/config.js';
 import { JwtVerifier } from '#src/capacity/adapters/in/boundary/auth.js';
 import { createAuthMiddleware } from '#src/capacity/adapters/in/http/auth.js';
 import { buildOpenApiDocument } from '#src/capacity/adapters/in/http/openapi.js';
+import { buildAsyncApiDocument } from '#src/platform/contracts/asyncapi.js';
 import { startOpsServer, type OpsServer } from '../health/ops-server.js';
-import { renderApiDocs } from '../health/api-docs.js';
+import { renderApiDocs, renderAsyncApiDocs } from '../health/api-docs.js';
 import { NestPinoLogger, type Logger } from '../logging/logger.js';
 import { httpMetrics } from '../telemetry/http-metrics.js';
 import { loadRuntimeSettings, type RuntimeSettings } from '../telemetry/settings.js';
@@ -92,7 +93,10 @@ export async function startApp(
     registry,
     port: config.opsPort,
     documents: serveHttp
-      ? renderApiDocs(buildOpenApiDocument(), { tokenUrl: config.oauthTokenUrl })
+      ? {
+          ...renderApiDocs(buildOpenApiDocument(), { tokenUrl: config.oauthTokenUrl }),
+          ...renderAsyncApiDocs(buildAsyncApiDocument({ payloads: 'inline' })),
+        }
       : {},
     checks: {
       db: async () => {

@@ -59,6 +59,7 @@ deploy/                   compose.yaml (all services), helm/, kind/             
 | Funding API, api ops, worker ops | none | 13100, 19466, 19467 |
 | Payments mock | none | 13200 |
 | Prometheus, Grafana, Jaeger UI, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |
+| Kafka UI (`observability` profile) | 8080 | 18080 (`HOST_PORT_KAFKA_UI`) |
 | Kubernetes | none | kind cluster `finverity-ms`, kubeconfig `.kind/kubeconfig`, port-forwards 23000–23099 |
 
 - Every host port in `deploy/compose.yaml` comes from an environment variable with the branch

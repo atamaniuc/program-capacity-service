@@ -144,4 +144,31 @@ describe('contract', () => {
     const other = await preflight('http://evil.example');
     expect(other.headers.get('access-control-allow-origin')).toBeNull();
   });
+
+  it('asyncapi: /docs/asyncapi renders the Kafka contract offline on the ops port only', async () => {
+    const { buildAsyncApiDocument } = await import('#src/platform/contracts/asyncapi.js');
+    const html = await (await fetch(`${app.opsUrl}/docs/asyncapi`)).text();
+    expect(html).toContain('AsyncApiStandalone.render');
+    expect(html).toContain('href="/docs"');
+    expect(html).not.toMatch(/https?:\/\//);
+    for (const [asset, type] of [
+      ['/docs/asyncapi-ui.js', 'text/javascript'],
+      ['/docs/asyncapi-ui.css', 'text/css'],
+    ] as const) {
+      const response = await fetch(`${app.opsUrl}${asset}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain(type);
+      expect((await response.text()).length).toBeGreaterThan(10_000);
+    }
+    const served = await fetch(`${app.opsUrl}/docs/asyncapi.json`);
+    expect(served.headers.get('content-type')).toContain('application/json');
+    // The committed contract with its payload files inlined, and nothing else.
+    expect(await served.json()).toEqual(
+      JSON.parse(JSON.stringify(buildAsyncApiDocument({ payloads: 'inline' }))),
+    );
+    expect(await (await fetch(`${app.opsUrl}/docs`)).text()).toContain('href="/docs/asyncapi"');
+    for (const path of ['/docs/asyncapi', '/docs/asyncapi.json', '/docs/asyncapi-ui.js']) {
+      expect((await fetch(`${app.baseUrl}${path}`)).status, path).toBe(404);
+    }
+  });
 });

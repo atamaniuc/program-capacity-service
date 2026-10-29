@@ -28,9 +28,13 @@ skeleton lane creates; until then they are review-only in practice.
    depcruise` inside `make verify` _(lands in 0001)_
 7. **Strict TypeScript, ESM, no TS path aliases (use `#src/*`).** enforced by: `npm run
    typecheck` inside `make verify` _(lands in 0001)_
-8. **One schema source: zod. OpenAPI is generated from it into `contracts/openapi.yaml`; no
-   `@nestjs/swagger` decorators, no class-validator.** enforced by: `npm run contracts:check`
-   (fails when the committed file differs from the generated one) _(lands in 0002)_
+8. **One schema source: zod. OpenAPI (`contracts/openapi.yaml`), AsyncAPI
+   (`contracts/asyncapi.yaml`) and the message JSON Schemas (`contracts/json-schema/`) are
+   generated from it; no `@nestjs/swagger` decorators, no class-validator, no hand-edited
+   contract file.** enforced by: `npm run contracts:check` (fails when any committed file differs
+   from the generated one), `npm run contracts:compat` in CI (no breaking change against the base
+   commit: oasdiff and the message-schema rule) and `test/kafka/capacity-events.kafka.test.ts`
+   (real events against the committed schemas) _(lands in 0002; AsyncAPI for outbound events 2026-10-29)_
 9. **Settled decisions are not relitigated: modular monolith, no Redis, no event sourcing,
    no Saga, no GraphQL, no CQRS read store, no Pact, no gRPC adapter (ADR 022).**
    review-only (rationale in PRD §7 and §10)

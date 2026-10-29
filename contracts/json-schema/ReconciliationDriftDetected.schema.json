@@ -1,0 +1,190 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReconciliationDriftDetected",
+  "type": "object",
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "description": "Outbox row id; consumers deduplicate on it."
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "programId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Gap-free per-program platform sequence (platform_seq)."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "type": {
+      "type": "string",
+      "const": "ReconciliationDriftDetected"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "programId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "programSeq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Gap-free per-program platform sequence; equals the envelope seq."
+        },
+        "snapshotSeq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "asOf": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "asOf of the treasury snapshot."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "HOLD",
+            "RELEASE"
+          ],
+          "description": "RECON_MODE the drift was handled in."
+        },
+        "driftCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "More than 100 drifts; the full list is in the logs."
+        },
+        "drifts": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ADJUSTED",
+                  "ADOPTED",
+                  "HELD",
+                  "RELEASED"
+                ]
+              },
+              "invoiceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ours": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "invoiceMinor": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "programMinor": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      }
+                    },
+                    "required": [
+                      "invoiceMinor",
+                      "programMinor"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Outstanding amounts in minor units (integer strings) of the invoice and program currency; null when this side has no reservation."
+              },
+              "treasury": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "invoiceMinor": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      },
+                      "programMinor": {
+                        "type": "string",
+                        "pattern": "^\\d+$"
+                      }
+                    },
+                    "required": [
+                      "invoiceMinor",
+                      "programMinor"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Outstanding amounts in minor units (integer strings) of the invoice and program currency; null when this side has no reservation."
+              }
+            },
+            "required": [
+              "kind",
+              "invoiceId",
+              "ours",
+              "treasury"
+            ]
+          }
+        }
+      },
+      "required": [
+        "tenantId",
+        "programId",
+        "programSeq",
+        "snapshotSeq",
+        "asOf",
+        "mode",
+        "driftCount",
+        "truncated",
+        "drifts"
+      ]
+    }
+  },
+  "required": [
+    "messageId",
+    "schemaVersion",
+    "tenantId",
+    "programId",
+    "seq",
+    "occurredAt",
+    "type",
+    "payload"
+  ]
+}

@@ -97,8 +97,8 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 | `make`, `curl` | any (macOS ships GNU Make 3.81, that is enough) | Every command is a make target; the API tour uses curl |
 | `jq` | any; optional | Only `make qa` needs it |
 
-Free ports: 13000 (API), 15432 (PostgreSQL), 18081 (OAuth2), 19464 (api ops + Swagger UI),
-19465 (worker ops), 39092 (Kafka). `make doctor` checks all of the above and says how to fix
+Free ports: 13000 (API), 15432 (PostgreSQL), 18081 (OAuth2), 19464 (api ops + Swagger UI + AsyncAPI),
+19465 (worker ops), 39092 (Kafka). `make up-all` also needs 13001, 14318, 18080, 19090 and 26686. `make doctor` checks all of the above and says how to fix
 what is missing.
 
 ### Install and run
@@ -134,17 +134,20 @@ More in the [API tour](docs/api.md). Then:
 ```bash
 make demo              # plays every scenario (limit cut, repayments, late snapshot, duplicate
                        # and out-of-order messages, poison message, stale FX) and checks the results
-make qa                # 98 QA checks: every endpoint and treasury message, plus DB, Kafka and
+make qa                # 103 QA checks: every endpoint and treasury message, plus DB, Kafka and
                        # metric side effects (test cases in docs/qa.md)
-make down              # stop and delete everything
+make up-all            # the same stack plus Kafka UI, Prometheus, Grafana and Jaeger, tracing on
+make down              # stop and delete everything (the tools too)
 ```
 
 | URL | What |
 | --- | --- |
-| <http://localhost:13000/v1/…> | Business API (needs a token) |
+| <http://localhost:13000/v1/…> | Business API (needs a token). Every container, port and profile: [docs/local-stack.md](docs/local-stack.md) |
 | <http://localhost:19464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
+| <http://localhost:19464/docs/asyncapi> | AsyncAPI: every Kafka topic the service reads and writes, with headers, keys and an example per message (`make events` tails `capacity.events.v1` live) |
+| <http://localhost:18080> | Kafka UI, after `make up-all` (`make kafka-ui` opens it): topics, every record with key and headers, consumer lag, DLQs; can produce a treasury message ([how to check with it](docs/qa.md#kafka-in-the-browser-kafka-ui)) |
 | <http://localhost:19464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 19465) |
-| <http://localhost:13001> | Grafana, after `docker compose -f deploy/compose.yaml --profile observability up -d` (Jaeger on 26686) |
+| <http://localhost:13001>, <http://localhost:26686>, <http://localhost:19090> | Grafana (capacity dashboard), Jaeger (traces of api and worker), Prometheus, after `make up-all` |
 
 ## How it is built
 
@@ -187,7 +190,7 @@ C4 diagrams, the flows step by step and the data model: [docs/architecture.md](d
 | `src/capacity/adapters/out/` | PostgreSQL repositories and migrations, Kafka outbox relay |
 | `src/platform/` | Config, logging, health, telemetry, start-up per role |
 | `test/` | Integration, end-to-end, Kafka, fault, property and architecture tests (unit tests sit next to the code) |
-| `contracts/` | OpenAPI (generated), AsyncAPI, JSON Schemas of the Kafka messages |
+| `contracts/` | Generated from the zod schemas: OpenAPI (REST), AsyncAPI (Kafka in and out), a JSON Schema per Kafka message |
 | `deploy/` | Docker Compose stack, mock OAuth2 config, Prometheus/Grafana, Kubernetes manifests |
 | `tools/` | Token CLI, treasury simulator, demo, DLQ replay, k6 load script, contract generator |
 | `db/seeds/` | Deterministic seed data |
@@ -199,9 +202,11 @@ Every file, its purpose and its layer: [docs/repository-map.md](docs/repository-
 ## Checks
 
 ```bash
-make verify    # lint, types, layer rules, OpenAPI drift, unit and property tests (~20 s)
+make verify    # lint, types, layer rules, OpenAPI/AsyncAPI drift, unit and property tests (~20 s)
 make test      # all tests with real PostgreSQL and Kafka via Testcontainers (~4 min, needs Docker)
-make qa        # 98 QA checks on the running stack: endpoints, Kafka input, DB and events (docs/qa.md)
+make qa        # 103 QA checks on the running stack: endpoints, Kafka input, DB and events (docs/qa.md)
+make compat    # no breaking contract change against origin/main (oasdiff + message schemas; Docker);
+               # what counts as breaking and why: docs/api.md §8
 make load      # k6 load test against the running stack
 ```
 

@@ -1,0 +1,277 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProgramCapacityChanged",
+  "type": "object",
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "description": "Outbox row id; consumers deduplicate on it."
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "programId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Gap-free per-program platform sequence (platform_seq)."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "type": {
+      "type": "string",
+      "const": "ProgramCapacityChanged"
+    },
+    "payload": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "tenantId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "programId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "programSeq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Gap-free per-program platform sequence; equals the envelope seq."
+            },
+            "cause": {
+              "type": "string",
+              "const": "limit-set",
+              "description": "A ProgramLimitSet from treasury, sent for every applied one: also a suspend, a resume or the same limit again."
+            },
+            "status": {
+              "description": "Program status after the change; SUSPENDED refuses new reservations. Always sent now; absent in events published before 2026-10-29.",
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "SUSPENDED"
+              ]
+            },
+            "capacity": {
+              "type": "object",
+              "properties": {
+                "programId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "limit": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Non-negative decimal string at the currency scale.",
+                  "example": "1250.50"
+                },
+                "reserved": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Non-negative decimal string at the currency scale.",
+                  "example": "1250.50"
+                },
+                "available": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Never negative.",
+                  "example": "1250.50"
+                },
+                "overLimitBy": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Zero unless a limit cut left reserved above limit.",
+                  "example": "1250.50"
+                },
+                "utilization": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d{4}$",
+                  "description": "reserved / limit, four decimal places.",
+                  "example": "0.7280"
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "treasurySeq": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Last treasury seq applied to the program."
+                }
+              },
+              "required": [
+                "programId",
+                "currency",
+                "limit",
+                "reserved",
+                "available",
+                "overLimitBy",
+                "utilization",
+                "version",
+                "treasurySeq"
+              ]
+            }
+          },
+          "required": [
+            "tenantId",
+            "programId",
+            "programSeq",
+            "cause",
+            "capacity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tenantId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "programId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "programSeq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Gap-free per-program platform sequence; equals the envelope seq."
+            },
+            "cause": {
+              "type": "string",
+              "const": "reconciliation",
+              "description": "A ProgramReconciled snapshot changed the limit or reservations."
+            },
+            "snapshotSeq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Treasury seq of the snapshot."
+            },
+            "status": {
+              "description": "Program status after the change; SUSPENDED refuses new reservations. Always sent now; absent in events published before 2026-10-29.",
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "SUSPENDED"
+              ]
+            },
+            "capacity": {
+              "type": "object",
+              "properties": {
+                "programId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "limit": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Non-negative decimal string at the currency scale.",
+                  "example": "1250.50"
+                },
+                "reserved": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Non-negative decimal string at the currency scale.",
+                  "example": "1250.50"
+                },
+                "available": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Never negative.",
+                  "example": "1250.50"
+                },
+                "overLimitBy": {
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?$",
+                  "description": "Zero unless a limit cut left reserved above limit.",
+                  "example": "1250.50"
+                },
+                "utilization": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d{4}$",
+                  "description": "reserved / limit, four decimal places.",
+                  "example": "0.7280"
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "treasurySeq": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Last treasury seq applied to the program."
+                }
+              },
+              "required": [
+                "programId",
+                "currency",
+                "limit",
+                "reserved",
+                "available",
+                "overLimitBy",
+                "utilization",
+                "version",
+                "treasurySeq"
+              ]
+            }
+          },
+          "required": [
+            "tenantId",
+            "programId",
+            "programSeq",
+            "cause",
+            "snapshotSeq",
+            "capacity"
+          ]
+        }
+      ]
+    }
+  },
+  "required": [
+    "messageId",
+    "schemaVersion",
+    "tenantId",
+    "programId",
+    "seq",
+    "occurredAt",
+    "type",
+    "payload"
+  ]
+}

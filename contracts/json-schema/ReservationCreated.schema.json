@@ -1,0 +1,257 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReservationCreated",
+  "type": "object",
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "description": "Outbox row id; consumers deduplicate on it."
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "programId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Gap-free per-program platform sequence (platform_seq)."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "type": {
+      "type": "string",
+      "const": "ReservationCreated"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "programId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "programSeq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Gap-free per-program platform sequence; equals the envelope seq."
+        },
+        "reservationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "invoiceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "PARTIALLY_RELEASED",
+            "RELEASED"
+          ]
+        },
+        "invoiceAmount": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "example": "USD"
+            }
+          },
+          "required": [
+            "value",
+            "currency"
+          ],
+          "description": "In invoice currency."
+        },
+        "reservedAmount": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "example": "USD"
+            }
+          },
+          "required": [
+            "value",
+            "currency"
+          ],
+          "description": "In program currency, rounded up."
+        },
+        "releasedAmount": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "example": "USD"
+            }
+          },
+          "required": [
+            "value",
+            "currency"
+          ],
+          "description": "In program currency."
+        },
+        "remainingAmount": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "example": "USD"
+            }
+          },
+          "required": [
+            "value",
+            "currency"
+          ],
+          "description": "In program currency."
+        },
+        "fx": {
+          "type": "object",
+          "properties": {
+            "rate": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d{10}$",
+              "description": "Invoice to program currency, ten decimals."
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "asOf": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "rate",
+            "source",
+            "asOf"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "capacity": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "reserved": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "available": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale.",
+              "example": "1250.50"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Program version after the change."
+            }
+          },
+          "required": [
+            "limit",
+            "reserved",
+            "available",
+            "version"
+          ]
+        }
+      },
+      "required": [
+        "tenantId",
+        "programId",
+        "programSeq",
+        "reservationId",
+        "invoiceId",
+        "status",
+        "invoiceAmount",
+        "reservedAmount",
+        "releasedAmount",
+        "remainingAmount",
+        "fx",
+        "createdAt",
+        "capacity"
+      ]
+    }
+  },
+  "required": [
+    "messageId",
+    "schemaVersion",
+    "tenantId",
+    "programId",
+    "seq",
+    "occurredAt",
+    "type",
+    "payload"
+  ]
+}

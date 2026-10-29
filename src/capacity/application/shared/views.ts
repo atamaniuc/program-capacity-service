@@ -7,6 +7,7 @@ import {
   utilization,
   type Program,
   type Reservation,
+  type ReservationStatus,
 } from '#src/capacity/domain/index.js';
 
 export interface MoneyView {
@@ -66,7 +67,7 @@ export function capacitySnapshot(program: Program): CapacitySnapshot {
 export interface ReservationFields {
   readonly reservationId: string;
   readonly invoiceId: string;
-  readonly status: string;
+  readonly status: ReservationStatus;
   readonly invoiceAmount: MoneyView;
   readonly reservedAmount: MoneyView;
   readonly releasedAmount: MoneyView;
@@ -110,8 +111,8 @@ export function reservationView(reservation: Reservation, program: Program): Res
 export interface ReleaseView {
   readonly releaseRef: string;
   readonly reservationId: string;
-  readonly reservationStatus: string;
-  readonly reason: string;
+  readonly reservationStatus: ReservationStatus;
+  readonly reason: 'REPAID' | 'CANCELLED';
   /** Repaid in invoice currency. */
   readonly invoiceAmount: MoneyView;
   /** Capacity freed in program currency. */

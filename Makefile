@@ -14,6 +14,7 @@ export HOST_PORT_PROMETHEUS ?= 19090
 export HOST_PORT_GRAFANA ?= 13001
 export HOST_PORT_JAEGER ?= 26686
 export HOST_PORT_OTLP ?= 14318
+export HOST_PORT_KAFKA_UI ?= 18080
 
 # Kubernetes names reserved for the kind targets (ADR 026); nothing here touches another cluster.
 KIND_CLUSTER := finverity-ms
@@ -39,8 +40,8 @@ endif
 step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
-.PHONY: help targets completion status check doctor install up down ps logs seed token demo qa docs \
-        verify test test-unit test-int contracts load dlq-replay isolation-live
+.PHONY: help targets completion status check doctor install up up-all down ps logs seed token demo qa docs \
+        docs-events kafka-ui events verify compat test test-unit test-int contracts load dlq-replay isolation-live
 
 ## Help
 help: ## list every command (the default goal)
@@ -53,6 +54,7 @@ help: ## list every command (the default goal)
 	  TENANT "tenant for make token: bank-a, bank-b, bank-c (now: $(TENANT))" \
 	  SCOPES "token scopes (now: $(SCOPES))" \
 	  TOPIC  "DLQ topic for make dlq-replay, e.g. treasury.capacity.v1.dlq" \
+	  BASE   "git ref make compat compares contracts/ with (default HEAD, as the proto rule of ADR 024)" \
 	  FROM   "first DLQ offset to replay" \
 	  NO_COLOR "set to any value to turn colours off (FORCE_COLOR=1 forces them)"
 	@printf '\n$(C_DIM)Tab completion: make completion$(C_RESET)\n'
@@ -75,7 +77,7 @@ install: ## one command from a fresh clone: check requirements, npm ci, start th
 	@npm ci --no-audit --no-fund
 	@$(MAKE) --no-print-directory up
 	@$(MAKE) --no-print-directory seed
-	$(call done,Installed. Try: make docs (Swagger UI) · make token · make demo · make qa)
+	$(call done,Installed. Try: make docs (Swagger UI) · make docs-events (AsyncAPI) · make demo · make qa)
 
 ## Session and gate helpers
 status: ## harness check, last logged gate, last commits, next action
@@ -88,10 +90,15 @@ check: ## harness gates only
 up: ## build and start the stack, wait until every service is healthy
 	$(call step,Starting PostgreSQL · Kafka · OAuth2 · migrate · api · worker)
 	$(COMPOSE) up -d --build --wait
-	$(call done,Stack is up — API on :$(HOST_PORT_API) · Swagger UI on http://localhost:$(HOST_PORT_API_OPS)/docs)
+	$(call done,Stack is up — API on :$(HOST_PORT_API) · Swagger UI on http://localhost:$(HOST_PORT_API_OPS)/docs · AsyncAPI on http://localhost:$(HOST_PORT_API_OPS)/docs/asyncapi)
 
-down: ## stop this branch's stack (project program-capacity-ms) and delete its data
-	$(COMPOSE) down -v --remove-orphans
+up-all: ## the stack plus Kafka UI, Prometheus, Grafana and Jaeger, with tracing on
+	$(call step,Starting the stack · Kafka UI · Prometheus · Grafana · Jaeger (OTEL_ENABLED=true))
+	OTEL_ENABLED=true $(COMPOSE) --profile observability up -d --build --wait
+	$(call done,Kafka UI http://localhost:$(HOST_PORT_KAFKA_UI) · Grafana http://localhost:$(HOST_PORT_GRAFANA) · Jaeger http://localhost:$(HOST_PORT_JAEGER) · Prometheus http://localhost:$(HOST_PORT_PROMETHEUS))
+
+down: ## stop this branch's stack (project program-capacity-ms, observability profile included) and delete its data
+	$(COMPOSE) --profile observability down -v --remove-orphans
 
 ps: ## show the stack's containers and their health
 	@$(COMPOSE) ps
@@ -118,6 +125,20 @@ docs: ## open Swagger UI (try the API in the browser)
 	@open http://localhost:$(HOST_PORT_API_OPS)/docs 2>/dev/null || xdg-open http://localhost:$(HOST_PORT_API_OPS)/docs 2>/dev/null || \
 	  printf 'Open http://localhost:$(HOST_PORT_API_OPS)/docs\n'
 
+docs-events: ## open the AsyncAPI page: every Kafka topic, message, header and example
+	@open http://localhost:$(HOST_PORT_API_OPS)/docs/asyncapi 2>/dev/null || \
+	  xdg-open http://localhost:$(HOST_PORT_API_OPS)/docs/asyncapi 2>/dev/null || \
+	  printf 'Open http://localhost:$(HOST_PORT_API_OPS)/docs/asyncapi\n'
+
+kafka-ui: ## open Kafka UI (started by make up-all): topics, records, consumer lag (docs/qa.md)
+	@open http://localhost:$(HOST_PORT_KAFKA_UI) 2>/dev/null || xdg-open http://localhost:$(HOST_PORT_KAFKA_UI) 2>/dev/null || \
+	  printf 'Open http://localhost:$(HOST_PORT_KAFKA_UI)\n'
+
+events: ## follow capacity.events.v1 from the beginning: headers | key | value (Ctrl-C stops)
+	@$(COMPOSE) exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+	  --topic capacity.events.v1 --from-beginning --formatter-property print.key=true \
+	  --formatter-property print.headers=true --formatter-property key.separator=' | '
+
 ## Quality gates
 verify: ## lint, types, layer rules, contract drift, unit and property tests
 	$(call step,Lint and format)
@@ -130,6 +151,7 @@ verify: ## lint, types, layer rules, contract drift, unit and property tests
 	@npm run --silent depcruise
 	@npm run --silent depcruise --workspaces --if-present
 	$(call step,OpenAPI contract matches the zod schemas)
+	$(call step,OpenAPI · AsyncAPI · JSON Schema contracts match the zod schemas)
 	@npm run --silent contracts:check
 	$(call step,Proto contract (lint, breaking changes, stub drift))
 	@npm run --silent proto:lint
@@ -155,8 +177,11 @@ test-unit: ## unit and property tests only (no Docker)
 test-int: ## integration, e2e, Kafka and fault tests (Docker)
 	npm run test:int
 
-contracts: ## regenerate contracts/openapi.yaml from the zod schemas
+contracts: ## regenerate contracts/ (OpenAPI, AsyncAPI, JSON Schema) from the zod schemas
 	npm run contracts
+
+compat: ## no breaking contract change against BASE (default HEAD, as the proto rule of ADR 024): oasdiff + message schemas
+	npm run contracts:compat -- --base "$(or $(BASE),HEAD)"
 
 load: ## k6 against the compose stack; fails when NFR-03 is missed
 	npm run load

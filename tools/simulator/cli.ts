@@ -1,11 +1,6 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { renderAsyncApi, renderJsonSchemas } from './contracts.js';
 import { connectProducer } from './producer.js';
 import { buildScenario, defaultContext, SCENARIO_NAMES, type ScenarioName } from './scenarios.js';
-
-const ROOT = resolve(import.meta.dirname, '../..');
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -29,15 +24,7 @@ const { positionals, values } = parseArgs({
 
 const command = positionals[0];
 
-if (command === 'export-contracts') {
-  for (const [name, content] of renderJsonSchemas()) {
-    const path = resolve(ROOT, 'contracts/json-schema', name);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, content);
-  }
-  await writeFile(resolve(ROOT, 'contracts/asyncapi.yaml'), renderAsyncApi());
-  console.log('simulate: wrote contracts/json-schema/*.schema.json and contracts/asyncapi.yaml');
-} else if (command !== undefined && (SCENARIO_NAMES as readonly string[]).includes(command)) {
+if (command !== undefined && (SCENARIO_NAMES as readonly string[]).includes(command)) {
   const overrides = {
     tenantId: values.tenant,
     programId: values.program,
@@ -60,7 +47,7 @@ if (command === 'export-contracts') {
   }
 } else {
   console.error(
-    `usage: npm run simulate -- <${[...SCENARIO_NAMES, 'export-contracts'].join('|')}> [--tenant bank-a] [--program prg_demo] [--seq N] [--print]`,
+    `usage: npm run simulate -- <${SCENARIO_NAMES.join('|')}> [--tenant bank-a] [--program prg_demo] [--seq N] [--print]`,
   );
   process.exit(1);
 }

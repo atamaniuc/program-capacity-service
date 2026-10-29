@@ -1,7 +1,12 @@
 import { KafkaJS } from '@confluentinc/kafka-javascript';
 import type { EventPublisher, OutboxRecord } from '#src/capacity/application/ports/index.js';
+import {
+  CAPACITY_EVENTS_TOPIC,
+  type CapacityEventEnvelope,
+  type CapacityEventHeaders,
+} from '#src/capacity/application/shared/capacity-events.js';
 
-export const CAPACITY_EVENTS_TOPIC = 'capacity.events.v1';
+export { CAPACITY_EVENTS_TOPIC };
 
 export interface KafkaEventPublisherOptions {
   readonly brokers: readonly string[];
@@ -11,8 +16,10 @@ export interface KafkaEventPublisherOptions {
   readonly timeoutMs?: number;
 }
 
-/** The common envelope of every Kafka message (PRD §9). */
-export function toEnvelope(record: OutboxRecord): Record<string, unknown> {
+/** The common envelope of every Kafka message (PRD §9); the contract is `capacity-events.ts`. */
+export function toEnvelope(
+  record: OutboxRecord,
+): CapacityEventEnvelope & { readonly type: string; readonly payload: unknown } {
   return {
     messageId: record.id,
     type: record.type,
@@ -84,7 +91,7 @@ export class KafkaEventPublisher implements EventPublisher {
               'program-id': record.programId,
               'program-seq': String(record.programSeq),
               'content-type': 'application/json',
-            },
+            } satisfies Record<keyof CapacityEventHeaders, string>,
           })),
         }),
         this.timeoutMs,

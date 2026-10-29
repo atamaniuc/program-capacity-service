@@ -17,6 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # The compatibility check compares contracts/ with the base commit.
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
@@ -37,8 +38,13 @@ jobs:
         run: npm run depcruise
       - name: depcruise in every workspace
         run: npm run depcruise --workspaces --if-present
-      - name: OpenAPI contract matches the zod schemas
+      - name: OpenAPI, AsyncAPI and JSON Schema contracts match the zod schemas
         run: npm run contracts:check
+      - name: No breaking change to the contracts (oasdiff, message schemas)
+        run: npm run contracts:compat -- --base "$BASE" --require-oasdiff
+        env:
+          # A pull request is compared with its target branch, a push with what it replaced (ADR 024).
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
       - name: Proto lint
         run: npm run proto:lint
       - name: Proto breaking changes against the PR base or the previous head

@@ -165,6 +165,14 @@ Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.
 `kubectl` are installed in `/usr/local/bin`; `buf` and `kubeconform` are not (use the npm
 `@bufbuild/buf`; kubeconform as in lane 0005). Ask the lead before adding any dependency (T3 added the three proto dependencies).
 
+Merge of `main` (4 commits: AsyncAPI outbound events, Kafka UI, local-stack docs) into this branch,
+2026-10-30: Kafka UI is `HOST_PORT_KAFKA_UI` (default 18080); `renderAsyncApiYaml` takes the host
+from `HOST_PORT_KAFKA` (default 39092) via the `localKafkaHost` option of `buildAsyncApiDocument`,
+so `contracts/asyncapi.yaml` stays generated; `tools/simulator/contracts.ts` (deleted on `main`)
+is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs and the AsyncAPI host.
+`contracts:compat` and `make compat` default to base `HEAD` (CI: PR base / push before), not
+`origin/main`, as in ADR 024 for proto. Docs from `main` carry the branch ports.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.

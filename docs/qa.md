@@ -3,9 +3,10 @@
 Manual and scripted acceptance checks against the running stack: every HTTP endpoint, every
 treasury message type, and what each one must leave behind in PostgreSQL, on Kafka and in the
 metrics. The automated tests (`make test`) prove the same rules in isolation; this page is
-for a person who wants to see them on a live system, in Swagger or a terminal.
+for a person who wants to see them on a live system, in Swagger, the AsyncAPI page or a
+terminal.
 
-**Last run:** 2026-10-29, `make qa` → `TOTAL pass=98 fail=0`, stack from `make install`.
+**Last run:** 2026-10-29, `make qa` → `TOTAL pass=103 fail=0`, stack from `make install`.
 
 ## How to run
 
@@ -25,11 +26,67 @@ snapshots, malformed and cross-tenant records) are published by
 
 ### By hand in Swagger UI
 
-1. Open <http://localhost:9464/docs> (served offline from the ops port).
+1. Open <http://localhost:19464/docs> (served offline from the ops port).
 2. **Authorize** → `localOAuth`. The client id is the bank (`bank-a`, `bank-b`, `bank-c`), any
    secret works. Untick `capacity:write` to get a read-only token.
 3. Pick an operation → **Try it out**. Bodies and `Idempotency-Key` are pre-filled from the
    zod schemas → **Execute**.
+
+### The Kafka contract in the browser
+
+Open <http://localhost:19464/docs/asyncapi> (`make docs-events`). The sidebar lists the servers,
+the five topics (treasury input, its two DLQs, `capacity.events.v1`) and every message; each
+message shows its headers, Kafka key, payload schema and an example. Compare what you see on
+the wire with it: `make events` prints every outbound event as `headers | key | value`, and
+`npm run contracts:events -- --key bank-a:<program>` checks them against `contracts/` for you
+(QA-72).
+
+### Kafka in the browser (Kafka UI)
+
+<http://localhost:18080> (`make kafka-ui`) is [Kafka UI](https://github.com/kafbat/kafka-ui)
+(`kafbat/kafka-ui`), pointed at the stack's broker. It is in the `observability` compose profile:
+`make up-all` starts it together with Prometheus, Grafana and Jaeger. The contract page above
+says what *should* be on a topic; Kafka UI shows what *is* there, and can put a record on one.
+No login, and it can produce and delete: local stack only.
+
+What it shows:
+
+| Where | What to look at |
+| --- | --- |
+| **Topics** | Six topics, 6 partitions each: `treasury.capacity.v1`, `treasury.fx-rates.v1` (input), their `.dlq` twins, `capacity.events.v1` (output) and `capacity.events.v1.dlq` (created for symmetry, the service never writes it) |
+| Topic → **Messages** | Every record with partition, offset, timestamp, key, headers and the JSON value. Filter by key or text, seek by offset or time |
+| **Consumers** | `program-capacity-treasury` is the worker: state `STABLE`, lag per partition of both treasury topics. `contract-check-*` groups are left by `npm run contracts:events` and are harmless |
+| **Brokers** | One KRaft broker, the listeners from `deploy/compose.yaml` |
+
+How to check the service with it:
+
+1. **An event per change.** Reserve something in Swagger UI, then **Topics →
+   `capacity.events.v1` → Messages**, newest first. Expect a `ReservationCreated` with key
+   `bank-a:prg_grand_usd`, headers `event-type`, `event-id`, `program-seq`, and `seq` one
+   above the previous event of that key. Every event of one key sits on one partition.
+2. **Treasury input is applied.** **Topics → `treasury.capacity.v1` → Produce Message**, any
+   partition, key `bank-a:prg_ui_1`, value:
+
+   ```json
+   {"messageId":"ui-prg_ui_1-1","schemaVersion":1,"tenantId":"bank-a","programId":"prg_ui_1",
+    "seq":1,"occurredAt":"2026-10-29T10:00:00.000Z","type":"ProgramLimitSet",
+    "payload":{"creditLimit":{"value":"5000000.00","currency":"USD"},"status":"ACTIVE"}}
+   ```
+
+   Within a second `GET /v1/programs/prg_ui_1/capacity` (bank-a) shows the 5,000,000.00 USD
+   limit and `treasurySeq: 1`, and `capacity.events.v1` has a `ProgramCapacityChanged` with
+   `cause: limit-set`. The other examples on the AsyncAPI page work the same way. Use a new
+   `programId` for each run: a `seq` the program has already seen is not applied again.
+3. **A duplicate is applied once.** Produce the same record again. No second event appears and
+   the consumer lag returns to 0: the inbox deduplicates by `messageId`.
+4. **A broken record is parked.** Produce `{"this is": not json` with key
+   `bank-a:prg_grand_usd` to `treasury.capacity.v1`. It lands in `treasury.capacity.v1.dlq`
+   with headers `x-error-code: schema-invalid`, `x-error-message`, `x-original-topic`,
+   `x-original-partition`, `x-original-offset`; `dlq_messages_total` rises on `:19465/metrics`
+   and the worker keeps consuming (lag 0).
+5. **The worker keeps up.** **Consumers → `program-capacity-treasury`** during `make demo` or
+   `make qa`: lag grows for a moment and returns to 0. Lag that stays above 0 means the worker
+   is down or stuck (`make logs`).
 
 Seeded programs: `bank-a` owns `prg_grand_usd` (USD 10,000,000) and `prg_aegean_eur` (EUR);
 `bank-b` owns `prg_gulf_aed` (AED) and `prg_kuwait_kwd` (KWD, 3 decimals); `bank-c` owns
@@ -40,7 +97,7 @@ Seeded programs: `bank-a` owns `prg_grand_usd` (USD 10,000,000) and `prg_aegean_
 ```bash
 TOKEN=$(make -s token TENANT=bank-a)                          # read + write
 RO=$(make -s token TENANT=bank-a SCOPES="capacity:read")      # read only
-API=localhost:3000
+API=localhost:13000
 P=prg_grand_usd
 
 curl -s $API/v1/programs/$P/capacity -H "authorization: Bearer $TOKEN" | jq
@@ -52,19 +109,20 @@ Side effects, used in the "Check also" columns below:
 # SQL (the stack's database)
 docker compose -f deploy/compose.yaml exec -T postgres psql -U capacity -d capacity -c "<query>"
 
-# outbound events
-docker compose -f deploy/compose.yaml exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 --topic capacity.events.v1 --from-beginning \
-  --property print.key=true --timeout-ms 8000
+# outbound events: headers | key | value (Ctrl-C stops)
+make events
+
+# outbound events checked against contracts/ (schemas, headers, key, gap-free seq)
+npm run contracts:events -- --key bank-a:<program>
 
 # a dead-letter topic, with the x-error-* headers
 docker compose -f deploy/compose.yaml exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic treasury.capacity.v1.dlq --from-beginning \
-  --property print.headers=true --timeout-ms 8000
+  --formatter-property print.headers=true --timeout-ms 8000
 
 # metrics: api (HTTP RED) and worker (outbox, DLQ, invariants)
-curl -s localhost:9464/metrics | grep http_requests_total
-curl -s localhost:9465/metrics | grep -E 'outbox_|dlq_|invariant_|programs_over_limit'
+curl -s localhost:19464/metrics | grep http_requests_total
+curl -s localhost:19465/metrics | grep -E 'outbox_|dlq_|invariant_|programs_over_limit'
 ```
 
 Treasury input from a terminal: `npm run simulate -- <scenario> --tenant bank-a --program <id>
@@ -72,14 +130,15 @@ Treasury input from a terminal: `npm run simulate -- <scenario> --tenant bank-a 
 `out-of-order`, `poison-message`, `fx-stale`. Each program's `seq` must grow, so read
 `treasurySeq` from the capacity response first and continue from it.
 
-## A. Ops port (:9464 api, :9465 worker)
+## A. Ops port (:19464 api, :19465 worker)
 
 | ID | Case | Steps | Expected | Check also |
 | --- | --- | --- | --- | --- |
-| QA-01 | Liveness and readiness | `GET :9464/health/live`, `GET :9464/health/ready` | `200`; ready body `{"status":"up","db":"up"}` | Ready turns `503` when PostgreSQL is down or the schema is behind the latest migration |
-| QA-02 | Metrics split by role | `GET :9464/metrics`, `GET :9465/metrics` | api exposes `http_requests_total`; worker exposes `outbox_lag`, `outbox_oldest_unpublished_age_seconds`, `invariant_mismatch_programs`, `programs_over_limit` | `dlq_messages_total` appears on the worker after the first dead letter |
-| QA-03 | Swagger UI is local and ops-only | `GET :9464/docs`, `GET :9464/docs/swagger-ui-bundle.js`, `GET :3000/docs` | `200`, `200`, `404` | Works with the network off: no CDN requests |
-| QA-04 | CORS only for the docs origin | `OPTIONS :3000/v1/…/reservations` with `Origin: http://127.0.0.1:9464`, then with `Origin: http://evil.example` | `204` with `access-control-allow-origin`; the second has no allow-origin header | Origins come from `CORS_ORIGINS` |
+| QA-01 | Liveness and readiness | `GET :19464/health/live`, `GET :19464/health/ready` | `200`; ready body `{"status":"up","db":"up"}` | Ready turns `503` when PostgreSQL is down or the schema is behind the latest migration |
+| QA-02 | Metrics split by role | `GET :19464/metrics`, `GET :19465/metrics` | api exposes `http_requests_total`; worker exposes `outbox_lag`, `outbox_oldest_unpublished_age_seconds`, `invariant_mismatch_programs`, `programs_over_limit` | `dlq_messages_total` appears on the worker after the first dead letter |
+| QA-03 | Swagger UI is local and ops-only | `GET :19464/docs`, `GET :19464/docs/swagger-ui-bundle.js`, `GET :13000/docs` | `200`, `200`, `404` | Works with the network off: no CDN requests |
+| QA-04 | CORS only for the docs origin | `OPTIONS :13000/v1/…/reservations` with `Origin: http://127.0.0.1:19464`, then with `Origin: http://evil.example` | `204` with `access-control-allow-origin`; the second has no allow-origin header | Origins come from `CORS_ORIGINS` |
+| QA-05 | AsyncAPI page is local and ops-only | `GET :19464/docs/asyncapi`, `GET :19464/docs/asyncapi-ui.js`, `GET :19464/docs/asyncapi.json`, `GET :13000/docs/asyncapi` | `200`, `200`, a 3.1.0 document with the channels `treasury.capacity.v1`, `treasury.fx-rates.v1`, both `.dlq` topics and `capacity.events.v1`, then `404` | The page links to Swagger UI and back; the viewer is served by the service, no CDN |
 
 ## B. Authentication and tenants
 
@@ -189,7 +248,8 @@ watermark covers R1 and R2 but not R3.
 | ID | Case | Steps | Expected | Check also |
 | --- | --- | --- | --- | --- |
 | QA-70 | Events reach Kafka | Consume the topic, filter key `bank-a:<program>` | `ProgramCapacityChanged`, `ReservationCreated`, `ReservationReleased` | Key is `tenant:program`, so one program's events stay in order on one partition |
-| QA-71 | No gaps, nothing stuck | `select program_seq, published_at from outbox_event where tenant_id=… and program_id=…` | `program_seq` 1, 2, 3 … with no gaps, every `published_at` set | Worker `outbox_lag` and `outbox_oldest_unpublished_age_seconds` near 0. Consumers use `programSeq` to drop duplicates and spot gaps |
+| QA-71 | No gaps, nothing stuck | `select program_seq, published_at from outbox_event where tenant_id=… and program_id=…` | `program_seq` 1, 2, 3 … with no gaps, every `published_at` set | Worker `outbox_lag` and `outbox_oldest_unpublished_age_seconds` near 0. Consumers drop duplicates by `messageId` and spot gaps with `programSeq` |
+| QA-72 | Events match the published contract | `npm run contracts:events -- --key bank-a:<program>` for the main QA program and for the reconciliation program of section K (together: all four event types) | `violations=0`: every record validates against `contracts/json-schema/<type>.schema.json` and, strictly, has no field the contract leaves out; headers match the `CapacityEventHeaders` schema and the envelope; `seq` is gap-free from 1 | Without `--key` it checks the whole topic. The same check runs in `test/kafka/capacity-events.kafka.test.ts` |
 
 ## I. Invariants
 

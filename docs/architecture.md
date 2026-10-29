@@ -54,7 +54,7 @@ flowchart TB
   idp["Identity provider<br/>(mock-oauth2-server locally)"]
 
   subgraph pcs["Program Capacity Service"]
-    api["<b>api</b><br/>[Container: Node.js 24, NestJS 12]<br/>REST API :3000<br/>ops port :9464 (health, metrics, /docs)"]
+    api["<b>api</b><br/>[Container: Node.js 24, NestJS 12]<br/>REST API :3000<br/>ops port :9464 (health, metrics, /docs, /docs/asyncapi)"]
     worker["<b>worker</b><br/>[Container: Node.js 24, same image]<br/>Treasury consumer, outbox relay,<br/>invariant check and retention jobs<br/>ops port :9464"]
     db[("<b>PostgreSQL 18</b><br/>[Container: database]<br/>Single source of truth: programs,<br/>reservations, ledger, inbox, outbox,<br/>idempotency keys")]
     migrate["<b>migrate</b><br/>[One-shot job, same image]<br/>Applies SQL migrations"]
@@ -81,12 +81,14 @@ flowchart TB
 | Kafka | Treasury input, platform output, dead-letter topics | Asynchronous boundary with the bank and with other services |
 | `migrate` | Runs SQL migrations once before `api` and `worker` start | Schema changes never race with traffic; readiness stays red until the schema exists |
 
-Both roles also expose an **ops port** (9464) with `/health/live`, `/health/ready`, `/metrics`
-and the OpenAPI UI at `/docs`. It is internal: an ingress routes only port 3000, and an
+Both roles also expose an **ops port** (9464) with `/health/live`, `/health/ready` and
+`/metrics`; the `api` role adds the contracts: Swagger UI at `/docs` and the AsyncAPI page of
+every Kafka topic at `/docs/asyncapi`. It is internal: an ingress routes only port 3000, and an
 orchestrator cannot send a JWT to a health check (PRD assumption A8). Locally, `APP_ROLE=all`
 runs both roles in one process (used by some tests).
 
-Optional, with `docker compose --profile observability`: Prometheus, Grafana and Jaeger.
+Optional, with `make up-all` (compose profile `observability`): Prometheus, Grafana, Jaeger and
+Kafka UI.
 
 ## Level 3 — Components
 

@@ -1,4 +1,10 @@
 import type { FxRate, LedgerEntry, Program, Reservation } from '#src/capacity/domain/index.js';
+import type {
+  ProgramCapacityChangedPayload,
+  ReconciliationDriftDetectedPayload,
+  ReservationCreatedPayload,
+  ReservationReleasedPayload,
+} from '../shared/capacity-events.js';
 import type { Outcome } from '../shared/problem.js';
 
 export interface ProgramRepository {
@@ -69,17 +75,20 @@ export interface LedgerWriter {
   append(entry: LedgerEntry): Promise<void>;
 }
 
-export interface OutboxEvent {
+/** One event of `capacity.events.v1`; the payload types come from the published contract. */
+export type OutboxEvent = {
   readonly tenantId: string;
   readonly programId: string;
   readonly programSeq: number;
-  readonly type:
-    | 'ReservationCreated'
-    | 'ReservationReleased'
-    | 'ProgramCapacityChanged'
-    | 'ReconciliationDriftDetected';
-  readonly payload: unknown;
-}
+} & (
+  | { readonly type: 'ReservationCreated'; readonly payload: ReservationCreatedPayload }
+  | { readonly type: 'ReservationReleased'; readonly payload: ReservationReleasedPayload }
+  | { readonly type: 'ProgramCapacityChanged'; readonly payload: ProgramCapacityChangedPayload }
+  | {
+      readonly type: 'ReconciliationDriftDetected';
+      readonly payload: ReconciliationDriftDetectedPayload;
+    }
+);
 
 export interface OutboxWriter {
   append(event: OutboxEvent): Promise<void>;

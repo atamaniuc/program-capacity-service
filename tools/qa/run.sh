@@ -52,6 +52,11 @@ h=$(curl -s -i -X OPTIONS "$API/v1/programs/$P/reservations" -H "Origin: http://
 check QA-04 "CORS preflight from docs origin" $(echo "$h" | grep -qi "^access-control-allow-origin: http://127.0.0.1:${HOST_PORT_API_OPS:-19464}" && echo 0 || echo 1) "$(echo "$h" | head -1)"
 h=$(curl -s -i -X OPTIONS "$API/v1/programs/$P/reservations" -H 'Origin: http://evil.example' -H 'Access-Control-Request-Method: POST' | tr -d '\r')
 check QA-04 "no CORS for other origins" $(echo "$h" | grep -qi '^access-control-allow-origin' && echo 1 || echo 0) "no allow-origin header"
+c=$(curl -s -o /dev/null -w '%{http_code}' $OPS/docs/asyncapi); a=$(curl -s -o /dev/null -w '%{http_code}' $OPS/docs/asyncapi-ui.js)
+check QA-05 "AsyncAPI page and its viewer on ops port" $([ "$c$a" = 200200 ] && echo 0 || echo 1) "page=$c viewer=$a"
+aj=$(curl -s $OPS/docs/asyncapi.json | jq -r '[.asyncapi, ([.channels[].address]|sort|join(","))]|join(" ")')
+check QA-05 "asyncapi.json: 3.1.0, treasury in, DLQs, capacity.events.v1 out" $(is "$aj" "3.1.0 capacity.events.v1,treasury.capacity.v1,treasury.capacity.v1.dlq,treasury.fx-rates.v1,treasury.fx-rates.v1.dlq") "$aj"
+c=$(curl -s -o /dev/null -w '%{http_code}' $API/docs/asyncapi); check QA-05 "no AsyncAPI on business port" $(is "$c" 404) "$c"
 
 # ---------- B. authentication and authorisation ----------
 api GET "/v1/programs/$P/capacity" ""; check QA-10 "no token -> 401" $(is "$S" 401) "$S $(j .type 2>/dev/null)"
@@ -283,12 +288,16 @@ sk=$(sql "select count(*) from reconcile_snapshot_row where program_id='$Q'")
 check QA-109 "staging table is empty after every snapshot" $(is "$sk" 0) "rows=$sk"
 
 # ---------- H. outbound events on Kafka ----------
-ev=$($DC exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic capacity.events.v1 --from-beginning --timeout-ms 8000 --property print.key=true 2>/dev/null | grep "bank-a:$P")
+ev=$($DC exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic capacity.events.v1 --from-beginning --timeout-ms 8000 --formatter-property print.key=true 2>/dev/null | grep "bank-a:$P")
 types=$(echo "$ev" | grep -o '"type":"[A-Za-z]*"' | sort | uniq -c | tr -s ' ' | tr '\n' ';')
 check QA-70 "events on capacity.events.v1 keyed bank-a:$P" $(echo "$types" | grep -q ReservationCreated && echo "$types" | grep -q ReservationReleased && echo "$types" | grep -q ProgramCapacityChanged && echo 0 || echo 1) "$types"
 seqs=$(sql "select string_agg(program_seq::text, ',' order by program_seq) from outbox_event where tenant_id='bank-a' and program_id='$P'")
 gaps=$(sql "select count(*) from (select program_seq - lag(program_seq) over (order by program_seq) d from outbox_event where tenant_id='bank-a' and program_id='$P') x where d <> 1")
 check QA-71 "outbox program_seq gap-free and all published" $([ "$gaps" = 0 ] && [ "$(sql "select count(*) from outbox_event where tenant_id='bank-a' and program_id='$P' and published_at is null")" = 0 ] && echo 0 || echo 1) "seq=$seqs"
+for prog in "$P" "$Q"; do # $Q (section K) adds ReconciliationDriftDetected: all four types
+  ce=$(npm run -s contracts:events -- --key "bank-a:$prog" 2>&1); cr=$?
+  check QA-72 "every event of $prog matches contracts/ (schema, headers, seq)" $cr "$(echo "$ce" | head -3 | tr '\n' ' ' | head -c 300)"
+done
 
 # ---------- I. invariants ----------
 inv=$(sql "select p.reserved_minor, coalesce((select sum(amount_minor-released_minor) from reservation r where r.tenant_id=p.tenant_id and r.program_id=p.id and r.status<>'RELEASED'),0), coalesce((select sum(delta_reserved_minor) from ledger_entry l where l.tenant_id=p.tenant_id and l.program_id=p.id),0) from program p where p.tenant_id='bank-a' and p.id='$P'")

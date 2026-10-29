@@ -18,6 +18,7 @@ import { systemClock, uuidV7Generator } from '#src/capacity/adapters/out/system/
 import {
   TOPIC_CAPACITY,
   TOPIC_FX_RATES,
+  TREASURY_CONSUMER_GROUP,
 } from '#src/capacity/application/shared/treasury-messages.js';
 import { ApplyTreasuryEvent } from '#src/capacity/application/use-cases/apply-treasury-event/apply-treasury-event.js';
 import { IngestFxRate } from '#src/capacity/application/use-cases/ingest-fx-rate/ingest-fx-rate.js';
@@ -57,7 +58,7 @@ export function createTreasuryConsumer(
   });
   return new TreasuryConsumerRunner({
     brokers: config.kafkaBrokers,
-    groupId: 'program-capacity-treasury',
+    groupId: TREASURY_CONSUMER_GROUP,
     topics: [TOPIC_CAPACITY, TOPIC_FX_RATES],
     handler,
     logger,

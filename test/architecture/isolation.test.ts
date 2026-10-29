@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL('../..', import.meta.url));
 const read = (path: string) => readFileSync(join(root, path), 'utf8');
 
 /** The host ports of `main`'s stack (ADR 027): the branch must never publish or default to one. */
-const MAIN_PORTS = [5432, 29092, 8081, 3000, 9464, 9465, 9090, 3001, 16686, 4318];
+const MAIN_PORTS = [5432, 29092, 8081, 8080, 3000, 9464, 9465, 9090, 3001, 16686, 4318];
 
 /** Resolves `${VAR:-default}` to the default: the test checks what a clean checkout gets. */
 const withDefaults = (text: string) => text.replace(/\$\{[A-Z0-9_]+:-([^}]*)\}/g, '$1');
@@ -39,6 +39,11 @@ function files(dir: string): string[] {
 const mainPortAddress = new RegExp(`[:=](${MAIN_PORTS.join('|')})(?!\\d|\\.\\d)`);
 
 describe('side-by-side isolation from main', () => {
+  it('MS-01 publishes Kafka UI on HOST_PORT_KAFKA_UI, default 18080', () => {
+    expect(compose.services['kafka-ui']?.ports).toEqual(['${HOST_PORT_KAFKA_UI:-18080}:8080']);
+    expect(resolved.services['kafka-ui']?.ports).toEqual(['18080:8080']);
+  });
+
   it('MS-01 uses the compose project program-capacity-ms', () => {
     expect(compose.name).toBe('program-capacity-ms');
   });
@@ -98,6 +103,24 @@ describe('side-by-side isolation from main', () => {
     expect(leaks).toEqual([]);
   });
 
+  it('MS-01 keeps main ports out of the local-stack docs and the generated AsyncAPI', () => {
+    const hostAddress = new RegExp(`(localhost|127\\.0\\.0\\.1):(${MAIN_PORTS.join('|')})(?!\\d)`);
+    const leaks = [
+      'docs/local-stack.md',
+      'docs/qa.md',
+      'docs/runbook.md',
+      'contracts/asyncapi.yaml',
+    ].flatMap((file) =>
+      read(file)
+        .split('\n')
+        .map((line, index) => ({ at: `${file}:${index + 1}`, line }))
+        .filter(({ line }) => hostAddress.test(line))
+        .map(({ at, line }) => `${at}: ${line.trim()}`),
+    );
+    expect(leaks).toEqual([]);
+    expect(read('contracts/asyncapi.yaml')).toContain('host: localhost:39092');
+  });
+
   it('MS-01 names only cluster finverity-ms with .kind/kubeconfig for kind', () => {
     const makefile = read('Makefile');
     expect(makefile).toMatch(/^KIND_CLUSTER\s*:=\s*finverity-ms$/m);
@@ -121,6 +144,7 @@ describe('side-by-side isolation from main', () => {
       ['HOST_PORT_API', 13000],
       ['HOST_PORT_API_OPS', 19464],
       ['HOST_PORT_WORKER_OPS', 19465],
+      ['HOST_PORT_KAFKA_UI', 18080],
     ] as const) {
       expect(makefile).toMatch(new RegExp(`^export ${name} \\?= ${value}$`, 'm'));
     }
