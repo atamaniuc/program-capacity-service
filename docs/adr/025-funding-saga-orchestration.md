@@ -182,9 +182,9 @@ which the saga would read as "not ours". So every reserve retry ends well inside
 
 | Setting | Default | Bound |
 | --- | --- | --- |
-| `FUNDING_GRPC_DEADLINE_MS` | 5000 | Above capacity's `lock_timeout + statement_timeout` |
+| `FUNDING_GRPC_DEADLINE_MS` | 21000 | Above capacity's `lock_timeout + statement_timeout` (5 s + 15 s, `PostgresUnitOfWork` defaults) |
 | `FUNDING_PAYMENT_TIMEOUT_MS` | 5000 | Per HTTP call |
-| `FUNDING_STEP_LEASE` | 30 s | Above one call's deadline |
+| `FUNDING_STEP_LEASE` | 30 s | Above one call's deadline (21 s) |
 | Backoff | 0.5 s doubling, cap 60 s, full jitter | Per request |
 | `FUNDING_RESERVE_DEADLINE` | 2 min | Business deadline of the reserve step |
 | `FUNDING_DISBURSE_DEADLINE` | 15 min | Then `NEEDS_ATTENTION`, never compensation |

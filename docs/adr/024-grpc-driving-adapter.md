@@ -52,7 +52,12 @@ REST stays the public API, described by `contracts/openapi.yaml`. Nothing in it 
 `src/capacity/adapters/in/grpc/` is one more driving adapter over the existing use cases
 (`ReserveCapacity`, `ReleaseReservation`, `GetCapacity`). The `api` role starts it on
 `GRPC_PORT` (default 50051); the `worker` role never does. The port is internal only: a
-ClusterIP Service, never routed by an ingress, no server reflection outside development.
+ClusterIP Service, never routed by an ingress or the API gateway (ADR 029), no server
+reflection outside development. "Internal" means "not reachable from outside the deployment".
+The one exception is local development: compose publishes it on the host for `grpcurl` and a
+host-run funding service, bound to the loopback interface only
+(`127.0.0.1:${HOST_PORT_API_GRPC:-60051}:50051`, ADR 027's port plan), never on all interfaces.
+Tests do not use the published port: they bind a free port (Testcontainers or `listen(0)`).
 
 ### One boundary for both transports
 
@@ -99,6 +104,34 @@ expresses with its code: `ReserveResponse.result` is `CREATED` when the stored o
 (this call, or an earlier call under the same key, created the reservation) and `EXISTING` when
 it is 200 (a natural-key replay: the invoice already had a reservation with the same terms,
 made by another request). The funding saga must tell the two apart (ADR 025).
+
+A response field means the same thing in every RPC that carries it. `ReleaseResponse` carries the
+REST `Release` body as its own message (review of T5, 2026-10-30), because the REST release view
+is release-level: its `invoiceAmount` is the repaid amount and its `releasedAmount` is what this
+release freed, while `Reservation.invoice_amount` and `Reservation.released_amount` are the
+invoice amount and the cumulative release. Additive within `v1`:
+
+```proto
+message ReleaseResponse {
+  Reservation reservation = 1; // Not set: the release view is not a reservation view.
+  Capacity capacity = 2;
+  Release release = 3;
+}
+message Release {
+  string release_ref = 1;
+  string reservation_id = 2;
+  ReservationStatus reservation_status = 3;
+  ReleaseReason reason = 4;
+  Money repaid_amount = 5;    // REST `invoiceAmount`: repaid, in invoice currency.
+  Money released_amount = 6;  // Capacity this release freed, in program currency.
+  Money remaining_amount = 7; // What the reservation still holds, in program currency.
+}
+```
+
+`ReserveResponse.capacity` and `ReleaseResponse.capacity` are the REST `CapacitySnapshot`
+(`program_id`, `currency_code`, `limit`, `reserved`, `available`, `version`); the proto says so
+on both fields, and `over_limit_by`, `utilization` and `treasury_seq` stay unset there. The full
+view is `GetAvailability`.
 
 ### Authentication and tenant
 

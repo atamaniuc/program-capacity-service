@@ -55,7 +55,7 @@ deploy/                   compose.yaml (all services), helm/, kind/             
 | Kafka (host listener) | 29092 | 39092 (advertised as `localhost:39092`) |
 | Mock OAuth2 | 8081 | 18081 |
 | Capacity API, api ops, worker ops | 3000, 9464, 9465 | 13000, 19464, 19465 |
-| Capacity gRPC | none | 60051 |
+| Capacity gRPC | none | 60051, loopback only (`127.0.0.1`, ADR 024) |
 | Funding API, api ops, worker ops | none | 13100, 19466, 19467 |
 | Payments mock | none | 13200 |
 | Prometheus, Grafana, Jaeger UI, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |

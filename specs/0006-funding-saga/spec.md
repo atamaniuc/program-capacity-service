@@ -293,7 +293,9 @@ second effect. proof (planned): `services/funding/test/kafka/capacity-events.kaf
   never ends without a definite release outcome; reserve retries end inside capacity's key
   retention.
 - **Boundaries:** database per service; no service imports another's code; REST and
-  `capacity.events.v1` unchanged; the gRPC port is internal only.
+  `capacity.events.v1` unchanged; the gRPC port is internal only (ClusterIP, no ingress or
+  gateway route); compose publishes it on the host for local development on `127.0.0.1` only
+  (ADR 024, ADR 027).
 - **Isolation:** `main`'s stack, images, volumes and kube contexts are never touched;
   Testcontainers keep random ports.
 - **Words:** `docs/glossary.md` only; no *allocation*, *booking* or *balance*.

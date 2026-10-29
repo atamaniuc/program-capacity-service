@@ -254,6 +254,39 @@ promised, with the invariants intact.
 **Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
 (ADR 025).
 
+## 2026-10-30 — Architect review of lane 0006 T5 (gRPC adapter, GR-04..GR-07): rulings
+
+CHANGES REQUIRED at a90b53e (T4 carry-overs at 0292242 accepted). T5 stays unticked.
+
+- **The gRPC port is internal; local compose may publish it on loopback.** "Internal" means not
+  reachable from outside the deployment: ClusterIP in kind, never routed by an ingress or the
+  gateway. Compose keeps ADR 027's host port 60051 for `grpcurl` and a host-run funding service,
+  bound to `127.0.0.1` only. Tests never use it. Recorded in ADR 024 (Placement), ADR 027 (port
+  table) and the spec's Boundaries.
+- **A proto field means one thing in every RPC.** The release view is release-level (repaid
+  amount, capacity freed by this release); `Reservation.invoice_amount` / `released_amount` are
+  reservation-level (invoice amount, cumulative release). Overloading them would be a silent
+  meaning change that `buf breaking` cannot catch once a consumer reads it, so it is fixed in
+  T5, additively: `ReleaseResponse.release = 3` (`Release` with `release_ref`, `reservation_id`,
+  `reservation_status`, `reason`, `repaid_amount`, `released_amount`, `remaining_amount`);
+  `ReleaseResponse.reservation` is not set. The mutation `capacity` echo is the REST
+  `CapacitySnapshot` and the proto comment says so. The saga needs only `reservation_status`
+  (RELEASED) and the OK/`release-exceeds-remaining` outcome; the rest is for audit and GR-03.
+  Recorded in ADR 024.
+- **`FUNDING_GRPC_DEADLINE_MS` is 21000, not 5000.** ADR 024 and ADR 025 both require the client
+  deadline above capacity's `lock_timeout + statement_timeout`; those are 5 s + 15 s, so 5000
+  contradicted the rule. The step lease (30 s) stays above one call. A commit after the deadline
+  is still possible (pool wait, several statements) and is resolved by the same-key retry (GR-05).
+  Recorded in ADR 025.
+- **Decode before auth is accepted.** grpc-js deserialises before any interceptor; the cost is
+  bounded by `grpc.max_receive_message_length` = 100 kB, enforced after decompression, and unknown
+  methods answer `UNIMPLEMENTED` before the interceptor (so metric labels stay bounded). No zod
+  parse and no use case runs before authentication.
+
+**Why:** the saga reads these answers to decide whether money is held; a field whose meaning
+differs by RPC, or a deadline below the server's own bound, turns definite answers into
+unknown ones.
+
 ## 2026-10-30 — Architect review of lane 0006 T4 (shared boundary, GR-02): rulings
 
 APPROVE at 74acf32. REST behaviour and `contracts/openapi.yaml` unchanged; layer rules probed.
