@@ -1,0 +1,124 @@
+# Handoff — 0006 Funding saga (branch `microservices`)
+
+## Context
+
+Branch `microservices` is a documented evolution demo, not the submission (`main` is). It
+covers the job description's microservices, gRPC, Saga and Kubernetes asks by firing the revisit
+triggers `main` wrote down: T3 new bounded context (ADR 023), gRPC adapter (ADR 024, supersedes
+ADR 022 here), saga (ADR 025), Helm and kind (ADR 026), layout and side-by-side isolation
+(ADR 027), contracts package and Pact after the cut (ADR 028). Specs: `spec.md`, `tasks.md`.
+After this lane is written, the branch moves to the worktree `../finverity-microservices`.
+
+## What to load
+
+1. `specs/0006-funding-saga/tasks.md`, then the ACs of the current task in `spec.md`.
+2. The ADR the task names. For T1–T2: ADR 027. T3–T6: ADR 024, then ADR 006 (idempotency) and
+   ADR 011 (auth). T7–T13: ADR 025 and ADR 023; ADR 006 for the receiver side. T15–T16: ADR 026.
+3. Code for T4–T6: `src/capacity/adapters/in/http/{capacity.controller,schemas,problem,auth}.ts`,
+   `src/capacity/application/shared/{problem,idempotent,fingerprint}.ts`,
+   `.dependency-cruiser.cjs`, `test/support/app.ts`. For T1: `deploy/compose.yaml`, `Makefile`,
+   `tools/doctor.sh`, the files listed in T1.
+
+**What NOT to load:** PRD §8 reconciliation and treasury consumer, ADRs 007, 008, 010 and
+013, the reconcile and treasury slices, `docs/*.ru.md`, the PDFs and HTML files in `docs/`,
+the closed lanes' specs. None of them change here. Load PRD §6 (invariants) and §9 (REST, auth)
+only if a task touches them.
+
+## Owns
+
+- deploy/compose.yaml
+- deploy/oauth/**
+- deploy/observability/**
+- deploy/postgres/**
+- deploy/helm/**
+- deploy/kind/**
+- Makefile
+- .env.example
+- .gitignore
+- package.json
+- package-lock.json
+- harnessimo.config.json
+- .dependency-cruiser.cjs
+- vitest.config.ts
+- eslint.config.js
+- tsconfig.json
+- Dockerfile
+- .github/workflows/**
+- tools/**
+- db/seeds/**
+- contracts/proto/**
+- contracts/pacts/**
+- src/capacity/adapters/in/boundary/**
+- src/capacity/adapters/in/grpc/**
+- src/capacity/adapters/in/http/**
+- src/platform/**
+- test/architecture/**
+- test/support/**
+- test/e2e/transports.e2e.test.ts
+- test/e2e/grpc.e2e.test.ts
+- test/fault/grpc-shutdown.fault.test.ts
+- test/pact/**
+- services/**
+- packages/**
+- README.md
+- docs/architecture.md
+- docs/api.md
+- docs/runbook.md
+
+## Depends on
+
+
+## State
+
+Not started. Written on 2026-10-29: spec, tasks, this handoff, ADRs 023–028, glossary terms,
+pointers in ADRs 015/017/018/021/022, the DECISIONS index, the AGENTS.md branch line, the
+README section "Why this branch exists" and a branch note at the top of the PRD.
+`npx harnessimo check` was green after these edits. No code exists yet.
+
+Until T1 lands, the branch's compose stack still uses `main`'s ports and project name:
+**do not run `make up` on the branch while `main`'s stack is up.** T1 is first for that reason.
+
+Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
+`ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
+`kubectl` are installed in `/usr/local/bin`; `buf` and `kubeconform` are not (use the npm
+`@bufbuild/buf`; kubeconform as in lane 0005). Ask the lead before adding any dependency.
+
+## Decisions taken
+
+- The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.
+- Database per service: `funding` database and role; one PostgreSQL server locally, separate
+  instances in production; no cross-database access (FS-14).
+- Capacity stays at the repository root; new code under `services/`; no Nx, Turborepo or pnpm;
+  moving capacity to `services/capacity` was rejected (it would move 67 closed-lane proof
+  markers).
+- gRPC: `@grpc/grpc-js` plus `ts-proto` stubs committed with a drift check; not the Nest
+  microservices transport; zod stays the only validator; money as decimal strings on the wire;
+  AIP-193 `ErrorInfo`; one client per tenant for funding's capacity token (no all-tenant token).
+- Saga: orchestrated, hand-rolled, state on the `funding_request` row, `SKIP LOCKED` claim plus
+  lease plus version check, deterministic keys `funding:<id>:<step>`, no transaction across a
+  network call. Unknown disbursement → `NEEDS_ATTENTION`, never compensation. `EXISTING` from
+  `Reserve` → not ours → `REJECTED`. Reserve retries end inside capacity's 24 h key retention.
+  Compensation retries forever (`release_ref` never expires).
+- Rejected and staying rejected even here: Temporal, choreography, 2PC/XA, Redis, event
+  sourcing, GraphQL, API gateway, service mesh, a Pact Broker, a schema registry, Bitnami charts.
+- kind: cluster `finverity-ms`, kubeconfig `.kind/kubeconfig`, no host port mappings, smoke runs
+  in-cluster (`helm test`), port-forwards on 23000–23099.
+- Known trap (T1, T9, T11): mock-oauth2-server derives `iss` from the request's host. Tokens
+  minted from the host carry `http://localhost:18081/default`; a service minting tokens inside
+  the network must send the configured issuer's `Host` header, or capacity answers 401.
+
+## Owner decisions (2026-10-29)
+
+1. Constraint 9 is amended on this branch: the Saga, Pact and gRPC items are lifted, and on
+   this branch the agent amends any rule that blocks showing the evolution, citing the ADR.
+   The `CONSTRAINTS.md` change is committed by the owner, because `harnessimo locked`
+   refuses agent commits on that file.
+2. The lane closes after T18, not at the cut line.
+3. `main`'s Russian docs stay as they are; the branch gets new `docs/micro-srv-*.ru.md` (T17).
+
+## First step
+
+T1. Read `deploy/compose.yaml`, then write `test/architecture/isolation.test.ts` with
+`MS-01 publishes no host port of main's stack` first (it fails on the current compose file:
+5432 is published), then change the compose file, Makefile, `.env.example`, `tools/` and
+`db/seeds/seed.ts` until it passes. Run `make verify`.

@@ -1,6 +1,6 @@
 # 015. Contracts generated from zod
 
-- Status: accepted
+- Status: accepted; amended on branch `microservices` by [ADR 024](024-grpc-driving-adapter.md) (proto contract, `buf`) and [ADR 028](028-contracts-package-and-consumer-contracts.md) (contracts package, Pact)
 - Date: 2026-10-28
 
 ## Context

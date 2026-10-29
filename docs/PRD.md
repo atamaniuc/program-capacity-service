@@ -1,5 +1,11 @@
 # Program Capacity Service — PRD
 
+> **Branch `microservices`.** This PRD describes `main`, the submitted service. On branch
+> `microservices` (an evolution demo) ADRs 023–028 supersede FR-16 and the "won't build" items
+> Saga, Helm and Pact of §10 and §11 for that branch only; the requirements, invariants I1–I8
+> and acceptance criteria of the capacity service are unchanged. See
+> [specs/0006-funding-saga/spec.md](../specs/0006-funding-saga/spec.md).
+
 Oct 28, 2026
 
 ## 1. Context and problem

@@ -10,6 +10,52 @@ Stack: Node.js 24, TypeScript, NestJS 12, PostgreSQL 18, Kafka 4.
 > **New here?** Read [docs/README.md](docs/README.md): a one-hour reading path through the
 > repository, from the business idea to the SQL.
 
+## Why this branch exists
+
+**This is branch `microservices`, an evolution demo. It is not the submission.** The submitted
+take-home is [`main`](https://github.com/atamaniuc/program-capacity-service/tree/main): one
+modular monolith ([ADR 001](docs/adr/001-modular-monolith-roles.md)) that holds a credit limit
+with one PostgreSQL transaction. `main` declined microservices, gRPC, a saga and Kubernetes,
+and wrote down for each the condition that would change the answer. This branch makes those
+conditions true and builds what the ADRs said would follow, without cutting the capacity
+service: its reservation transaction, invariants I1–I8 and REST API stay as they are.
+
+| `main` said | Revisit trigger on `main` | Why it fires here | Branch ADR |
+| --- | --- | --- | --- |
+| One service ([ADR 021](docs/adr/021-evolution-path.md)) | T3, a new bounded context | Funding decisions become `funding-service`, with its own aggregate and its own database | [023](docs/adr/023-t3-funding-context-database-per-service.md) |
+| No gRPC adapter ([ADR 022](docs/adr/022-no-grpc-adapter.md)) | A platform standard of gRPC between services | `funding-service` calls capacity's `Reserve` and `Release` before it pays; REST stays the public API | [024](docs/adr/024-grpc-driving-adapter.md) |
+| No saga ([ADR 017](docs/adr/017-out-of-scope.md)) | A multi-step flow across services | Risk check → reserve → disburse → compensate spans two services and a payment rail | [025](docs/adr/025-funding-saga-orchestration.md) |
+| No Helm, no cluster ([ADR 017](docs/adr/017-out-of-scope.md)) | A target environment | A local kind cluster runs the whole system | [026](docs/adr/026-helm-and-kind.md) |
+| No Pact ([ADR 015](docs/adr/015-contracts.md)) | The first real split | `funding-service` is a real consumer of capacity's contract (after the MVP cut) | [028](docs/adr/028-contracts-package-and-consumer-contracts.md) |
+
+Still not built here either: Redis, event sourcing, GraphQL, Temporal, an API gateway, a
+service mesh. The plan, with acceptance criteria and a cut line, is
+[specs/0006-funding-saga](specs/0006-funding-saga/spec.md); the layout and the isolation rules
+are in [ADR 027](docs/adr/027-repository-layout-and-side-by-side-isolation.md).
+
+### Running it next to `main`
+
+The branch lives in its own worktree and is built to run while `main`'s stack is up:
+
+```bash
+git worktree add ../finverity-microservices microservices
+cd ../finverity-microservices
+```
+
+| | `main` | this branch |
+| --- | --- | --- |
+| Compose project | `program-capacity` | `program-capacity-ms` |
+| PostgreSQL, Kafka, OAuth2 | 5432, 29092, 8081 | 15432, 39092, 18081 |
+| Capacity API, api ops, worker ops | 3000, 9464, 9465 | 13000, 19464, 19465 |
+| Capacity gRPC, funding API, payments mock | none | 60051, 13100, 13200 |
+| Prometheus, Grafana, Jaeger, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |
+| Kubernetes | none | kind cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` (never `~/.kube/config`) |
+
+**Status: in progress.** The table is the target that lane 0006 task T1 implements. Until T1
+is ticked in [tasks.md](specs/0006-funding-saga/tasks.md), the compose file on this branch
+still uses `main`'s ports, so do not start both stacks at once. The kind targets arrive with
+T16. The rest of this README still describes `main` and is updated as features land.
+
 ## The problem in one minute
 
 A bank opens a **program** for a buyer with a **credit limit**, say USD 10,000,000. Each

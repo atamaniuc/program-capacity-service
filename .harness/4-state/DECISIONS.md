@@ -29,7 +29,13 @@ decisions about how the work is run.
 | 019 | Aggregate design: `Program` root, reservations loaded one at a time | [019-aggregate-design](../../docs/adr/019-aggregate-design.md) |
 | 020 | Ubiquitous language and naming rules | [020-ubiquitous-language](../../docs/adr/020-ubiquitous-language.md) |
 | 021 | Evolution path: split triggers T1–T4 and the order of the split | [021-evolution-path](../../docs/adr/021-evolution-path.md) |
-| 022 | No gRPC adapter: FR-16 declined, revisit triggers | [022-no-grpc-adapter](../../docs/adr/022-no-grpc-adapter.md) |
+| 022 | No gRPC adapter: FR-16 declined, revisit triggers (superseded on branch `microservices` by 024) | [022-no-grpc-adapter](../../docs/adr/022-no-grpc-adapter.md) |
+| 023 | Branch `microservices`: trigger T3 fired, `funding-service` as a new bounded context; database per service; capacity not cut | [023-t3-funding-context-database-per-service](../../docs/adr/023-t3-funding-context-database-per-service.md) |
+| 024 | Branch `microservices`: internal gRPC driving adapter over the same use cases, one boundary for validation, auth and the problem mapping; supersedes 022 there | [024-grpc-driving-adapter](../../docs/adr/024-grpc-driving-adapter.md) |
+| 025 | Branch `microservices`: hand-rolled orchestrated funding saga in PostgreSQL; compensation, unknown outcomes, exactly-once effect across the gRPC hop | [025-funding-saga-orchestration](../../docs/adr/025-funding-saga-orchestration.md) |
+| 026 | Branch `microservices`: Helm charts and a local kind cluster `finverity-ms` (amends 017) | [026-helm-and-kind](../../docs/adr/026-helm-and-kind.md) |
+| 027 | Branch `microservices`: npm workspaces with capacity at the root; side-by-side isolation from `main` | [027-repository-layout-and-side-by-side-isolation](../../docs/adr/027-repository-layout-and-side-by-side-isolation.md) |
+| 028 | Branch `microservices`: contracts package and Pact, after the MVP cut (amends 015) | [028-contracts-package-and-consumer-contracts](../../docs/adr/028-contracts-package-and-consumer-contracts.md) |
 
 ---
 
@@ -185,3 +191,34 @@ MINOR items; all were fixed in one commit and re-reviewed.
 Lesson for future lanes: a change that adds a lookup across tenants, or a table shared between
 concurrent executions, is checked against PRD A12/AC-16 and against a concurrent duplicate
 delivery before it is written.
+
+---
+
+## 2026-10-29 — Branch `microservices`: an evolution demo with branch-scoped supersessions
+
+`main` stays the submitted take-home and keeps every decision above. Branch `microservices`
+shows the split the ADRs said would come when a trigger fires, for the job description's
+microservices, gRPC, Saga and Kubernetes asks. Lane 0006 specifies it.
+
+- **Fired on the branch only:** ADR 021 T3 (ADR 023); ADR 022's third revisit trigger, gRPC
+  half (ADR 024 supersedes ADR 022); ADR 017 rows "Saga, Temporal" (ADR 025, Temporal still
+  rejected), "Helm, a real cluster" (ADR 026, Helm and kind only), "Pact" (ADR 028) and
+  "gRPC adapter" (ADR 024).
+- **Still settled on the branch:** the capacity service is not cut and I1–I8 hold; no Redis,
+  event sourcing, GraphQL, CQRS read store, API gateway, service mesh, Temporal, schema
+  registry; no `SELECT … FOR UPDATE` on the idempotency path (D3 closed); zod is the only
+  validator, no `@nestjs/swagger`.
+- **Owner rulings recorded in the ADRs:** split by T3 not by cutting capacity; hand-rolled
+  orchestrator persisted in PostgreSQL; database per service; gRPC alongside REST with
+  `buf lint`/`buf breaking`; Helm and kind; contracts package and Pact allowed to follow the
+  MVP cut; the branch runs side by side with `main` (ports +10000, project
+  `program-capacity-ms`, kind cluster `finverity-ms`).
+- **Not changed, on purpose:** `CONSTRAINTS.md` constraint 9 is a locked surface; only the
+  owner can amend it on this branch. Until then it is read together with ADR 023's branch scope.
+
+**Why:** the trigger table in ADR 021 is only credible if a firing produces the structure it
+promised, with the invariants intact.
+
+**Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
+(ADR 025).
+

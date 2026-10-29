@@ -53,6 +53,15 @@
       "kind": "code",
       "evidence": "> vitest run --project int |  RUN  v5.0.5 /Users/datamaniuc/work/finverity |  Test Files  23 passed (23) |       Tests  97 passed (97) |    Start at  21:32:07 |    Duration  215.39s (tests 88%, import 12%)",
       "last_failure": null
+    },
+    {
+      "id": "m5-funding-saga",
+      "behavior": "branch microservices only: side-by-side isolation, gRPC adapter over both transports, funding saga with compensation and exactly-once effect, Helm charts and kind smoke (lane 0006 P0, T1-T17)",
+      "verification": "make verify && make test && make helm-check && make kind-smoke",
+      "state": "not_started",
+      "kind": "code",
+      "evidence": null,
+      "last_failure": null
     }
   ]
 }

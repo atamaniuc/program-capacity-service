@@ -1,6 +1,6 @@
 # 018. Architecture: hexagonal, vertical slices, tactical DDD
 
-- Status: accepted
+- Status: accepted; on branch `microservices` the repository gains npm workspaces for the new services ([ADR 027](027-repository-layout-and-side-by-side-isolation.md))
 - Date: 2026-10-28
 
 ## Context

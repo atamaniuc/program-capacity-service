@@ -1,6 +1,6 @@
 # 021. Evolution path: split triggers T1 to T4 and the order of the split
 
-- Status: accepted
+- Status: accepted; on branch `microservices` trigger T3 has fired ([ADR 023](023-t3-funding-context-database-per-service.md))
 - Date: 2026-10-28
 
 ## Context
@@ -45,3 +45,9 @@ metrics that ask for it.
 
 Starting as microservices (distributed transactions for a one-row lock); a Nest or Nx monorepo
 (one deployable and one package do not need it).
+
+## Firings
+
+| Trigger | Where | ADR |
+| --- | --- | --- |
+| T3. New bounded context (funding decisions) | Branch `microservices` only | [ADR 023](023-t3-funding-context-database-per-service.md); layout in [ADR 027](027-repository-layout-and-side-by-side-isolation.md) |

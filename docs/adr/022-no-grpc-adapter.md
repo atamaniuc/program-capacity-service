@@ -1,6 +1,6 @@
 # 022. No gRPC adapter (FR-16 declined)
 
-- Status: accepted
+- Status: accepted on `main`; superseded on branch `microservices` by [ADR 024](024-grpc-driving-adapter.md) (the gRPC half of the third revisit trigger fired)
 - Date: 2026-10-28
 - Supersedes: FR-16 "gRPC adapter (P2)" in the PRD
 

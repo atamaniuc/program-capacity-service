@@ -49,6 +49,10 @@ truth, Kafka for treasury input and outbound events. The requirements live in
 - Test names start with the AC id (`AC-08 keeps …`); every ticked task carries a proof marker.
 - Words come from `docs/glossary.md`. No *allocation*, *booking* or *balance*.
 - Do not relitigate: monolith, no Redis, no event sourcing, no Saga, no GraphQL, no Pact, no `@nestjs/swagger`.
+- **Branch `microservices` only** (evolution demo; `main` is the submission): ADRs 023–028
+  replace "monolith, no Saga, no Pact, no gRPC" with `funding-service`, an orchestrated saga,
+  gRPC and Pact. Still settled here: capacity is not cut, no Redis, no event sourcing, no
+  GraphQL, no Temporal, no `@nestjs/swagger`. Lane: `specs/0006-funding-saga/`.
 
 ## Roles
 
