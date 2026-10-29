@@ -8,7 +8,11 @@ import {
 
 /** The committed `contracts/openapi.yaml`, rendered from the zod schemas. */
 export function renderOpenApiYaml(): string {
-  return stringify(buildOpenApiDocument(), { lineWidth: 100, aliasDuplicateObjects: false });
+  return stringify(
+    // The same variable and default as deploy/compose.yaml publishes the API with (ADR 027).
+    buildOpenApiDocument({ localApiHost: `localhost:${process.env['HOST_PORT_API'] ?? '13000'}` }),
+    { lineWidth: 100, aliasDuplicateObjects: false },
+  );
 }
 
 /** The committed `contracts/asyncapi.yaml`; payloads live in `json-schema/`. */

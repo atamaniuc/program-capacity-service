@@ -5,7 +5,6 @@ import { PROBLEM_TYPES, problem } from '#src/capacity/application/shared/problem
 import {
   GRPC_STATUS,
   PROBLEM_MAP,
-  RETRYABLE_GRPC_CODES,
   STORED_PROBLEM_TYPES,
   TRANSPORT_PROBLEM_TYPES,
   type TransportProblemType,
@@ -50,15 +49,22 @@ describe('GR-02 one problem table for both transports', () => {
     }
   });
 
-  it('GR-02 maps every outcome stored under an Idempotency-Key to a non-retryable gRPC code', () => {
+  it('GR-02 maps every outcome stored under an Idempotency-Key to a definite-failure gRPC code', () => {
+    // ADR 025: only these codes tell the saga "definitely failed"; anything else is "unknown".
+    const definite: ReadonlySet<number> = new Set([
+      GRPC_STATUS.FAILED_PRECONDITION,
+      GRPC_STATUS.NOT_FOUND,
+      GRPC_STATUS.ALREADY_EXISTS,
+      GRPC_STATUS.INVALID_ARGUMENT,
+      GRPC_STATUS.PERMISSION_DENIED,
+    ]);
     expect(STORED_PROBLEM_TYPES).toContain('fx-rate-unavailable');
     expect(STORED_PROBLEM_TYPES).toContain('insufficient-capacity');
     expect(STORED_PROBLEM_TYPES).not.toContain('idempotency-key-mismatch');
     for (const type of STORED_PROBLEM_TYPES) {
-      expect(RETRYABLE_GRPC_CODES.has(PROBLEM_MAP[type].grpc), type).toBe(false);
+      expect(definite.has(PROBLEM_MAP[type].grpc), type).toBe(true);
     }
     expect(PROBLEM_MAP['service-unavailable'].grpc).toBe(GRPC_STATUS.UNAVAILABLE);
-    expect(RETRYABLE_GRPC_CODES.has(GRPC_STATUS.UNAVAILABLE)).toBe(true);
   });
 
   it('GR-02 keeps the boundary free of transport libraries', () => {

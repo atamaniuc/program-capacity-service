@@ -33,9 +33,12 @@ module.exports = {
     {
       name: 'boundary-is-for-driving-adapters',
       comment:
-        'Only the HTTP and gRPC adapters import adapters/in/boundary (ADR 024); outbound and event adapters do not.',
+        'Only the HTTP and gRPC adapters import adapters/in/boundary (ADR 024); an allowlist, so a new adapter must be added here on purpose.',
       severity: 'error',
-      from: { path: '^src/capacity/adapters/(out|in/(kafka|jobs))/', pathNot: NOT_TEST },
+      from: {
+        path: '^src/capacity/adapters/',
+        pathNot: ['^src/capacity/adapters/in/(http|grpc|boundary)/', NOT_TEST],
+      },
       to: { path: '^src/capacity/adapters/in/boundary/' },
     },
     {

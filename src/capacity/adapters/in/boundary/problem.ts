@@ -33,14 +33,6 @@ export const GRPC_STATUS = {
 
 export type GrpcCode = (typeof GRPC_STATUS)[keyof typeof GRPC_STATUS];
 
-/** Codes that common client retry policies retry, plus the ones that invite a retry. */
-export const RETRYABLE_GRPC_CODES: ReadonlySet<number> = new Set([
-  GRPC_STATUS.UNAVAILABLE,
-  GRPC_STATUS.RESOURCE_EXHAUSTED,
-  4, // DEADLINE_EXCEEDED
-  10, // ABORTED
-]);
-
 export interface ProblemMapping {
   readonly title: string;
   readonly http: number;

@@ -6,7 +6,7 @@ info:
     `application/problem+json`; clients branch on `type`. Amounts are decimal strings at the ISO
     4217 scale.
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:13000
 security:
   - bearerAuth: []
 paths:

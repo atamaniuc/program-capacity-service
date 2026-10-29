@@ -38,7 +38,7 @@ const idempotencyNote =
   ' Send an optional `Idempotency-Key`: the first outcome, including a business rejection such as 404, 409 or 422, is stored and replayed for that key; keys are kept at least 24 hours.';
 
 /** The REST contract of `/v1`, generated from the same zod schemas that validate requests. */
-export function buildOpenApiDocument() {
+export function buildOpenApiDocument(options: { localApiHost?: string } = {}) {
   return createDocument({
     openapi: '3.1.0',
     info: {
@@ -47,7 +47,8 @@ export function buildOpenApiDocument() {
       description:
         'Real-time credit capacity of supply chain finance programs. Errors are RFC 9457 `application/problem+json`; clients branch on `type`. Amounts are decimal strings at the ISO 4217 scale.',
     },
-    servers: [{ url: 'http://localhost:3000' }],
+    // The API as the host sees it; the default is the compose default of HOST_PORT_API (ADR 027).
+    servers: [{ url: `http://${options.localApiHost ?? 'localhost:13000'}` }],
     security: [{ bearerAuth: [] }],
     paths: {
       '/v1/programs/{programId}/capacity': {
