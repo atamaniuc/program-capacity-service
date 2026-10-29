@@ -22,7 +22,8 @@ another. Shared application code lives in `application/shared/`.
 | File | Purpose |
 | --- | --- |
 | `README.md` | Start page: the problem, what was built, quick start |
-| `Makefile` | The commands you type; `make` alone prints them all (`help`, coloured on a terminal, `NO_COLOR` respected). `up`, `seed`, `token`, `demo`, `docs`, `verify`, `test`, `load`, `dlq-replay`, `status` |
+| `Makefile` | The commands you type; `make` alone prints them all (`help`, coloured on a terminal, `NO_COLOR` respected). `install` (everything from a fresh clone), `doctor`, `up`, `seed`, `token`, `demo`, `docs`, `verify`, `test`, `load`, `dlq-replay`, `status` |
+| `.nvmrc` | Node.js major version (24) for `nvm use` |
 | `package.json`, `package-lock.json` | Dependencies (exact versions) and npm scripts behind the Makefile |
 | `tsconfig.json`, `tsconfig.build.json` | TypeScript settings for checking (includes tests) and for the build (only `src/`) |
 | `eslint.config.js`, `.prettierrc`, `.prettierignore` | Lint and formatting rules; `make verify` fails on any warning |
@@ -200,6 +201,7 @@ requirement it proves (`AC-…`, `FR-…`, `NFR-…`, `SK-…`).
 | `dlq-replay/replay.ts` | `make dlq-replay` | Republishes fixed DLQ records to their source topic |
 | `load/scenario.js` | `make load` | k6 load test (warm-up, spread phase with NFR-03 thresholds, hot phase) |
 | `contracts/generate.ts`, `render.ts` | `make contracts` | Regenerates or checks `contracts/openapi.yaml` |
+| `doctor.sh` | `make doctor`, `make install` | Checks the machine: Docker and its memory, Compose ≥ 2.20, Node.js 24, npm, curl, jq, free ports; says how to fix what is missing |
 | `status.sh` | `make status` | Process checker result, last logged gate, last commits, next action |
 | `completion.bash` | `make completion` | Tab completion for `make` in bash and zsh: targets, `TENANT=` and `TOPIC=` values |
 

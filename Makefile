@@ -22,7 +22,7 @@ endif
 step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
-.PHONY: help targets completion status check install up down ps logs seed token demo docs \
+.PHONY: help targets completion status check doctor install up down ps logs seed token demo docs \
         verify test test-unit test-int contracts load dlq-replay
 
 ## Help
@@ -48,15 +48,24 @@ completion: ## how to enable tab completion for targets and variables
 	@printf 'zsh:  $(C_CYAN)autoload -U +X compinit && compinit && autoload -U +X bashcompinit && bashcompinit && source tools/completion.bash$(C_RESET)\n'
 	@printf '$(C_DIM)Add the line to ~/.bashrc or ~/.zshrc to keep it. It completes targets, TENANT= and TOPIC= values.$(C_RESET)\n'
 
+## Getting started
+doctor: ## check this machine: Docker, Compose, Node.js 24, free ports
+	@tools/doctor.sh
+
+install: ## one command from a fresh clone: check requirements, npm ci, start the stack, seed it
+	@tools/doctor.sh
+	$(call step,Installing npm dependencies exactly as locked · npm ci)
+	@npm ci --no-audit --no-fund
+	@$(MAKE) --no-print-directory up
+	@$(MAKE) --no-print-directory seed
+	$(call done,Installed. Try: make docs (Swagger UI) · make token · make demo)
+
 ## Session and gate helpers
 status: ## harness check, last logged gate, last commits, next action
 	@tools/status.sh
 
 check: ## harness gates only
 	@npx harnessimo check
-
-install: ## install dependencies exactly as locked (npm ci)
-	npm ci
 
 ## Local stack
 up: ## build and start the stack, wait until every service is healthy
@@ -73,8 +82,11 @@ ps: ## show the stack's containers and their health
 logs: ## follow api and worker logs
 	$(COMPOSE) logs -f --tail=100 api worker
 
-seed: ## deterministic seed: tenants, programs, FX rates
-	npm run seed
+seed: ## seed tenants, programs, FX rates, invoices (FX rates live 24 h: re-run on demo day)
+	$(call step,Seeding 3 banks · 6 programs · FX rates · ~200 invoices)
+	@npm run --silent seed
+	@printf '$(C_YELLOW)! FX rates are valid for 24 h. On the day of a demo run make seed again$(C_RESET)\n'
+	@printf '$(C_YELLOW)  or reservations in a foreign currency fail with fx-rate-unavailable.$(C_RESET)\n'
 
 token: ## print a JWT: make token TENANT=bank-a SCOPES="capacity:read"
 	@npm run --silent token -- --tenant "$(TENANT)" --scopes "$(SCOPES)"

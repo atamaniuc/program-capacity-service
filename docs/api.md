@@ -1,7 +1,7 @@
 # API tour
 
 A hands-on walk through the REST API against the local stack. Every command below can be
-pasted into a terminal after `make up && make seed`. Responses are shortened.
+pasted into a terminal after `make install` (or `make up && make seed`). Responses are shortened.
 
 The full contract is [`contracts/openapi.yaml`](../contracts/openapi.yaml), generated from the
 zod schemas in `src/capacity/adapters/in/http/`.

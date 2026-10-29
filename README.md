@@ -38,17 +38,34 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 
 ## Quick start
 
-**You need:** Docker (with Compose v2), Node.js 24 and npm, `make`. Ports 3000, 5432, 8081,
-9464, 9465 and 29092 must be free.
+### Requirements
 
-`make` on its own lists every command with a one-line description. `make completion` shows
-how to turn on tab completion for targets and `TENANT=`/`TOPIC=` values in bash or zsh.
+| What | Version | Why |
+| --- | --- | --- |
+| Docker Desktop (macOS, Windows) or Docker Engine (Linux) | any recent; **≥ 4 GB memory** for Docker | PostgreSQL, Kafka, the OAuth2 server, the API and the worker run in containers; the tests start their own through Testcontainers |
+| Docker Compose v2 plugin (`docker compose`, not `docker-compose`) | ≥ 2.20 | `make up` uses `up --wait` |
+| Node.js and npm | Node 24 (`nvm install 24`) | The CLI tools (seed, token, simulator, demo) and the tests run on your machine |
+| `make`, `curl` | any (macOS ships GNU Make 3.81, that is enough) | Every command is a make target; the API tour uses curl |
+| `jq` | any; optional | Only `make qa` needs it |
+
+Free ports: 3000 (API), 5432 (PostgreSQL), 8081 (OAuth2), 9464 (api ops + Swagger UI),
+9465 (worker ops), 29092 (Kafka). `make doctor` checks all of the above and says how to fix
+what is missing.
+
+### Install and run
 
 ```bash
-npm ci                 # install dependencies (the CLI tools below run on your machine)
-make up                # build the image, start everything, wait until healthy (~2 min the first time)
-make seed              # 3 banks, 6 programs in USD/EUR/AED/KWD, FX rates, ~200 invoices
+make install           # one command: check the machine, npm ci, start the stack, seed it (~2–3 min)
 ```
+
+It runs `make doctor`, `npm ci`, `make up` (build the image, start everything, wait until
+healthy) and `make seed` (3 banks, 6 programs in USD/EUR/AED/KWD, FX rates, ~200 invoices).
+`make` on its own lists every command with a one-line description; `make completion` shows how
+to turn on tab completion for targets and `TENANT=`/`TOPIC=` values in bash or zsh.
+
+> **FX rates from `make seed` are valid for 24 hours.** On the day of a demo run `make seed`
+> again (it is safe to repeat), or a reservation in a foreign currency (EUR invoice on a USD
+> program) is refused with `422 fx-rate-unavailable`. Same-currency reservations are unaffected.
 
 Try it:
 

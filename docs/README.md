@@ -9,7 +9,7 @@ Read in this order. Each step says what you should know after it.
 | 1 | 5 min | [Backend-Developer-Test-Assignment.md](Backend-Developer-Test-Assignment.md) and the [project README](../README.md) | What was asked, what was built, how to start it |
 | 2 | 10 min | [how-it-works.md](how-it-works.md) | The business: programs, reservations, releases, FX, reconciliation, the rules that must hold |
 | 3 | 15 min | [architecture.md](architecture.md) | C4 diagrams, the four main flows, the data model, where each piece of code lives |
-| 4 | 10 min | `make up && make seed`, then [api.md](api.md) | The API by hand: reserve, retry, release, errors |
+| 4 | 10 min | `make install`, then [api.md](api.md) | The API by hand: reserve, retry, release, errors |
 | 5 | 10 min | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) and [infrastructure-choices.md](infrastructure-choices.md) | Why it is built this way, and what was left out on purpose |
 | 6 | 10 min | Code: `src/capacity/domain/` → `application/use-cases/reserve-capacity/` → `adapters/in/http/capacity.controller.ts` → `adapters/out/postgres/unit-of-work.ts`; then [testing.md](testing.md) | One request from the controller down to the SQL, and how it is tested |
 
