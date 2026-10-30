@@ -11,6 +11,7 @@ export type TransportProblemType =
   | ProblemType
   | 'unauthorized'
   | 'forbidden'
+  | 'method-not-allowed'
   | 'payload-too-large'
   | 'internal-error'
   | 'service-unavailable';
@@ -20,6 +21,7 @@ const TRANSPORT: Readonly<
 > = {
   unauthorized: { title: 'Unauthorized', status: 401 },
   forbidden: { title: 'Forbidden', status: 403 },
+  'method-not-allowed': { title: 'Method not allowed', status: 405 },
   'payload-too-large': { title: 'Payload too large', status: 413 },
   'internal-error': { title: 'Internal error', status: 500 },
   'service-unavailable': { title: 'Service unavailable', status: 503 },
@@ -53,9 +55,13 @@ export class HttpProblem extends Error {
     super(problem.detail);
   }
 
-  static of(type: Exclude<TransportProblemType, ProblemType>, detail: string): HttpProblem {
+  static of(
+    type: Exclude<TransportProblemType, ProblemType>,
+    detail: string,
+    extraHeaders: Readonly<Record<string, string>> = {},
+  ): HttpProblem {
     const entry = TRANSPORT[type];
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...extraHeaders };
     if (type === 'unauthorized') headers['WWW-Authenticate'] = 'Bearer';
     if (type === 'service-unavailable') headers['Retry-After'] = '1';
     return new HttpProblem(problemBody({ type, ...entry, detail }), headers);

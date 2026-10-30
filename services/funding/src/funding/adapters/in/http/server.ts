@@ -64,23 +64,17 @@ export function createHttpServer(deps: HttpDependencies): Server {
     const method = request.method ?? 'GET';
     const item = /^\/v1\/funding-requests\/([^/]+)$/.exec(url.pathname);
 
+    // ADR 011: every /v1/ request is authenticated before it is routed, so an anonymous caller
+    // learns nothing about which routes and methods exist.
+    if (!url.pathname.startsWith('/v1/')) {
+      throw HttpProblem.business('not-found', 'No such resource.');
+    }
+    const principal = await deps.verifier.authenticate(request.headers.authorization);
+
     if (url.pathname === '/v1/funding-requests') {
       if (method !== 'POST') {
-        send(
-          response,
-          405,
-          problemBody({
-            type: 'not-found',
-            title: 'Method not allowed',
-            status: 405,
-            detail: 'Use POST.',
-          }),
-          { Allow: 'POST' },
-          PROBLEM_CONTENT_TYPE,
-        );
-        return;
+        throw HttpProblem.of('method-not-allowed', 'Use POST.', { Allow: 'POST' });
       }
-      const principal = await deps.verifier.authenticate(request.headers.authorization);
       requireScope(principal, 'funding:write');
       const header = IdempotencyKeyHeader.safeParse({
         'idempotency-key': request.headers['idempotency-key'],
@@ -105,21 +99,8 @@ export function createHttpServer(deps: HttpDependencies): Server {
 
     if (item?.[1] !== undefined) {
       if (method !== 'GET') {
-        send(
-          response,
-          405,
-          problemBody({
-            type: 'not-found',
-            title: 'Method not allowed',
-            status: 405,
-            detail: 'Use GET.',
-          }),
-          { Allow: 'GET' },
-          PROBLEM_CONTENT_TYPE,
-        );
-        return;
+        throw HttpProblem.of('method-not-allowed', 'Use GET.', { Allow: 'GET' });
       }
-      const principal = await deps.verifier.authenticate(request.headers.authorization);
       requireScope(principal, 'funding:read');
       const id = item[1];
       if (!UUID.test(id)) throw HttpProblem.business('not-found', 'No such funding request.');

@@ -209,4 +209,73 @@ describe('funding API', () => {
     });
     expect(response.status).toBe(404);
   });
+
+  it('FS-02 a business rejection under a key is stored and replayed: 409 twice, one key row with status 409', async () => {
+    const bearer = await token('t1');
+    expect((await post(bearer, body('inv-9'))).status).toBe(202);
+    const first = await post(bearer, body('inv-9', '10.00'), { 'idempotency-key': 'k-9' });
+    const replay = await post(bearer, body('inv-9', '10.00'), { 'idempotency-key': 'k-9' });
+    expect(first.status).toBe(409);
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toEqual(await first.json());
+    const stored = await persistence.pool.query<{ status_code: number }>(
+      'SELECT status_code FROM idempotency_key WHERE tenant_id = $1 AND key = $2',
+      ['t1', 'k-9'],
+    );
+    expect(stored.rows.map((r) => r.status_code)).toEqual([409]);
+  });
+
+  it('FS-02 unreachable issuer keys answer 503 with Retry-After, not 401', async () => {
+    const uow = new PostgresUnitOfWork(persistence);
+    const blind = createHttpServer({
+      verifier: new JwtVerifier({
+        issuer: issuer.issuer,
+        audience: issuer.audience,
+        jwksUrl: 'http://127.0.0.1:1/jwks',
+      }),
+      create: new CreateFundingRequest(uow),
+      get: new GetFundingRequest(uow),
+    });
+    await new Promise<void>((resolve) => blind.listen(0, '127.0.0.1', resolve));
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${boundPort(blind).toString()}/v1/funding-requests`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${await token('t1')}`,
+          },
+          body: JSON.stringify(body('inv-10')),
+        },
+      );
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).not.toBeNull();
+      expect(await count('inv-10')).toBe(0);
+    } finally {
+      blind.closeAllConnections();
+      await new Promise<void>((resolve) => blind.close(() => resolve()));
+    }
+  });
+
+  it('FS-02 every /v1/ request is authenticated before routing; a wrong method is 405 method-not-allowed', async () => {
+    const anonymous = await fetch(`${base}/v1/nope`);
+    expect(anonymous.status).toBe(401);
+    const anonymousMethod = await fetch(`${base}/v1/funding-requests`, { method: 'DELETE' });
+    expect(anonymousMethod.status).toBe(401);
+    const bearer = await token('t1');
+    const wrong = await fetch(`${base}/v1/funding-requests`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${bearer}` },
+    });
+    expect(wrong.status).toBe(405);
+    expect(wrong.headers.get('allow')).toBe('POST');
+    expect(((await wrong.json()) as { type: string }).type).toBe(
+      'https://errors.funding.example/method-not-allowed',
+    );
+    const unknown = await fetch(`${base}/v1/nope`, {
+      headers: { authorization: `Bearer ${bearer}` },
+    });
+    expect(unknown.status).toBe(404);
+  });
 });

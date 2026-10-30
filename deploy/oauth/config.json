@@ -8,7 +8,7 @@
       "requestMappings": [
         {
           "requestParam": "client_id",
-          "match": "funding-service.*",
+          "match": "funding-service\\..+",
           "claims": {
             "sub": "${client_id}",
             "aud": ["capacity-service"],
@@ -18,7 +18,7 @@
         },
         {
           "requestParam": "scope",
-          "match": "funding:*",
+          "match": ".*funding:.*",
           "claims": {
             "sub": "${client_id}",
             "aud": ["funding-service"],

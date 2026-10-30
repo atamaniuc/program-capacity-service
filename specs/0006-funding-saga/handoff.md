@@ -428,3 +428,17 @@ funding int/e2e:  Test Files  2 passed (2)    Tests  15 passed (15)
 ```
 
 The earlier failures were Docker-host contention, not code.
+
+### Review fixes M1, m1–m3 (2026-10-30, agent `funding`)
+
+M1: `deploy/oauth/config.json` matches are `funding-service\\..+` and `.*funding:.*`; unit test
+`test/unit/oauth-mapping.test.ts` replays mock-oauth2-server's first-match, whole-value regex rule
+over the committed file and asserts `aud`. The live check (mint from the real mock container)
+is not written yet: it needs Docker. m1: every `/v1/` request is authenticated before routing;
+405 is `method-not-allowed` with `Allow`. m2: compose healthcheck `pg_isready -h 127.0.0.1 -U
+funding -d funding`, runbook entry "first boot after the database split" (`make down -v` once).
+m3: three new FS-02 e2e cases (409 stored and replayed under a key; JWKS outage -> 503 with
+`Retry-After`; auth before routing). m4 is for T11.
+`make verify`: `✔ verify passed` (funding unit 7 files / 30 tests). **The three new e2e cases in
+`api.e2e.test.ts` and the live mock-token check have not been run:** Docker belongs to k8s until the
+coordinator releases it; run `vitest run --project int` in `services/funding` first thing after.

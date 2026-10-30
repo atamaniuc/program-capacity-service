@@ -254,6 +254,48 @@ promised, with the invariants intact.
 **Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
 (ADR 025).
 
+## 2026-10-30 — Architect review of lane 0006 T7 fixes, T8, T9: APPROVE WITH FIXES
+
+Reviewed cold at 9b89069 and e6da9a8. No BLOCKER; no second review. T7, T8, T9 stay ticked;
+the fixes below land in the `funding` lane before T11 starts.
+
+- **The money and idempotency path is right as built.** Amount parsed with `parseMoney`
+  (bigint, scale, `> 0`, BIGINT bound) before the key is claimed, so a 400 never takes it
+  (ADR 006 table). Key claim `INSERT … ON CONFLICT DO NOTHING`, no `FOR UPDATE`; then the
+  natural-key insert; outbox and stored response in the same transaction with `lock_timeout`
+  and `statement_timeout`. Lock order key → `funding_request`, so no deadlock between keyed and
+  unkeyed requests for one invoice. The 20-call burst test fails if the claim is removed
+  (19 answers become 200).
+- **M1 — the mock OAuth2 scope mapping does not match.** mock-oauth2-server treats `match` as a
+  regular expression (`*` alone is the wildcard). `"funding:*"` matches `funding`, `funding:`,
+  never `funding:write funding:read`, so a compose token for the funding API falls through to
+  the default mapping with `aud` `capacity-service` and the API answers 401. The e2e test signs
+  its own tokens and cannot see it. Fix: `"match": ".*funding:.*"`, and a compose check that
+  mints a funding token and asserts `aud` (part of T11's compose wiring at the latest).
+  `funding-service.*` works only because it is also a valid regex; write it `funding-service\\..+`.
+- **m1 — funding answers before authenticating on unknown routes and wrong methods** (404/405
+  without a token). ADR 011's rule applies to funding too: authenticate every `/v1/` request
+  first, then route. A 405 gets its own type `method-not-allowed`, not `not-found`.
+- **m2 — compose healthcheck races the init script.** `pg_isready` over the Unix socket is
+  ready while the entrypoint's temporary server runs `init-databases.sh`, before the roles exist.
+  Use `pg_isready -h 127.0.0.1 -U funding -d funding` (the temporary server has no TCP
+  listener). An existing volume from before 9b89069 has no `funding` database and a superuser
+  `capacity`: the runbook says `make down -v` once.
+- **m3 — ADR 006 cases without a test.** A business rejection under a key is stored and
+  replayed (409 with key `k`, then the same body and key: 409 again, one `idempotency_key` row
+  with status 409); a JWKS outage answers 503 with `Retry-After`. Add both under `FS-02`.
+- **m4 — the `${tenant_id}` request-param mapping for `funding-service.<tenant>` clients.** If
+  the minter omits the form parameter the claim is the literal placeholder and capacity answers
+  404 for every program. T11's client sends it and a test asserts the claim.
+- **Accepted:** plain SQL migrations under a transaction-scoped advisory lock (ADR 012 says
+  exactly this; "Kysely SQL migrations" in tasks.md means the same). `saga_step_attempt` has no
+  `tenant_id`: it is reached only through a tenant-filtered `funding_request`; any future read
+  API joins through it. Unit-project `testTimeout` 30 s is load headroom, not a mask.
+
+**Why:** an unkeyed and a keyed retry must never produce two funding requests or a second
+reserve, and that holds; the findings are on the edges (dev token issuance, anonymous probing,
+first boot) that would make the demo fail or leak routes, not on the money path.
+
 ## 2026-10-30 — Architect re-review of lane 0006 T5: APPROVE
 
 APPROVE at 76d6020: every first-review finding fixed and probed. T5 ticked.

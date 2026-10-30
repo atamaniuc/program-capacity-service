@@ -165,6 +165,13 @@ On call:
 - `Release` (the compensation) has no such limit. `release_ref` is a permanent natural key in
   capacity (ADR 006), so a compensation retried days later still replays its stored result.
 
+### Funding: first boot after the database split (branch `microservices`)
+
+The compose PostgreSQL now starts as the bootstrap role `postgres`, and `init-databases.sh`
+creates the `capacity` and `funding` roles and databases once, on an empty data directory. A
+volume from before that change has a superuser `capacity` and no `funding` database, and the
+init script never runs on it. Run `make down -v` once, then `make up`.
+
 ## Deploys and shutdown
 
 The service handles SIGTERM: readiness turns false at once so the load balancer drains, in-flight
