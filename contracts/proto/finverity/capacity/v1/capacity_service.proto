@@ -43,6 +43,9 @@ enum ReserveResult {
 message ReserveResponse {
   ReserveResult result = 1;
   Reservation reservation = 2;
+  // The REST CapacitySnapshot only: program_id, currency_code, limit, reserved, available and
+  // version. over_limit_by, utilization and treasury_seq stay unset; GetAvailability has the
+  // full view.
   Capacity capacity = 3;
 }
 
@@ -62,8 +65,26 @@ enum ReleaseReason {
 }
 
 message ReleaseResponse {
-  Reservation reservation = 1;
+  // Not set (ADR 024): the release view is not a reservation view. Use release.
+  Reservation reservation = 1 [deprecated = true];
+  // The REST CapacitySnapshot only (see ReserveResponse.capacity).
   Capacity capacity = 2;
+  // The REST Release body.
+  Release release = 3;
+}
+
+// Release-level view, the REST Release body (ADR 024).
+message Release {
+  string release_ref = 1;
+  string reservation_id = 2;
+  ReservationStatus reservation_status = 3;
+  ReleaseReason reason = 4;
+  // REST invoiceAmount: repaid, in invoice currency.
+  Money repaid_amount = 5;
+  // Capacity this release freed, in program currency.
+  Money released_amount = 6;
+  // What the reservation still holds, in program currency.
+  Money remaining_amount = 7;
 }
 
 message GetAvailabilityRequest {

@@ -33,6 +33,7 @@ describe('ops endpoints', () => {
       APP_ROLE: 'api',
       HTTP_PORT: String(httpPort),
       OPS_PORT: String(await freePort()),
+      GRPC_PORT: String(await freePort()),
       DATABASE_URL: postgres.url,
       KAFKA_BROKERS: 'localhost:9092',
       OAUTH_ISSUER: 'http://localhost:8081/default',

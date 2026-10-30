@@ -167,7 +167,14 @@ export interface ReserveRequest {
 
 export interface ReserveResponse {
   result: ReserveResult;
-  reservation: Reservation | undefined;
+  reservation:
+    | Reservation
+    | undefined;
+  /**
+   * The REST CapacitySnapshot only: program_id, currency_code, limit, reserved, available and
+   * version. over_limit_by, utilization and treasury_seq stay unset; GetAvailability has the
+   * full view.
+   */
   capacity: Capacity | undefined;
 }
 
@@ -181,8 +188,38 @@ export interface ReleaseRequest {
 }
 
 export interface ReleaseResponse {
-  reservation: Reservation | undefined;
-  capacity: Capacity | undefined;
+  /**
+   * Not set (ADR 024): the release view is not a reservation view. Use release.
+   *
+   * @deprecated
+   */
+  reservation:
+    | Reservation
+    | undefined;
+  /** The REST CapacitySnapshot only (see ReserveResponse.capacity). */
+  capacity:
+    | Capacity
+    | undefined;
+  /** The REST Release body. */
+  release: Release | undefined;
+}
+
+/** Release-level view, the REST Release body (ADR 024). */
+export interface Release {
+  releaseRef: string;
+  reservationId: string;
+  reservationStatus: ReservationStatus;
+  reason: ReleaseReason;
+  /** REST invoiceAmount: repaid, in invoice currency. */
+  repaidAmount:
+    | Money
+    | undefined;
+  /** Capacity this release freed, in program currency. */
+  releasedAmount:
+    | Money
+    | undefined;
+  /** What the reservation still holds, in program currency. */
+  remainingAmount: Money | undefined;
 }
 
 export interface GetAvailabilityRequest {
@@ -694,7 +731,7 @@ export const ReleaseRequest: MessageFns<ReleaseRequest> = {
 };
 
 function createBaseReleaseResponse(): ReleaseResponse {
-  return { reservation: undefined, capacity: undefined };
+  return { reservation: undefined, capacity: undefined, release: undefined };
 }
 
 export const ReleaseResponse: MessageFns<ReleaseResponse> = {
@@ -704,6 +741,9 @@ export const ReleaseResponse: MessageFns<ReleaseResponse> = {
     }
     if (message.capacity !== undefined) {
       Capacity.encode(message.capacity, writer.uint32(18).fork()).join();
+    }
+    if (message.release !== undefined) {
+      Release.encode(message.release, writer.uint32(26).fork()).join();
     }
     return writer;
   },
@@ -737,6 +777,14 @@ export const ReleaseResponse: MessageFns<ReleaseResponse> = {
             message.capacity = Capacity.decode(reader, reader.uint32());
             continue;
           }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.release = Release.decode(reader, reader.uint32());
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -753,6 +801,7 @@ export const ReleaseResponse: MessageFns<ReleaseResponse> = {
     return {
       reservation: isSet(object.reservation) ? Reservation.fromJSON(object.reservation) : undefined,
       capacity: isSet(object.capacity) ? Capacity.fromJSON(object.capacity) : undefined,
+      release: isSet(object.release) ? Release.fromJSON(object.release) : undefined,
     };
   },
 
@@ -763,6 +812,9 @@ export const ReleaseResponse: MessageFns<ReleaseResponse> = {
     }
     if (message.capacity !== undefined) {
       obj.capacity = Capacity.toJSON(message.capacity);
+    }
+    if (message.release !== undefined) {
+      obj.release = Release.toJSON(message.release);
     }
     return obj;
   },
@@ -777,6 +829,212 @@ export const ReleaseResponse: MessageFns<ReleaseResponse> = {
       : undefined;
     message.capacity = (object.capacity !== undefined && object.capacity !== null)
       ? Capacity.fromPartial(object.capacity)
+      : undefined;
+    message.release = (object.release !== undefined && object.release !== null)
+      ? Release.fromPartial(object.release)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseRelease(): Release {
+  return {
+    releaseRef: "",
+    reservationId: "",
+    reservationStatus: 0,
+    reason: 0,
+    repaidAmount: undefined,
+    releasedAmount: undefined,
+    remainingAmount: undefined,
+  };
+}
+
+export const Release: MessageFns<Release> = {
+  encode(message: Release, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.releaseRef !== "") {
+      writer.uint32(10).string(message.releaseRef);
+    }
+    if (message.reservationId !== "") {
+      writer.uint32(18).string(message.reservationId);
+    }
+    if (message.reservationStatus !== 0) {
+      writer.uint32(24).int32(message.reservationStatus);
+    }
+    if (message.reason !== 0) {
+      writer.uint32(32).int32(message.reason);
+    }
+    if (message.repaidAmount !== undefined) {
+      Money.encode(message.repaidAmount, writer.uint32(42).fork()).join();
+    }
+    if (message.releasedAmount !== undefined) {
+      Money.encode(message.releasedAmount, writer.uint32(50).fork()).join();
+    }
+    if (message.remainingAmount !== undefined) {
+      Money.encode(message.remainingAmount, writer.uint32(58).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Release {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseRelease();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.releaseRef = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.reservationId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.reservationStatus = reader.int32() as any;
+            continue;
+          }
+          case 4: {
+            if (tag !== 32) {
+              break;
+            }
+
+            message.reason = reader.int32() as any;
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.repaidAmount = Money.decode(reader, reader.uint32());
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.releasedAmount = Money.decode(reader, reader.uint32());
+            continue;
+          }
+          case 7: {
+            if (tag !== 58) {
+              break;
+            }
+
+            message.remainingAmount = Money.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): Release {
+    return {
+      releaseRef: isSet(object.releaseRef)
+        ? globalThis.String(object.releaseRef)
+        : isSet(object.release_ref)
+        ? globalThis.String(object.release_ref)
+        : "",
+      reservationId: isSet(object.reservationId)
+        ? globalThis.String(object.reservationId)
+        : isSet(object.reservation_id)
+        ? globalThis.String(object.reservation_id)
+        : "",
+      reservationStatus: isSet(object.reservationStatus)
+        ? reservationStatusFromJSON(object.reservationStatus)
+        : isSet(object.reservation_status)
+        ? reservationStatusFromJSON(object.reservation_status)
+        : 0,
+      reason: isSet(object.reason) ? releaseReasonFromJSON(object.reason) : 0,
+      repaidAmount: isSet(object.repaidAmount)
+        ? Money.fromJSON(object.repaidAmount)
+        : isSet(object.repaid_amount)
+        ? Money.fromJSON(object.repaid_amount)
+        : undefined,
+      releasedAmount: isSet(object.releasedAmount)
+        ? Money.fromJSON(object.releasedAmount)
+        : isSet(object.released_amount)
+        ? Money.fromJSON(object.released_amount)
+        : undefined,
+      remainingAmount: isSet(object.remainingAmount)
+        ? Money.fromJSON(object.remainingAmount)
+        : isSet(object.remaining_amount)
+        ? Money.fromJSON(object.remaining_amount)
+        : undefined,
+    };
+  },
+
+  toJSON(message: Release): unknown {
+    const obj: any = {};
+    if (message.releaseRef !== "") {
+      obj.releaseRef = message.releaseRef;
+    }
+    if (message.reservationId !== "") {
+      obj.reservationId = message.reservationId;
+    }
+    if (message.reservationStatus !== 0) {
+      obj.reservationStatus = reservationStatusToJSON(message.reservationStatus);
+    }
+    if (message.reason !== 0) {
+      obj.reason = releaseReasonToJSON(message.reason);
+    }
+    if (message.repaidAmount !== undefined) {
+      obj.repaidAmount = Money.toJSON(message.repaidAmount);
+    }
+    if (message.releasedAmount !== undefined) {
+      obj.releasedAmount = Money.toJSON(message.releasedAmount);
+    }
+    if (message.remainingAmount !== undefined) {
+      obj.remainingAmount = Money.toJSON(message.remainingAmount);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<Release>): Release {
+    return Release.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Release>): Release {
+    const message = createBaseRelease();
+    message.releaseRef = object.releaseRef ?? "";
+    message.reservationId = object.reservationId ?? "";
+    message.reservationStatus = object.reservationStatus ?? 0;
+    message.reason = object.reason ?? 0;
+    message.repaidAmount = (object.repaidAmount !== undefined && object.repaidAmount !== null)
+      ? Money.fromPartial(object.repaidAmount)
+      : undefined;
+    message.releasedAmount = (object.releasedAmount !== undefined && object.releasedAmount !== null)
+      ? Money.fromPartial(object.releasedAmount)
+      : undefined;
+    message.remainingAmount = (object.remainingAmount !== undefined && object.remainingAmount !== null)
+      ? Money.fromPartial(object.remainingAmount)
       : undefined;
     return message;
   },

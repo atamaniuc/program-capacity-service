@@ -65,25 +65,24 @@ export function reserveResponse(
   };
 }
 
-/**
- * The REST release view names the reservation, its status and the freed and remaining amounts;
- * the proto `Reservation` fields it does not carry (invoice id, fx, reserved amount, creation
- * time) stay at their defaults.
- */
+/** `ReleaseResponse.release` is the REST `Release` body; `reservation` stays unset (ADR 024). */
 export function releaseResponse(programId: string, view: ReleaseView): ReleaseResponse {
   return {
-    reservation: {
+    reservation: undefined,
+    capacity: snapshot(programId, view.remainingAmount.currency, view.capacity),
+    release: {
+      releaseRef: view.releaseRef,
       reservationId: view.reservationId,
-      invoiceId: '',
-      status: STATUS[view.reservationStatus] ?? ReservationStatus.RESERVATION_STATUS_UNSPECIFIED,
-      invoiceAmount: money(view.invoiceAmount),
-      reservedAmount: undefined,
+      reservationStatus:
+        STATUS[view.reservationStatus] ?? ReservationStatus.RESERVATION_STATUS_UNSPECIFIED,
+      reason:
+        view.reason === 'REPAID'
+          ? ReleaseReason.RELEASE_REASON_REPAID
+          : ReleaseReason.RELEASE_REASON_CANCELLED,
+      repaidAmount: money(view.invoiceAmount),
       releasedAmount: money(view.releasedAmount),
       remainingAmount: money(view.remainingAmount),
-      fx: undefined,
-      createdAt: '',
     },
-    capacity: snapshot(programId, view.remainingAmount.currency, view.capacity),
   };
 }
 

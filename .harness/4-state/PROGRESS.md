@@ -77,7 +77,8 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
 - Branch `microservices`, lane 0006 T5 (awaits architect review, not ticked): gRPC server in
   `src/capacity/adapters/in/grpc/` (auth interceptor with default-deny scope table, ErrorInfo in
   `google.rpc.Status`, deadline check, RED metrics and spans, drain on SIGTERM), `GRPC_PORT`,
-  readiness `grpc`, compose host port 60051. Tests GR-04..GR-07.
+  readiness `grpc`, compose host port 127.0.0.1:60051. Tests GR-04..GR-07. Review fixes (additive
+  `Release` message, early-auth and deadline tests) done, awaiting re-review.
 
 - AsyncAPI and contract compatibility (2026-10-29, post-lane like the Swagger UI): event
   schemas in `capacity-events.ts`, builder in `src/platform/contracts/`, `/docs/asyncapi`,

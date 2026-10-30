@@ -62,6 +62,7 @@ only if a task touches them.
 - test/architecture/gateway.test.ts
 - test/support/**
 - test/e2e/transports.e2e.test.ts
+- test/e2e/ops.e2e.test.ts
 - test/e2e/grpc.e2e.test.ts
 - test/fault/grpc-shutdown.fault.test.ts
 - test/pact/**
@@ -204,17 +205,26 @@ Design notes for the reviewer:
   `test/support/grpc-client.ts`.
 - Deadline: checked after authentication, before the use case; grpc-js answers the client
   `DEADLINE_EXCEEDED` itself and the handler is not cancelled once the use case runs (GR-05).
-- Proto gaps (additive follow-up for the architect, not changed here): `ReleaseResponse.reservation`
-  has no field for `release_ref`, `reason` or the repaid amount, so `invoice_id`, `fx`,
-  `reserved_amount`, `created_at` stay default and `invoice_amount` carries the repaid amount;
-  the `Capacity` echoed by Reserve/Release fills program id, currency, limit, reserved,
-  available, version only (`over_limit_by`, `utilization`, `treasury_seq` unset).
-- `test/e2e/ops.e2e.test.ts` (not in Owns) starts the app with the default `GRPC_PORT` 50051; safe
-  because the int project runs files serially, but it should pass a free port.
+- Proto: Release data now travels in `ReleaseResponse.release` (review fix below); the `capacity`
+  echo is the REST CapacitySnapshot only, as the proto comments say.
+- `ops.e2e.test.ts` now passes a free `GRPC_PORT` (fixed in the review round).
 
-Next: architect review of T5; on APPROVE tick T5 with markers
+T5 review fixes done (2026-10-30, architect verdict CHANGES REQUIRED, rulings in 1393fef),
+**awaiting re-review; T5 still NOT ticked**. MAJOR 1: proto `ReleaseResponse.release = 3` (new
+`Release` message), `reservation = 1` deprecated and never set, both stub copies regenerated,
+GR-06 asserts the `release` fields of two partial releases against the REST view. MAJOR 2: GR-04
+test on a server of its own (verifier rejects after 200 ms, empty and valid programId, execute never
+called); mutant with hold-back and principal check removed fails it (`code 3` instead of 16).
+MINOR 1 compose host port is `127.0.0.1:${HOST_PORT_API_GRPC:-60051}:50051` (isolation regex
+accepts the prefix). MINOR 2 `in/grpc/server.test.ts` calls the handler with a fake past-deadline
+call (handlers exposed on `GrpcServer`; the deadline check now runs before the principal lookup);
+with the check disabled it fails (`code 16` instead of 4). MINOR 3 proto comments on both
+`capacity` fields. MINOR 4 `ops.e2e.test.ts` passes a free `GRPC_PORT` (added to Owns). NOTE 1 a
+span for interceptor auth failures.
+
+Next: architect re-review of T5; on APPROVE tick T5 with markers
 `test/e2e/grpc.e2e.test.ts#GR-04`, `#GR-05`, `#GR-06` and `test/fault/grpc-shutdown.fault.test.ts#GR-07`,
-then T6 (acceptance cases over both transports).
+then T6.
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and

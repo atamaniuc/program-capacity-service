@@ -144,7 +144,7 @@ services:
       OAUTH_TOKEN_URL: http://localhost:${HOST_PORT_OAUTH:-18081}/default/token
     ports:
       - '${HOST_PORT_API:-13000}:3000'
-      - '${HOST_PORT_API_GRPC:-60051}:50051'
+      - '127.0.0.1:${HOST_PORT_API_GRPC:-60051}:50051'
       - '${HOST_PORT_API_OPS:-19464}:9464'
 
   worker:

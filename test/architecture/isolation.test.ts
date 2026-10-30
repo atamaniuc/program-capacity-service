@@ -67,7 +67,8 @@ describe('side-by-side isolation from main', () => {
     const text = read('deploy/compose.yaml');
     const mappings = [...text.matchAll(/^\s+- '([^']+:\d+)'$/gm)].map((m) => m[1] ?? '');
     expect(mappings.length).toBeGreaterThan(0);
-    for (const mapping of mappings) expect(mapping).toMatch(/^\$\{HOST_PORT_[A-Z_]+:-\d+\}:/);
+    for (const mapping of mappings)
+      expect(mapping).toMatch(/^(127\.0\.0\.1:)?\$\{HOST_PORT_[A-Z_]+:-\d+\}:/);
   });
 
   it('MS-01 advertises the shifted Kafka host port', () => {

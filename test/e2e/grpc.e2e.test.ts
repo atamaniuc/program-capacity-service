@@ -3,9 +3,11 @@ import { sql } from 'kysely';
 import pg from 'pg';
 import { Registry } from 'prom-client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { BoundaryProblem } from '#src/capacity/adapters/in/boundary/problem.js';
 import { JwtVerifier } from '#src/capacity/adapters/in/boundary/auth.js';
 import {
   ReleaseReason,
+  ReservationStatus,
   ReserveResult,
 } from '#src/capacity/adapters/in/grpc/generated/finverity/capacity/v1/capacity_service.js';
 import { createGrpcServer, METHOD_SCOPES } from '#src/capacity/adapters/in/grpc/server.js';
@@ -158,6 +160,32 @@ describe('gRPC adapter', () => {
         const result = await own.getAvailability({ programId: 'grand-usd' }, { token });
         expect(result).toMatchObject({ ok: false, code: status.UNAVAILABLE });
         if (!result.ok) expect(result.info?.reason).toBe('service-unavailable');
+        own.close();
+        await server.stop();
+      });
+
+      it('GR-04 answers UNAUTHENTICATED for a late rejection before the message is validated or any use case runs', async () => {
+        const execute = vi.fn();
+        const server = await serve({
+          verifier: {
+            authenticate: async () => {
+              await new Promise((resolve) => setTimeout(resolve, 200));
+              throw new BoundaryProblem('unauthorized', 'The bearer token is invalid or expired.');
+            },
+          },
+          reserveCapacity: { execute } as unknown as ReserveCapacity,
+        });
+        const own = grpcTestClient(server.target);
+        // An empty programId would be INVALID_ARGUMENT, and a valid one would reach the use case.
+        for (const programId of ['', 'grand-usd']) {
+          const result = await own.reserve(reserveRequest('INV-EARLY', '10.00', programId), {
+            token: 'ignored',
+            idempotencyKey: 'gr04-early',
+          });
+          expect(result).toMatchObject({ ok: false, code: status.UNAUTHENTICATED });
+          if (!result.ok) expect(result.info?.reason).toBe('unauthorized');
+        }
+        expect(execute).not.toHaveBeenCalled();
         own.close();
         await server.stop();
       });
@@ -334,14 +362,55 @@ describe('gRPC adapter', () => {
       const first = await client.release(release, { token, idempotencyKey: 'gr06-b6-rel' });
       const again = await client.release(release, { token, idempotencyKey: 'gr06-b6-rel' });
       expect(first.ok && again.ok).toBe(true);
-      if (first.ok && again.ok) {
-        expect(first.value.reservation).toMatchObject({
-          reservationId,
-          releasedAmount: usd('100.00'),
-          remainingAmount: usd('200.00'),
-        });
-        expect(again.value).toEqual(first.value);
-      }
+      if (!first.ok || !again.ok) return;
+      expect(again.value).toEqual(first.value);
+      expect(first.value.reservation).toBeUndefined();
+      expect(first.value.release).toEqual({
+        releaseRef: 'repay-b6',
+        reservationId,
+        reservationStatus: ReservationStatus.RESERVATION_STATUS_PARTIALLY_RELEASED,
+        reason: ReleaseReason.RELEASE_REASON_REPAID,
+        repaidAmount: usd('100.00'),
+        releasedAmount: usd('100.00'),
+        remainingAmount: usd('200.00'),
+      });
+
+      // A second, partial release; the REST replay of the same key is the reference view.
+      const second = await client.release(
+        { ...release, releaseRef: 'cancel-b6', reason: ReleaseReason.RELEASE_REASON_CANCELLED },
+        { token, idempotencyKey: 'gr06-b6-rel2' },
+      );
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      const rest = await app.request(
+        'POST',
+        `/v1/programs/grand-usd/reservations/${reservationId}/releases`,
+        {
+          headers: { 'idempotency-key': 'gr06-b6-rel2' },
+          body: {
+            releaseRef: 'cancel-b6',
+            reason: 'CANCELLED',
+            amount: { value: '100.00', currency: 'USD' },
+          },
+        },
+      );
+      const view = rest.body as {
+        releaseRef: string;
+        reservationStatus: string;
+        invoiceAmount: { value: string };
+        releasedAmount: { value: string };
+        remainingAmount: { value: string };
+      };
+      expect(second.value.release).toEqual({
+        releaseRef: view.releaseRef,
+        reservationId,
+        reservationStatus: ReservationStatus.RESERVATION_STATUS_PARTIALLY_RELEASED,
+        reason: ReleaseReason.RELEASE_REASON_CANCELLED,
+        repaidAmount: usd(view.invoiceAmount.value),
+        releasedAmount: usd(view.releasedAmount.value),
+        remainingAmount: usd(view.remainingAmount.value),
+      });
+      expect(view.remainingAmount.value).toBe('100.00');
       const unspecified = await client.release(
         { ...release, reason: 0, releaseRef: 'x' },
         { token },

@@ -72,6 +72,12 @@ export interface GrpcServer {
   listen(port: number): Promise<number>;
   /** Readiness: rejects once the server stopped accepting calls. */
   check(): Promise<void>;
+  /** The unary handlers, for unit tests that call them with a fake call. */
+  readonly handlers: {
+    readonly reserve: handleUnaryCall<ReserveRequest, ReserveResponse>;
+    readonly release: handleUnaryCall<ReleaseRequest, ReleaseResponse>;
+    readonly getAvailability: handleUnaryCall<GetAvailabilityRequest, GetAvailabilityResponse>;
+  };
   /** Refuses new calls, lets in-flight calls finish, forces shutdown after `deadlineMs`. */
   drain(deadlineMs: number): Promise<void>;
 }
@@ -181,7 +187,18 @@ export function createGrpcServer(deps: GrpcServerDeps): GrpcServer {
                 return true;
               },
               (error: unknown) => {
-                const response = statusOf(failureOf(error, deps.onError));
+                const failure = failureOf(error, deps.onError);
+                const response = statusOf(failure);
+                const span = tracer.startSpan(path.slice(1), {
+                  attributes: {
+                    'rpc.system': 'grpc',
+                    'rpc.service': 'finverity.capacity.v1.CapacityService',
+                    'rpc.method': shortName(path),
+                    'rpc.grpc.status_code': response.code,
+                  },
+                });
+                span.setStatus({ code: SpanStatusCode.ERROR, message: failure.type });
+                span.end();
                 record(path, response.code, startedAt);
                 call.sendStatus(response);
                 return false;
@@ -236,11 +253,6 @@ export function createGrpcServer(deps: GrpcServerDeps): GrpcServer {
         record(path, response.code, startedAt);
         callback(response);
       };
-      const principal = principals.get(call.metadata);
-      if (principal === undefined) {
-        fail({ type: 'unauthorized', detail: 'A bearer token is required.' });
-        return;
-      }
       // The deadline is checked before the transaction opens; once it opens it is not abandoned.
       const remainingMs = Number(call.getDeadline()) - Date.now();
       if (remainingMs <= 0) {
@@ -250,6 +262,11 @@ export function createGrpcServer(deps: GrpcServerDeps): GrpcServer {
         span.end();
         record(path, code, startedAt);
         callback({ code, details: 'The deadline passed before the call started.' });
+        return;
+      }
+      const principal = principals.get(call.metadata);
+      if (principal === undefined) {
+        fail({ type: 'unauthorized', detail: 'A bearer token is required.' });
         return;
       }
       const requestId = requestIdOf(firstString(call.metadata, 'x-request-id'), randomUUID);
@@ -358,6 +375,7 @@ export function createGrpcServer(deps: GrpcServerDeps): GrpcServer {
   let state: 'new' | 'serving' | 'draining' = 'new';
 
   return {
+    handlers: implementation,
     listen: (port) =>
       new Promise<number>((resolve, reject) => {
         server.bindAsync(`0.0.0.0:${port}`, ServerCredentials.createInsecure(), (error, bound) => {
