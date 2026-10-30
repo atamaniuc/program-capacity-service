@@ -84,6 +84,17 @@ spec:
           step('GW-02 a foreign issuer is refused at the edge', async () => {
             await gatewayRefusal('foreign issuer', await get(G, PROGRAM + '/capacity', await mint(process.env.FOREIGN_TOKEN_URL, 'bank-a')));
           });
+          const FUNDING_SCOPE = 'funding:write funding:read';
+          const FUNDING_PATH = '/v1/funding-requests/x';
+          step('GW-02 funding route: a bad signature is refused at the edge', async () => {
+            if (process.env.FUNDING_DEPLOYED !== 'true') return 'SKIP';
+            const t = await mint(process.env.ISSUER + '/token', 'bank-a', FUNDING_SCOPE);
+            await gatewayRefusal('funding bad signature', await get(G, FUNDING_PATH, t.slice(0, -6) + 'AAAAAA'));
+          });
+          step('GW-02 funding route: a foreign issuer is refused at the edge', async () => {
+            if (process.env.FUNDING_DEPLOYED !== 'true') return 'SKIP';
+            await gatewayRefusal('funding foreign issuer', await get(G, FUNDING_PATH, await mint(process.env.FOREIGN_TOKEN_URL, 'bank-a', FUNDING_SCOPE)));
+          });
           step('GW-02 a capacity token on the funding route (wrong aud) is refused at the edge', async () => {
             // Envoy's JWT filter answers an audience mismatch 403 (ADR 029), not 401.
             const res = await get(G, '/v1/funding-requests/x', await issuerToken());
@@ -98,11 +109,14 @@ spec:
               assert.match(res.headers.get('content-type') ?? '', /problem\+json/);
             }
           });
-          step('GW-03 the funding service refuses a direct call without a token', async () => {
+          step('GW-03 the funding service refuses a direct call without a token or with a foreign issuer', async () => {
             if (process.env.FUNDING_DEPLOYED !== 'true') return 'SKIP';
-            const res = await get(process.env.FUNDING_DIRECT, '/v1/funding-requests/x');
-            assert.equal(res.status, 401);
-            assert.match(res.headers.get('content-type') ?? '', /problem\+json/);
+            const foreign = await mint(process.env.FOREIGN_TOKEN_URL, 'bank-a', FUNDING_SCOPE);
+            for (const t of [undefined, foreign]) {
+              const res = await get(process.env.FUNDING_DIRECT, FUNDING_PATH, t);
+              assert.equal(res.status, 401, 'direct funding call: expected 401, got ' + res.status);
+              assert.match(res.headers.get('content-type') ?? '', /problem\+json/);
+            }
           });
           step('GW-04 the local limit answers 429 after L requests, per tenant, 401s excluded', async () => {
             const L = Number(process.env.LIMIT);

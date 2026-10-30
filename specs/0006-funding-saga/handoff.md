@@ -439,6 +439,31 @@ Open before the live run (K8-03, M2(c)); not exercised, nothing was installed in
 - `deploy/compose.yaml`, the payments host port 13200 -> 3200 and ops 9466, alerts and the demo
   are the funding agent's T14 part; the `test.saga` flag of `helm test funding` is still off.
 
+### Live kind run with funding (agent `k8s`, 2026-10-30, after merging T11–T14 `08760a5`)
+
+`make kind-up`: exit 0, funding api/worker Ready (ops 9464 probes match T14), payments-mock up,
+gateway Programmed. `make kind-smoke`: `SMOKE_EXIT=0`, `✔ kind smoke passed`:
+`OK capacity: 401 without token, 404 with token, gRPC port open`;
+`OK funding: ready, 401 without token`;
+`OK saga: completed (+100.00), declined request compensated (reserved back)` (K8-03);
+`helm test gateway`: `13 passed, 0 failed, 0 skipped`, including the funding half (M2 c): GW-01 POST
+202 + `Location`, GW-02 bad signature and foreign `iss` on the funding route, GW-03 funding with no
+token and with a foreign `iss`.
+
+Found live and fixed (chart, not funding code): the mock OAuth2 Deployment had no config checksum,
+so after the mapping change the old Pod kept issuing `aud=capacity-service` for `funding:` scopes
+and funding answered the saga submit 401; `checksum/config` on the Pod template now restarts it
+(static test K8-01). The cluster `finverity-ms` is left up.
+
+Still NOT exercised (do not read the green run as covering these):
+- `make kind-forward` / `make kind-token` from the host through the gateway (`Host: localhost:…`):
+  the one attempt was blocked by the tool permission layer (a broad process kill) and not retried.
+- GW-02 with an expired token and the CORS preflight at the edge; GW-05 live "capacity records no
+  gRPC call".
+- K8-03 runs the saga directly against the funding Service, not through the gateway; compensation
+  after a capacity-side failure and the `FAULT-TIMEOUT` / `FAULT-5XX` markers are not driven in kind.
+- `make test` was not re-run in this worktree after the merge; `make kind-down` was not run.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.
