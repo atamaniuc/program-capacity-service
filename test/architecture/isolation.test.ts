@@ -250,3 +250,30 @@ describe('kind targets (ADR 026)', () => {
     for (const node of cluster.nodes) expect(node.extraPortMappings).toBeUndefined();
   });
 });
+
+describe('mock OAuth2 config copies (ADR 026)', () => {
+  const compose = 'deploy/oauth/config.json';
+  const chart = 'deploy/helm/local-infra/files/oauth-config.json';
+
+  it('K8-01 the chart carries the same mock OAuth2 config as compose, byte for byte', () => {
+    expect(read(chart)).toBe(read(compose));
+  });
+
+  it('K8-01 the config maps a funding: scope to the funding audience and keeps the capacity default', () => {
+    const config = JSON.parse(read(chart)) as {
+      tokenCallbacks: {
+        requestMappings: { requestParam: string; match: string; claims: { aud: string[] } }[];
+      }[];
+    };
+    const mappings = config.tokenCallbacks[0]?.requestMappings ?? [];
+    const funding = mappings.find(
+      (m) => m.requestParam === 'scope' && m.match.includes('funding:'),
+    );
+    expect(funding?.claims.aud).toEqual(['funding-service']);
+    expect(mappings.at(-1)).toMatchObject({
+      requestParam: 'client_id',
+      match: '*',
+      claims: { aud: ['capacity-service'] },
+    });
+  });
+});
