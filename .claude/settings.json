@@ -5,18 +5,48 @@
   "hooks": {
     "SessionStart": [
       {
-        "hooks": [{ "type": "command", "command": "npx --no-install harnessimo brief" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no-install harnessimo brief"
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "hooks": [{ "type": "command", "command": "npx --no-install harnessimo check" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no-install harnessimo check"
+          }
+        ]
       }
     ],
     "SubagentStop": [
       {
-        "hooks": [{ "type": "command", "command": "npx --no-install harnessimo check" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no-install harnessimo check"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'npx --no-install harnessimo check >&2 || { echo \"harnessimo check is red: fix it before completing the task\" >&2; exit 2; }'"
+          }
+        ]
       }
     ]
-  }
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "teammateMode": "auto",
+  "subagentPromptCacheTtl": "1h"
 }
