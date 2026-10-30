@@ -254,6 +254,38 @@ promised, with the invariants intact.
 **Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
 (ADR 025).
 
+## 2026-10-30 — Architect review of lane 0006 T16 + T16a (kind, API gateway): rulings
+
+APPROVE WITH FIXES at 39f15e4: 0 BLOCKER, 2 MAJOR, 5 MINOR (fix list in the lane handoff).
+T16 and T16a stay ticked; both MAJORs bite only when the funding release first lands in kind.
+
+- **Wrong audience at the edge is 403, accepted.** Envoy's `jwt_authn` maps
+  `JwtAudienceNotAllowed` to 403 and the other token failures (missing, signature, `exp`,
+  unknown `iss`) to 401. This is Envoy's behaviour, not configuration, and it is the more precise
+  answer: the token is authentic but not for this API. What GW-02 must prove is unchanged: the
+  edge refuses it and the body is not `application/problem+json`, so the service never saw it.
+  The services keep ADR 011 (wrong `aud` → 401 at the service); `docs/api.md` lists both.
+- **Edge tenant handling is sound.** `x-tenant-id` is removed in `earlyRequestHeaders` and set
+  only by `claimToHeaders` from the verified token, used only as the rate-limit key; no service
+  reads it (grep of `src/` and `services/`: no match). The tenant still comes from the token in
+  each service (ADR 011). A token without `tenant_id` escapes the per-tenant limit; accepted in
+  kind (the mock always sets it, the services 401 without it), revisit with a real IdP.
+- **Defence in depth holds.** The gateway forwards `Authorization` (GW-01 200 through the edge
+  proves capacity re-verified it); GW-03 proves capacity refuses a direct ClusterIP call without a
+  token and with a foreign-issuer token, with an RFC 9457 body.
+- **Isolation from `main` holds.** No `extraPortMappings`; every `kubectl`/`helm` call goes
+  through `$(KUBECTL)`/`$(HELM)` with the `.kind/kubeconfig` file and context (K8-04 asserts it);
+  `kind create`/`export`/`delete` pass `--kubeconfig` (not yet asserted, m2); forwards stay in
+  23000–23099; `.kind/` is git-ignored.
+- **Skipped funding checks: honest, but not self-arming.** GW-03 (funding) turns on by itself when
+  `funding-service:ms-local` exists. GW-01 (funding) turns on and fails on purpose (a placeholder),
+  and could not pass anyway: the mock issues no `aud=funding-service` token, and kind-up leaves
+  funding's `oauth.tokenUrl` at the short Service name, so its capacity tokens carry a foreign
+  `iss` (ADR 029 violation). Fixed before funding is deployed (M1, M2).
+
+**Why:** the gateway is the branch's answer to ADR 017's trigger; it must not weaken ADR 011,
+and a green smoke must mean what it says for both routes, not only capacity's.
+
 ## 2026-10-30 — Architect re-review of lane 0006 T5: APPROVE
 
 APPROVE at 76d6020: every first-review finding fixed and probed. T5 ticked.

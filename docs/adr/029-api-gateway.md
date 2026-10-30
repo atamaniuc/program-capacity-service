@@ -68,8 +68,8 @@ Three constraints shape the design:
   only for OIDC discovery, which is not used. `cacheDuration: 30s`, so a restarted mock OAuth2
   Pod (new keys) is picked up quickly.
 - Envoy Gateway's JWT filter runs before the local rate limit filter (its fixed filter order:
-  CORS, then JWT, then local rate limit). A request without a valid token answers 401 and does
-  not consume a rate-limit token. CORS preflights are answered before the JWT check, as browsers
+  CORS, then JWT, then local rate limit). A request without a valid token is refused (401, or 403
+  for a wrong audience) and does not consume a rate-limit token. CORS preflights are answered before the JWT check, as browsers
   expect.
 - The gateway forwards the original `Authorization` header (Envoy Gateway sets the JWT filter's
   `forward`), so **each service verifies the same token again** with its own issuer, audience

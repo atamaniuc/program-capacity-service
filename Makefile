@@ -230,7 +230,8 @@ kind-up: ## create the kind cluster, build and load the :ms-local images, instal
 	  --set-string oauth.issuer=$(KIND_OAUTH_ISSUER) --set-string corsOrigins=
 	@if docker image inspect funding-service:ms-local >/dev/null 2>&1; then \
 	  $(HELM) upgrade --install funding deploy/helm/funding --wait --timeout 6m \
-	    --set-string oauth.issuer=$(KIND_OAUTH_ISSUER) --set-string corsOrigins=; \
+	    --set-string oauth.issuer=$(KIND_OAUTH_ISSUER) --set-string oauth.tokenUrl=$(KIND_OAUTH_ISSUER)/token \
+	    --set-string corsOrigins=; \
 	else printf '$(C_YELLOW)! funding-service:ms-local is not built yet: the funding release is skipped$(C_RESET)\n'; fi
 	@$(MAKE) --no-print-directory kind-seed
 	$(call step,API gateway · Envoy Gateway $(ENVOY_GATEWAY_VERSION) · release gateway)

@@ -32,9 +32,9 @@ spec:
         - |
           const assert = require('node:assert/strict');
           const PROGRAM = '/v1/programs/00000000-0000-4000-8000-000000000000';
-          const mint = async (url, client) => {
+          const mint = async (url, client, scope = 'capacity:read') => {
             const r = await fetch(url, { method: 'POST', body: new URLSearchParams({
-              grant_type: 'client_credentials', client_id: client, client_secret: 's', scope: 'capacity:read' }) });
+              grant_type: 'client_credentials', client_id: client, client_secret: 's', scope }) });
             assert.equal(r.status, 200, 'token endpoint ' + r.status);
             return (await r.json()).access_token;
           };
@@ -58,7 +58,15 @@ spec:
           });
           step('GW-01 funding route reaches funding (POST 202 with Location)', async () => {
             if (process.env.FUNDING_DEPLOYED !== 'true') return 'SKIP';
-            assert.fail('funding is deployed but this check is not written yet: write it with lane 0006 T9');
+            // A scope containing funding: gets aud=funding-service from the mock issuer.
+            const token = await mint(process.env.ISSUER + '/token', 'bank-a', 'funding:write funding:read');
+            const res = await fetch(G + '/v1/funding-requests', { method: 'POST', headers: {
+              authorization: 'Bearer ' + token, 'content-type': 'application/json',
+              'idempotency-key': 'gw-smoke-' + Math.random().toString(36).slice(2, 10) },
+              body: JSON.stringify({ programId: process.env.SEEDED_PROGRAM,
+                invoiceId: 'GW-' + Math.random().toString(36).slice(2, 10), amount: { value: '100.00', currency: 'USD' } }) });
+            assert.equal(res.status, 202, 'status ' + res.status + ' ' + await res.clone().text());
+            assert.match(res.headers.get('location') ?? '', /^\/v1\/funding-requests\//, 'Location');
           });
           step('GW-01 a path under neither prefix answers 404 from the gateway', async () => {
             const res = await get(G, '/v2/anything', await issuerToken());

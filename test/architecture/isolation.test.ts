@@ -212,6 +212,29 @@ describe('kind targets (ADR 026)', () => {
     expect(makefile).not.toContain('~/.kube');
   });
 
+  it('K8-04 passes --kubeconfig to every kind create, export and delete', () => {
+    const calls = makefile
+      .split('\n')
+      .filter((l) => /^\t/.test(l) && /\bkind (create|export|delete)\b/.test(l));
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    for (const call of calls) expect(call).toContain('--kubeconfig $(KUBECONFIG_FILE)');
+  });
+
+  it('K8-04 gives capacity, funding and gateway the one cluster issuer, and funding its token URL', () => {
+    expect(makefile).toMatch(/^KIND_OAUTH_ISSUER := .*svc\.cluster\.local:/m);
+    const up = recipe('kind-up');
+    const release = (name: string) =>
+      up.match(
+        new RegExp(
+          `upgrade --install ${name} deploy/helm/${name}[^@]*?(?=\\n\\t(?:@|\\$\\(|else)|$)`,
+        ),
+      )?.[0] ?? '';
+    for (const name of ['capacity', 'funding'])
+      expect(release(name)).toContain('--set-string oauth.issuer=$(KIND_OAUTH_ISSUER)');
+    expect(release('funding')).toContain('--set-string oauth.tokenUrl=$(KIND_OAUTH_ISSUER)/token');
+    expect(release('gateway')).toContain('--set-string issuer=$(KIND_OAUTH_ISSUER)');
+  });
+
   it('K8-04 forwards only host ports 23000-23099 and the cluster has no host port mapping', () => {
     const forwards = [...recipe('kind-forward').matchAll(/(\d{5}):/g)].map((m) => Number(m[1]));
     expect(forwards.length).toBeGreaterThan(0);
