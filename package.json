@@ -28,6 +28,7 @@
     "seed": "tsx db/seeds/seed.ts",
     "token": "tsx tools/token/token.ts",
     "demo": "tsx tools/demo/demo.ts",
+    "demo:funding": "tsx tools/demo/funding.ts",
     "contracts": "tsx tools/contracts/generate.ts",
     "contracts:check": "tsx tools/contracts/generate.ts --check",
     "proto:lint": "npm run --silent proto:lint -w @finverity/contracts",

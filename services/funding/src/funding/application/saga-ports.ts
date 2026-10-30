@@ -72,3 +72,18 @@ export interface TenantTokens {
   /** After an UNAUTHENTICATED answer the cached token is not trusted again. */
   invalidate(tenantId: string): void;
 }
+
+/** What the metrics read from the database on each scrape (ADR 025, observability). */
+export interface SagaStats {
+  readonly counts: ReadonlyMap<string, number>;
+  /** Age of the oldest request per non-terminal state, in seconds. */
+  readonly oldestAgeSeconds: ReadonlyMap<string, number>;
+  /** Oldest COMPENSATING request whose reservation is still unknown, 0 when none. */
+  readonly oldestUnresolvedReserveAgeSeconds: number;
+}
+
+export interface SagaStatsSource {
+  stats(): Promise<SagaStats>;
+  /** Cheap round trip plus "the newest migration is recorded". */
+  ping(): Promise<void>;
+}

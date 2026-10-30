@@ -15,3 +15,11 @@ scrape_configs:
     static_configs:
       - targets: ['worker:9464']
         labels: { role: worker }
+  - job_name: funding-api
+    static_configs:
+      - targets: ['funding-api:9464']
+        labels: { role: api }
+  - job_name: funding-worker
+    static_configs:
+      - targets: ['funding-worker:9464']
+        labels: { role: worker }

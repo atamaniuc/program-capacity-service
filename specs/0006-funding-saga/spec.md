@@ -183,6 +183,15 @@ proof: `services/funding/test/integration/driver.int.test.ts#FS-13`
 role connects to the other's database or reads its tables THEN it is refused.
 proof: `services/funding/test/integration/database.int.test.ts#FS-14`
 
+**FS-18** — GIVEN the funding `api` and `worker` WHEN their ops port (9464) is called THEN
+`/health/live` is up; `/health/ready` is 200 only when the database answers with the newest
+migration recorded (and, for the worker, its driver loop ticked within twice the step lease) and
+503 otherwise, and 503 while draining; `/metrics` reports requests per state, the age of the
+oldest request per open state, the age of the oldest unresolved reserve, step attempts by step and
+class, and requests by final state (the `FundingNeedsAttention`, `FundingCompensationStuck` and
+`FundingReserveUnresolved` alert rules read them).
+proof: `services/funding/test/integration/ops.int.test.ts#FS-18`, `services/funding/test/unit/ops-server.test.ts#FS-18`
+
 **PM-01** — GIVEN the payments mock WHEN a payment is posted twice with one key THEN one
 payment; `GET /v1/payments/{key}` returns it; the documented fault markers (decline, timeout
 after commit, 5xx) behave as described. The markers are read from the invoice id (prefix match):
@@ -197,8 +206,11 @@ proof (planned): `services/payments-mock/test/payments.test.ts#PM-01`
 
 **DM-01** — GIVEN the branch compose stack WHEN `make demo-funding` runs THEN it shows the
 completed, risk-declined, insufficient-capacity, payment-declined (compensated) and
-payment-timeout (needs attention) paths with capacity numbers before and after.
-proof (planned): `make demo-funding`
+rail-unavailable (`FAULT-5XX-999`: needs attention, reservation held) paths, plus a lost payment
+answer (`FAULT-TIMEOUT`: found by key, completed), with capacity numbers before and after. A
+payment timeout alone does not park a request: the retry's lookup by key finds the committed
+payment (ADR 025), so needs-attention is shown with a rail that stays unavailable.
+proof: `make demo-funding`
 
 **K8-01** — GIVEN `deploy/helm/{capacity,funding,local-infra}` WHEN `make helm-check` runs THEN
 lint and template pass and the rendered manifests validate with kubeconform.

@@ -50,6 +50,7 @@ const riskLimits = z
 
 const Schema = z.object({
   DATABASE_URL: z.string().min(1),
+  OPS_PORT: z.coerce.number().int().min(0).max(65535).default(9464),
   CAPACITY_GRPC_TARGET: z.string().min(1),
   OAUTH_TOKEN_URL: z.string().min(1),
   /** The issuer's `Host` when the token URL is not the issuer's own address. */
@@ -73,6 +74,7 @@ const CAPACITY_TRANSACTION_BUDGET_MS = 20_000;
 
 export interface WorkerConfig {
   readonly databaseUrl: string;
+  readonly opsPort: number;
   readonly capacityTarget: string;
   readonly tokenUrl: string;
   readonly issuerHost: string | undefined;
@@ -116,6 +118,7 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
   }
   return {
     databaseUrl: c.DATABASE_URL,
+    opsPort: c.OPS_PORT,
     capacityTarget: c.CAPACITY_GRPC_TARGET,
     tokenUrl: c.OAUTH_TOKEN_URL,
     issuerHost: c.OAUTH_ISSUER_HOST,

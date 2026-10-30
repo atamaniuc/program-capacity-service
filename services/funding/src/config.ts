@@ -5,6 +5,7 @@ const port = z.coerce.number().int().min(0).max(65535);
 const Schema = z.object({
   DATABASE_URL: z.string().min(1),
   HTTP_PORT: port.default(3100),
+  OPS_PORT: port.default(9464),
   OAUTH_ISSUER: z.string().min(1),
   OAUTH_AUDIENCE: z.string().min(1).default('funding-service'),
   OAUTH_JWKS_URL: z.string().min(1),

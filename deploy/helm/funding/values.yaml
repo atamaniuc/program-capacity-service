@@ -51,7 +51,10 @@ resources:
 migrate:
   command: ['node', 'src/funding/adapters/out/postgres/migrate.js']
 
-# helm test: the in-cluster smoke (K8-03). `saga: true` once the funding API is built.
+# helm test: the in-cluster smoke (K8-03). `saga` runs one completed and one compensated request
+# against the program below (seeded by `make kind-seed`) and checks capacity's numbers.
 test:
+  saga: true
+  program: prg_grand_usd
   capacityApi: http://capacity-api:3000
   capacityTenant: bank-a

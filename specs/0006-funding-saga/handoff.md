@@ -691,3 +691,77 @@ Checks: `make verify`: `✔ verify passed`.
 contracts 9/9, root int 140/140 (27 files), funding int/system `Test Files 6 passed (6)  Tests
 54 passed (54)`, `✔ all tests passed`. (The tree already held T14 work in progress; T13 is
 committed by path.)
+
+## Architect review of T11–T13 (d3dcd9b, 94cee19, 932e71a), 2026-10-30: APPROVE WITH FIXES
+
+No BLOCKER, no second review; rulings in `.harness/4-state/DECISIONS.md`. T11–T13 stay ticked.
+Land these with T14 (the `funding` agent commits this section and the DECISIONS entry with them).
+Reviewer ran `make verify` (`✔ verify passed`; funding unit 59/59 on the tree with T14 WIP) and
+`npx harnessimo check` (all pass); no Docker-backed run.
+
+- [ ] **M1 — key-retention bound.** `services/funding/src/funding/domain/config.ts:40` checks only
+  `reserveResolutionLimitMs < CAPACITY_KEY_RETENTION_MS`. Add error
+  `reserve-window-reaches-key-retention` when `reserveDeadlineMs + reserveResolutionLimitMs +
+  60 * 60 * 1000 >= CAPACITY_KEY_RETENTION_MS` (the hour covers the backoff cap and a lease).
+  Unit test (FS-09 id) with 13 h + 13 h refused and the defaults accepted; `worker-config` test
+  that boot stops. ADR 025 timeouts table, `FUNDING_RESERVE_RESOLUTION_LIMIT` row: "reserve
+  deadline + resolution limit + 1 h must stay below 24 h".
+- [ ] **M2 — `PERMISSION_DENIED` on Reserve is unknown.** `outcome.ts:55` shares one definite set
+  for Reserve and Release. Split it: Reserve definite = `FAILED_PRECONDITION`, `NOT_FOUND`,
+  `ALREADY_EXISTS`, `INVALID_ARGUMENT`; Release keeps `PERMISSION_DENIED` definite. Tests:
+  classifier unit test; int FS-09 "a repeat answered PERMISSION_DENIED never ends FAILED: still
+  unknown past the resolution limit → NEEDS_ATTENTION, alert, no release"; move `PERMISSION_DENIED`
+  out of the definite list in `src/funding/domain/outcome.test.ts:28`. Amend ADR 025's outcome
+  table (Reserve definite-failure cell; `PERMISSION_DENIED` moves to unknown with the reason).
+- [ ] **m1 — lease bound.** `services/funding/src/worker-config.ts:114` compares the lease with one
+  call; a Reserve can take token (5 s) + 21 s + token + 21 s after `UNAUTHENTICATED` = 52 s > the
+  30 s default, a lookup-first disburse 2 × 5 s. Safety holds (key + version), but the comment at
+  :91–93 claims more. Bound: lease > 2 × (token timeout + gRPC deadline) and > 2 × payment
+  timeout; make the token timeout a config value passed to the provider; raise the default lease
+  to 60 s (ADR 025 table too).
+- [ ] **m2 — vacuous assertion.** `services/funding/test/integration/saga.int.test.ts:400`
+  `expect(effects.size).toBeGreaterThanOrEqual(1)` → `toBe(1)` (the map is local to the test).
+- [ ] **m3 — FS-12 receiver half.** `driver.int.test.ts:96–99, 146`: the fake's own map makes "one
+  effect" true by construction. Reword FS-12 in spec.md to "both calls carry one key; one result
+  recorded (version check); the receiver's deduplication of concurrent same-key calls is
+  capacity's AC-02" and drop the `effects` assertion, or add a system variant on the real image.
+- [ ] **m4 — FS-09 on the real image.** The only path where the saga releases a reservation it
+  learned by replay. Add `saga.system.test.ts#FS-09`: the FS-07 `timeout` toxic plus a driver with
+  `reserveDeadlineMs: 1` (and the `beforeRecord` sleep) → COMPENSATING → toxic removed → repeat
+  answers `CREATED` with the committed id → `RELEASE`; `reserved` back to its start, ledger
+  `RESERVE`, `RELEASE`, state FAILED. Point FS-09's proof marker at it (keep the int cases).
+- [ ] **m5 — schema backs the states.** New migration `0003`: `CHECK (state NOT IN ('DISBURSING',
+  'COMPLETED') OR reservation_id IS NOT NULL)` and `CHECK (state <> 'COMPLETED' OR payment_id IS
+  NOT NULL)`; an int test (FS-13 id) that a raw `UPDATE` violating each is refused.
+
+Then `make verify` and one serial `make test`, quoted here.
+
+## T14 built (2026-10-30, agent `funding`)
+
+Funding `api` and `worker` expose an ops server on 9464 (`/health/live`, `/health/ready`,
+`/metrics`; `src/ops/{ops-server,metrics}.ts`), like capacity's: readiness checks the database and
+that the newest migration is recorded, the worker also that its driver loop ticked within twice the
+step lease; draining flips it to 503. Metrics (worker): `funding_requests{state}`,
+`funding_oldest_request_age_seconds{state}`, `funding_unresolved_reserve_oldest_age_seconds` (read
+from the database on each scrape), `funding_step_attempts_total{step,class}`,
+`funding_requests_final_total{state}`. `deploy/compose.yaml`: `payments`, `funding-migrate`,
+`funding-api` (13100, ops 19466), `funding-worker` (ops 19467); Prometheus scrapes both and
+`alerts.yaml` has `FundingNeedsAttention`, `FundingCompensationStuck`, `FundingReserveUnresolved`;
+`docs/runbook.md` has an entry per alert and the manual release with the saga's `releaseRef`.
+Helm: `helm test funding` runs the saga smoke when `test.saga` is true (now the default): one
+completed request (+100.00 held) and one declined request (`FAULT-DECLINE-…`, reserved back),
+against `prg_grand_usd` seeded by `make kind-seed` — `make helm-check` passes, **not run in kind**.
+`make demo-funding` (`tools/demo/funding.ts`; recreates the worker with a 15 s disbursement deadline,
+then restores it): six scenarios, all PASS on the live compose stack: completed (reserved
+0.00 -> 1000.00), risk-declined (unchanged, no capacity call), insufficient-capacity (unchanged),
+payment-declined (FAILED, reserved back), rail-unavailable (`FAULT-5XX-999`: NEEDS_ATTENTION,
++3000.00 held, never released), lost payment answer (`FAULT-TIMEOUT`: COMPLETED, found by key).
+A payment timeout alone does not park a request, because the retry's lookup by key finds the
+committed payment; needs-attention is shown with a rail that stays down (spec DM-01 says so).
+AC id for the ops port is FS-18 (FS-15..FS-17 belong to later P1/P2 items).
+Checks: `make verify`: `✔ verify passed`; `npm run test:int -w @finverity/funding`:
+`Test Files 6 passed (6)  Tests 54 passed (54)`; `make demo-funding` as above. One serial
+`make test` follows on the final tree after the review fixes (two earlier attempts fell over on
+Docker contention: the compose stack was up next to the tests; the capacity Kafka test
+`AC-10` failed with the stack up and passes alone: `Tests 4 passed (4)`). `FS-12` was made
+deterministic (gate keyed on its own invoice, batch 100).

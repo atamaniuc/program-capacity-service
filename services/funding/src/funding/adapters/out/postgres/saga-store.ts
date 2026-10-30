@@ -1,5 +1,10 @@
 import { sql, type Transaction } from 'kysely';
-import type { Claim, SagaStore } from '../../../application/saga-ports.js';
+import type {
+  Claim,
+  SagaStats,
+  SagaStatsSource,
+  SagaStore,
+} from '../../../application/saga-ports.js';
 import {
   formatMoney,
   type FundingRequest,
@@ -7,6 +12,7 @@ import {
   type Transition,
 } from '../../../domain/index.js';
 import type { Database, Persistence } from './db.js';
+import { latestMigration } from './migrate.js';
 import type { TransactionTimeouts } from './unit-of-work.js';
 
 const DEFAULT_TIMEOUTS: TransactionTimeouts = { lockTimeoutMs: 5_000, statementTimeoutMs: 15_000 };
@@ -65,7 +71,7 @@ const instant = (ms: number | undefined) =>
   ms === undefined ? sql`NULL::timestamptz` : sql`to_timestamp(${ms}::double precision / 1000)`;
 
 /** The driver's side of the funding database (ADR 025): claim, version-checked record. */
-export class PostgresSagaStore implements SagaStore {
+export class PostgresSagaStore implements SagaStore, SagaStatsSource {
   constructor(
     private readonly persistence: Persistence,
     private readonly timeouts: TransactionTimeouts = DEFAULT_TIMEOUTS,
@@ -79,6 +85,39 @@ export class PostgresSagaStore implements SagaStore {
       );
       return work(trx);
     });
+  }
+
+  async ping(): Promise<void> {
+    const latest = await latestMigration();
+    const { rows } = await sql<{ migrated: boolean }>`
+      SELECT to_regclass('public.schema_migrations') IS NOT NULL
+         AND EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ${latest}) AS migrated`.execute(
+      this.persistence.db,
+    );
+    if (rows[0]?.migrated !== true) throw new Error('schema is not migrated');
+  }
+
+  async stats(): Promise<SagaStats> {
+    const { rows } = await sql<{ state: string; n: string; age: string; unresolved_age: string }>`
+      SELECT state,
+             count(*)::text AS n,
+             coalesce(extract(epoch from now() - min(created_at)), 0)::float8::text AS age,
+             coalesce(extract(epoch from now() - min(updated_at)
+               FILTER (WHERE state = 'COMPENSATING' AND reservation_id IS NULL)), 0)::float8::text
+               AS unresolved_age
+        FROM funding_request
+       GROUP BY state`.execute(this.persistence.db);
+    const counts = new Map<string, number>();
+    const oldest = new Map<string, number>();
+    let unresolved = 0;
+    for (const row of rows) {
+      counts.set(row.state, Number(row.n));
+      if (['RECEIVED', 'RESERVING', 'DISBURSING', 'COMPENSATING'].includes(row.state)) {
+        oldest.set(row.state, Number(row.age));
+      }
+      unresolved = Math.max(unresolved, Number(row.unresolved_age));
+    }
+    return { counts, oldestAgeSeconds: oldest, oldestUnresolvedReserveAgeSeconds: unresolved };
   }
 
   async now(): Promise<number> {

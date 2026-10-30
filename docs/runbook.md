@@ -15,10 +15,12 @@ from the ops port of each container.
 | SQL | `docker compose -f deploy/compose.yaml exec postgres psql -U capacity capacity` |
 | Kafka | `docker compose -f deploy/compose.yaml exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic capacity.events.v1 --from-beginning --max-messages 5`, or `make events` (headers, key and value). `npm run contracts:events` checks every event on the topic against `contracts/`. In a browser (`make up-all`): Kafka UI at `localhost:18080` (records with headers, consumer lag of `program-capacity-treasury`, DLQ contents). |
 | Dashboards, traces | `make up-all` (compose profile `observability`, `OTEL_ENABLED=true`), then Grafana `localhost:13001`, Jaeger `localhost:26686`, Prometheus `localhost:19090`, Kafka UI `localhost:18080`. |
+| Funding (branch `microservices`) | api `curl -s localhost:19466/health/ready`, worker `localhost:19467/health/ready` (`down` names `db` or `loop`) and `/metrics` (`funding_requests{state}`, `funding_oldest_request_age_seconds{state}`, `funding_step_attempts_total{step,class}`). SQL: `docker compose -f deploy/compose.yaml exec postgres psql -U funding funding`. |
 | API docs | `localhost:19464/docs` (REST, Swagger UI) and `localhost:19464/docs/asyncapi` (Kafka topics, messages, headers), ops port only. |
 
 Alert rules live in `deploy/observability/alerts.yaml`: `DlqGrowing`, `OutboxLagHigh`,
-`InvariantMismatch`, `ProgramOverLimit`. Every alert below names its rule.
+`InvariantMismatch`, `ProgramOverLimit`; on branch `microservices` also `FundingNeedsAttention`,
+`FundingCompensationStuck`, `FundingReserveUnresolved`. Every alert below names its rule.
 
 ## Critical paths
 
@@ -164,6 +166,71 @@ On call:
   12 h. Capacity's retention can only go up (24 h floor), which only widens the margin.
 - `Release` (the compensation) has no such limit. `release_ref` is a permanent natural key in
   capacity (ADR 006), so a compensation retried days later still replays its stored result.
+
+### Funding: a request needs attention (`FundingNeedsAttention`)
+
+A request is parked in `NEEDS_ATTENTION`: no step is due and the saga does nothing more on its
+own. The reason says why; the reservation (if any) is still held in capacity, the safe direction.
+
+```sql
+-- docker compose -f deploy/compose.yaml exec postgres psql -U funding funding
+SELECT id, tenant_id, program_id, invoice_id, reason, reservation_id, payment_id, updated_at
+  FROM funding_request WHERE state = 'NEEDS_ATTENTION' ORDER BY updated_at;
+SELECT step, step_key, outcome_class, state_before, state_after, created_at
+  FROM saga_step_attempt WHERE request_id = '<id>' ORDER BY created_at, id;
+```
+
+| `reason` | Meaning | What to do |
+| --- | --- | --- |
+| `disbursement-unknown` | The rail never answered within `FUNDING_DISBURSE_DEADLINE`. Money may have left. **Never release capacity on a guess.** | Ask the rail: `GET /v1/payments/funding:<id>:disburse` (the mock answers `PAID`/`DECLINED`, 404 means nothing was committed). Paid: the request is complete, mark it by hand below. Not paid: release by hand (next section). |
+| `reserve-unresolved` | The reserve answer stayed unknown past `FUNDING_RESERVE_RESOLUTION_LIMIT`. | See "Funding: an unresolved reserve". |
+| `release-failed:<problem>` | Capacity gave an unexpected definite answer to the compensation (for example `not-found`). | Look the reservation up in capacity (`GET /v1/programs/<program>/reservations/<reservationId>`); if it is still held, release by hand (next section). |
+
+**Manual release with the saga's `releaseRef`.** The compensation is one natural key in capacity,
+`release_ref = funding:<id>:compensation` (permanent, ADR 006), so releasing through REST by hand
+cannot double-release even if the saga retries:
+
+```sh
+TOKEN=$(make token TENANT=<tenant> SCOPES="capacity:write")
+curl -s -X POST localhost:13000/v1/programs/<programId>/reservations/<reservationId>/releases \
+  -H "authorization: Bearer $TOKEN" -H "idempotency-key: manual-<id>-release" \
+  -H 'content-type: application/json' \
+  -d '{"releaseRef":"funding:<id>:compensation","reason":"CANCELLED"}'
+```
+
+A `200` or `201` means released; `release-exceeds-remaining` means someone already released it
+all. Then close the request in the funding database (the operator command arrives after the MVP
+cut; until then this is the only way, and it is an audited manual change):
+
+```sql
+UPDATE funding_request SET state = 'FAILED', reason = 'manual-release', version = version + 1,
+       updated_at = now() WHERE id = '<id>' AND state = 'NEEDS_ATTENTION';
+-- or, when the rail confirms the payment:
+UPDATE funding_request SET state = 'COMPLETED', payment_id = '<paymentId>', version = version + 1,
+       updated_at = now() WHERE id = '<id>' AND state = 'NEEDS_ATTENTION';
+```
+
+### Funding: a compensation is stuck (`FundingCompensationStuck`)
+
+The oldest `COMPENSATING` request is older than 15 minutes: the `Release` keeps getting an unknown
+answer (capacity down, deadline, `UNAVAILABLE`). It retries forever with capped backoff, so the
+cause is almost always capacity: `curl -s localhost:19464/health/ready`, then the worker logs
+(`make logs`, "step failed"). Capacity stays reserved meanwhile (over-reserved, the safe
+direction). When capacity is back the next retry succeeds: same key `funding:<id>:release`, same
+`release_ref`, so the release happens exactly once. Nothing to do by hand unless capacity is gone
+for good; then use the manual release above.
+
+### Funding: an unresolved reserve (`FundingReserveUnresolved`)
+
+A `COMPENSATING` request has no reservation id after more than an hour: the reserve answer was
+lost and the repeat under the same key keeps failing. Whether capacity holds the reservation is
+unknown. The retry is safe only while capacity still has the key (24 h); the saga itself parks the
+request at `FUNDING_RESERVE_RESOLUTION_LIMIT` (12 h). To resolve earlier, ask capacity:
+`GET /v1/programs/<program>/reservations?invoiceId=<invoice>` (or the ledger: `SELECT * FROM
+reservation WHERE invoice_id = '<invoice>'` in the capacity database). Found: release it with the
+manual release above, using the reservation id found. Not found: nothing was held; set the funding
+request `FAILED` with the SQL above. Do not re-drive the saga by hand after 24 h: the key is gone and
+the answer would be `EXISTING`.
 
 ### Funding: first boot after the database split (branch `microservices`)
 

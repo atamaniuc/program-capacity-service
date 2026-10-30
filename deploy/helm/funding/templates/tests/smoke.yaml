@@ -1,6 +1,6 @@
 # helm test funding: the funding api and worker are ready behind their ops port, and the api
-# refuses a call without a token. The completed and compensated saga paths through
-# capacity's numbers (K8-03) need the funding API contract; see the lane handoff.
+# refuses a call without a token. With `test.saga` the smoke also completes one funding request and
+# compensates one declined request, checking capacity's `reserved` before and after (K8-03).
 apiVersion: v1
 kind: Pod
 metadata:
@@ -22,6 +22,16 @@ spec:
           value: http://funding-api:{{ .Values.ports.ops }}
         - name: API
           value: http://funding-api:{{ .Values.ports.http }}
+        - name: SAGA
+          value: {{ .Values.test.saga | quote }}
+        - name: TOKEN_URL
+          value: {{ .Values.oauth.issuer }}/token
+        - name: CAPACITY_API
+          value: {{ .Values.test.capacityApi }}
+        - name: TENANT
+          value: {{ .Values.test.capacityTenant }}
+        - name: PROGRAM
+          value: {{ .Values.test.program }}
       command:
         - node
         - -e
@@ -33,4 +43,50 @@ spec:
             const anon = await fetch(process.env.API + '/v1/funding-requests');
             if (anon.status !== 401) fail('no token: expected 401, got ' + anon.status);
             console.log('OK funding: ready, 401 without token');
+            if (process.env.SAGA !== 'true') return;
+
+            const token = async (scope) => {
+              const t = await fetch(process.env.TOKEN_URL, {
+                method: 'POST',
+                body: new URLSearchParams({ grant_type: 'client_credentials', client_id: process.env.TENANT, client_secret: 's', scope }),
+              });
+              if (!t.ok) fail('token ' + t.status);
+              return (await t.json()).access_token;
+            };
+            const fundingToken = await token('funding:write funding:read');
+            const capacityToken = await token('capacity:read');
+            const cents = (v) => BigInt(v.replace('.', ''));
+            const reserved = async () => {
+              const r = await fetch(process.env.CAPACITY_API + '/v1/programs/' + process.env.PROGRAM + '/capacity', { headers: { authorization: 'Bearer ' + capacityToken } });
+              if (!r.ok) fail('capacity ' + r.status + ' (is the program seeded? make kind-seed)');
+              return cents((await r.json()).reserved);
+            };
+            const submit = async (invoiceId) => {
+              const r = await fetch(process.env.API + '/v1/funding-requests', {
+                method: 'POST',
+                headers: { authorization: 'Bearer ' + fundingToken, 'content-type': 'application/json' },
+                body: JSON.stringify({ programId: process.env.PROGRAM, invoiceId, amount: { value: '100.00', currency: 'USD' } }),
+              });
+              if (r.status !== 202) fail('submit ' + invoiceId + ' answered ' + r.status);
+              return (await r.json()).id;
+            };
+            const settle = async (id, wanted) => {
+              for (let i = 0; i < 120; i += 1) {
+                const r = await fetch(process.env.API + '/v1/funding-requests/' + id, { headers: { authorization: 'Bearer ' + fundingToken } });
+                const state = (await r.json()).state;
+                if (state === wanted) return;
+                if (['COMPLETED', 'REJECTED', 'FAILED', 'NEEDS_ATTENTION'].includes(state)) fail(id + ' ended ' + state + ', wanted ' + wanted);
+                await new Promise((resolve) => setTimeout(resolve, 500));
+              }
+              fail(id + ' did not reach ' + wanted);
+            };
+            const run = Date.now().toString(36);
+            const before = await reserved();
+            await settle(await submit('SMOKE-OK-' + run), 'COMPLETED');
+            const afterCompleted = await reserved();
+            if (afterCompleted !== before + 10000n) fail('completed: reserved ' + before + ' -> ' + afterCompleted + ', expected +10000');
+            await settle(await submit('FAULT-DECLINE-SMOKE-' + run), 'FAILED');
+            const afterCompensated = await reserved();
+            if (afterCompensated !== afterCompleted) fail('compensated: reserved ' + afterCompleted + ' -> ' + afterCompensated + ', expected unchanged');
+            console.log('OK saga: completed (+100.00), declined request compensated (reserved back)');
           })().catch((e) => fail(e.stack));

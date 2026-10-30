@@ -84,11 +84,13 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   injected failure inside a transition. Mutation probes: remove the version check, then the
   deterministic key, and expect red.
   <!-- proof: services/funding/test/system/saga.system.test.ts#FS-07 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-08 --> <!-- proof: services/funding/test/integration/driver.int.test.ts#FS-12 --> <!-- proof: services/funding/test/integration/driver.int.test.ts#FS-13 -->
-- [ ] T14 — **Compose stack, demo and alerts**. Funding `api` and `worker`, payments mock,
-  capacity gRPC port in `deploy/compose.yaml`; `make demo-funding` with the five scenarios;
-  funding metrics, Prometheus alert rules `FundingNeedsAttention`, `FundingCompensationStuck`,
+- [x] T14 — **Compose stack, demo and alerts**. Funding `api` and `worker` (each with an ops
+  server on 9464: `/health/live`, `/health/ready`, `/metrics`), payments mock, capacity gRPC port
+  in `deploy/compose.yaml`; `make demo-funding` with the documented scenarios; funding metrics,
+  Prometheus alert rules `FundingNeedsAttention`, `FundingCompensationStuck`,
   `FundingReserveUnresolved`; runbook entries for each alert and for a manual release with the
-  saga's `releaseRef`. proof (planned): `make demo-funding`
+  saga's `releaseRef`; the `test.saga` smoke of `helm test funding`.
+  <!-- proof: make demo-funding --> <!-- proof: services/funding/test/integration/ops.int.test.ts#FS-18 --> <!-- proof: services/funding/test/unit/ops-server.test.ts#FS-18 -->
 - [x] T15 — **Helm charts** (ADR 026). `deploy/helm/capacity` (derived from `deploy/k8s/`, gRPC
   port on the Service), `deploy/helm/funding`, `deploy/helm/local-infra`; migrate Jobs as hooks;
   `make helm-check` with kubeconform. <!-- proof: make helm-check -->

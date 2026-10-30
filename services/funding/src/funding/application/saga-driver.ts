@@ -23,6 +23,8 @@ export interface DriverHooks {
   readonly onAlert?: (claim: Claim, transition: Transition) => void;
   /** The result of a step was dropped: the lease was lost or the step is no longer due. */
   readonly onDropped?: (claim: Claim, reason: 'lease-lost' | 'not-due') => void;
+  /** A transition committed. */
+  readonly onRecorded?: (claim: Claim, transition: Transition) => void;
   readonly onError?: (claim: Claim, error: unknown) => void;
   /** Test seam: runs between the call and the record. */
   readonly beforeRecord?: (claim: Claim, outcome: StepOutcome) => Promise<void>;
@@ -77,6 +79,7 @@ export class SagaDriver {
         this.hooks.onDropped?.(claim, 'lease-lost');
         return;
       }
+      this.hooks.onRecorded?.(claim, applied.value);
       if (applied.value.alert) this.hooks.onAlert?.(claim, applied.value);
     } catch (error) {
       // The lease expires and the step runs again from the persisted state.

@@ -106,7 +106,7 @@ describe('two drivers and a lease that expires mid-call (ADR 025)', () => {
     let held = false;
     const slow: CapacityGateway = {
       reserve: async (call) => {
-        if (!held) {
+        if (call.invoiceId === 'inv-fs12' && !held) {
           held = true;
           await gate; // the first driver stalls inside its call
         }
@@ -118,10 +118,11 @@ describe('two drivers and a lease that expires mid-call (ADR 025)', () => {
     const a = world.driver({
       owner: 'driver-a',
       leaseMs: 250,
+      batchSize: 100,
       gateway: slow,
       hooks: { onDropped: (_c, reason) => dropped.push(reason) },
     });
-    const b = world.driver({ owner: 'driver-b', leaseMs: 30_000 });
+    const b = world.driver({ owner: 'driver-b', leaseMs: 30_000, batchSize: 100 });
     const id = await world.submit({ invoiceId: 'inv-fs12' });
     await a.runOnce(); // risk -> RESERVING
 
