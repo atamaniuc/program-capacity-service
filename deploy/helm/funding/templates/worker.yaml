@@ -26,6 +26,7 @@ spec:
         - name: worker
           image: {{ include "funding.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ['node', 'src/worker.js']
           envFrom:
             {{- include "funding.envFrom" . | nindent 12 }}
           env:

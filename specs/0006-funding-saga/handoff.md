@@ -384,7 +384,7 @@ lands in kind (agent `k8s`, one commit, then `make verify`, `make helm-check`, `
   FQDN"). Fix: add `--set-string oauth.tokenUrl=$(KIND_OAUTH_ISSUER)/token` to the funding
   release; extend K8-04's static test (or a new GW-test) to assert the Makefile passes both
   `oauth.issuer` and `oauth.tokenUrl` from `KIND_OAUTH_ISSUER`.
-- [ ] **M2 — the funding half (a) done in the review-fix commit: the smoke now mints a `funding:write funding:read` token and checks POST 202 + `Location`; (b) and (c) OPEN: (b) is synced after the merge, because funding already changed `deploy/oauth/config.json` on `microservices` (mapping by scope `.*funding:.*` → `aud=funding-service`) and this branch must not edit it; then the `local-infra` copy is synced (`make helm-check` compares them); (c) runs in the live kind run after T14.** Original text: the funding half of GW-01/GW-02 cannot turn green on its own.** (a)
+- [ ] **M2 — the funding half (a) done in the review-fix commit: the smoke now mints a `funding:write funding:read` token and checks POST 202 + `Location`; (b) DONE after the merge of `microservices` (the `local-infra` copy is byte-equal to `deploy/oauth/config.json`; static test `K8-01` in `test/architecture/isolation.test.ts` fails on drift); (c) OPEN, runs in the live kind run after T14. Earlier text: (b) was to be synced after the merge, because funding already changed `deploy/oauth/config.json` on `microservices` (mapping by scope `.*funding:.*` → `aud=funding-service`) and this branch must not edit it; then the `local-infra` copy is synced (`make helm-check` compares them); (c) runs in the live kind run after T14.** Original text: the funding half of GW-01/GW-02 cannot turn green on its own.** (a)
   `deploy/helm/gateway/templates/tests/smoke.yaml:471-474` is a placeholder that `assert.fail`s
   once `fundingDeployed=true`, and its message points at T9, which is done. Write the check now:
   mint a token with `aud=funding-service` from `ISSUER/token`, `POST /v1/funding-requests` with an
@@ -417,6 +417,27 @@ lands in kind (agent `k8s`, one commit, then `make verify`, `make helm-check`, `
   the capacity route only; GW-04 with a token lacking `tenant_id` is not limited (no header, the
   `Distinct` selector does not match). The mock always sets `tenant_id` and the services answer
   401 without it, so this is accepted for kind; revisit with a real IdP.
+
+### T14 images for kind (agent `k8s`, branch `ms-helm`, 2026-10-30)
+
+`services/funding/Dockerfile` and `services/payments-mock/Dockerfile` (build context = repository
+root, multi-stage like the root Dockerfile; `@finverity/contracts` compiled and swapped in as in
+T18; funding installs only its own production dependencies). `tsconfig.build.json` and the
+`build` / `start` scripts in both packages (`node dist/main.js`; funding's `build` also copies the
+SQL migrations). Both images built with `docker build` and smoke-run: contracts resolve, migrations
+are in the image, the services stop on a missing configuration, payments-mock answers on 3200 (API)
+and 9466 (ops `/health/live`). `kind-up` builds and loads all three images and installs
+`local-infra` (payments-mock on), `capacity`, `funding` (`oauth.tokenUrl` from `KIND_OAUTH_ISSUER`)
+and `gateway`, with no skip branches left. Chart fixes found while wiring: the funding worker
+runs `node src/worker.js`, the migrate Job runs the real path, the configmap says
+`PAYMENTS_BASE_URL` (what `worker-config.ts` reads), payments-mock gets `PAYMENTS_PORT`.
+
+Open before the live run (K8-03, M2(c)); not exercised, nothing was installed in kind:
+- funding's `api` and `worker` expose no ops port yet (`main.ts` serves only HTTP; no
+  `/health/ready` or `/health/live` on 9464), while the chart's probes need them; until the funding
+  agent adds the ops server (or the probes move), `helm upgrade --install funding --wait` times out.
+- `deploy/compose.yaml`, the payments host port 13200 -> 3200 and ops 9466, alerts and the demo
+  are the funding agent's T14 part; the `test.saga` flag of `helm test funding` is still off.
 
 ## Decisions taken
 

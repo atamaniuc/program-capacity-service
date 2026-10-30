@@ -16,7 +16,7 @@ data:
   OAUTH_JWKS_URL: {{ .Values.oauth.jwksUrl | quote }}
   OAUTH_TOKEN_URL: {{ .Values.oauth.tokenUrl | quote }}
   CAPACITY_GRPC_TARGET: {{ .Values.capacityGrpcTarget | quote }}
-  PAYMENTS_URL: {{ .Values.paymentsUrl | quote }}
+  PAYMENTS_BASE_URL: {{ .Values.paymentsUrl | quote }}
   HTTP_PORT: {{ .Values.ports.http | quote }}
   OPS_PORT: {{ .Values.ports.ops | quote }}
   FUNDING_GRPC_DEADLINE_MS: {{ .Values.funding.grpcDeadlineMs | quote }}

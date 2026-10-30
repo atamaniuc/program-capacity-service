@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "test:unit": "vitest run --project unit",
-    "test:int": "vitest run --project int"
+    "test:int": "vitest run --project int",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "start": "node dist/main.js"
   }
 }

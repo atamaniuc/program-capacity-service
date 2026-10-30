@@ -235,6 +235,25 @@ describe('kind targets (ADR 026)', () => {
     expect(release('gateway')).toContain('--set-string issuer=$(KIND_OAUTH_ISSUER)');
   });
 
+  it('K8-02 kind-up builds, loads and installs all three images, each from its own Dockerfile', () => {
+    const up = recipe('kind-up');
+    for (const [image, dockerfile] of [
+      ['program-capacity-service', 'Dockerfile'],
+      ['funding-service', 'services/funding/Dockerfile'],
+      ['payments-mock', 'services/payments-mock/Dockerfile'],
+    ] as const) {
+      expect(read(dockerfile)).toContain('FROM node:24');
+      const build =
+        dockerfile === 'Dockerfile' ? 'docker build -t' : `docker build -f ${dockerfile} -t`;
+      expect(up).toContain(`${build} ${image}:ms-local .`);
+      expect(up).toMatch(
+        new RegExp(`kind load docker-image --name \\$\\(KIND_CLUSTER\\)[^\\n]*${image}:ms-local`),
+      );
+    }
+    expect(up).toContain('--set paymentsMock.enabled=true');
+    expect(up).toContain('upgrade --install funding deploy/helm/funding');
+  });
+
   it('K8-04 forwards only host ports 23000-23099 and the cluster has no host port mapping', () => {
     const forwards = [...recipe('kind-forward').matchAll(/(\d{5}):/g)].map((m) => Number(m[1]));
     expect(forwards.length).toBeGreaterThan(0);
@@ -248,5 +267,32 @@ describe('kind targets (ADR 026)', () => {
     };
     expect(cluster.name).toBe('finverity-ms');
     for (const node of cluster.nodes) expect(node.extraPortMappings).toBeUndefined();
+  });
+});
+
+describe('mock OAuth2 config copies (ADR 026)', () => {
+  const compose = 'deploy/oauth/config.json';
+  const chart = 'deploy/helm/local-infra/files/oauth-config.json';
+
+  it('K8-01 the chart carries the same mock OAuth2 config as compose, byte for byte', () => {
+    expect(read(chart)).toBe(read(compose));
+  });
+
+  it('K8-01 the config maps a funding: scope to the funding audience and keeps the capacity default', () => {
+    const config = JSON.parse(read(chart)) as {
+      tokenCallbacks: {
+        requestMappings: { requestParam: string; match: string; claims: { aud: string[] } }[];
+      }[];
+    };
+    const mappings = config.tokenCallbacks[0]?.requestMappings ?? [];
+    const funding = mappings.find(
+      (m) => m.requestParam === 'scope' && m.match.includes('funding:'),
+    );
+    expect(funding?.claims.aud).toEqual(['funding-service']);
+    expect(mappings.at(-1)).toMatchObject({
+      requestParam: 'client_id',
+      match: '*',
+      claims: { aud: ['capacity-service'] },
+    });
   });
 });
