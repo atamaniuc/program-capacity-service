@@ -12,3 +12,6 @@ test/architecture/fixtures
 *.md
 contracts
 **/generated
+deploy/helm/*/templates
+.tools
+.kind

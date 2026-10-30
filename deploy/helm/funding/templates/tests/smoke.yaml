@@ -1,0 +1,36 @@
+# helm test funding: the funding api and worker are ready behind their ops port, and the api
+# refuses a call without a token. The completed and compensated saga paths through
+# capacity's numbers (K8-03) need the funding API contract; see the lane handoff.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: funding-smoke
+  labels:
+    {{- include "funding.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  enableServiceLinks: false
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: {{ include "funding.image" . }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      env:
+        - name: OPS
+          value: http://funding-api:{{ .Values.ports.ops }}
+        - name: API
+          value: http://funding-api:{{ .Values.ports.http }}
+      command:
+        - node
+        - -e
+        - |
+          const fail = (m) => { console.error('FAIL ' + m); process.exit(1); };
+          (async () => {
+            const ready = await fetch(process.env.OPS + '/health/ready');
+            if (!ready.ok) fail('ready ' + ready.status);
+            const anon = await fetch(process.env.API + '/v1/funding-requests');
+            if (anon.status !== 401) fail('no token: expected 401, got ' + anon.status);
+            console.log('OK funding: ready, 401 without token');
+          })().catch((e) => fail(e.stack));

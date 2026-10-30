@@ -1,0 +1,57 @@
+image:
+  repository: funding-service
+  tag: ms-local
+  pullPolicy: IfNotPresent
+
+kafkaBrokers: kafka:9092
+oauth:
+  issuer: http://oauth:8080/default
+  audience: funding-service
+  jwksUrl: http://oauth:8080/default/jwks
+  tokenUrl: http://oauth:8080/default/token
+corsOrigins: ''
+
+# gRPC target of capacity's api Service (ADR 024) and the payment rail (ADR 025).
+capacityGrpcTarget: capacity-api:50051
+paymentsUrl: http://payments-mock:8080
+
+# ADR 025 timing table. Capacity's key retention is 24 h; the resolution limit must stay below it.
+funding:
+  grpcDeadlineMs: 21000
+  paymentTimeoutMs: 5000
+  stepLease: 30s
+  reserveDeadline: 2m
+  disburseDeadline: 15m
+  reserveResolutionLimit: 12h
+
+# Local default for kind only; production sets database.existingSecret (key DATABASE_URL).
+database:
+  existingSecret: ''
+  url: postgres://funding:funding@postgres:5432/funding
+
+ports:
+  http: 3100
+  ops: 9464
+
+terminationGracePeriodSeconds: 40
+
+api:
+  replicas: 1
+worker:
+  replicas: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: '1'
+    memory: 512Mi
+
+migrate:
+  command: ['node', 'src/migrate.js']
+
+# helm test: the in-cluster smoke (K8-03). `saga: true` once the funding API is built.
+test:
+  capacityApi: http://capacity-api:3000
+  capacityTenant: bank-a

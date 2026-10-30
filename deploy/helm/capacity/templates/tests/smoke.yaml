@@ -1,0 +1,50 @@
+# helm test capacity: from inside the cluster, a token from the in-cluster OAuth2 issuer
+# reaches the capacity api (HTTP, authenticated, database reachable) and the gRPC port accepts
+# connections; a call without a token is refused.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: capacity-smoke
+  labels:
+    {{- include "capacity.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  enableServiceLinks: false
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: {{ include "capacity.image" . }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      env:
+        - name: API
+          value: http://capacity-api:{{ .Values.ports.http }}
+        - name: GRPC_HOST
+          value: capacity-api
+        - name: GRPC_PORT
+          value: {{ .Values.ports.grpc | quote }}
+        - name: TOKEN_URL
+          value: {{ .Values.oauth.issuer }}/token
+      command:
+        - node
+        - -e
+        - |
+          const net = require('node:net');
+          const fail = (m) => { console.error('FAIL ' + m); process.exit(1); };
+          (async () => {
+            const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: 'bank-a', client_secret: 's', scope: 'capacity:read' });
+            const t = await fetch(process.env.TOKEN_URL, { method: 'POST', body });
+            if (!t.ok) fail('token ' + t.status);
+            const { access_token } = await t.json();
+            const url = process.env.API + '/v1/programs/00000000-0000-4000-8000-000000000000/capacity';
+            const anon = await fetch(url);
+            if (anon.status !== 401) fail('no token: expected 401, got ' + anon.status);
+            const authed = await fetch(url, { headers: { authorization: 'Bearer ' + access_token } });
+            if (authed.status !== 404) fail('token: expected 404 for an unknown program, got ' + authed.status);
+            await new Promise((ok, no) => {
+              const s = net.connect(Number(process.env.GRPC_PORT), process.env.GRPC_HOST, () => { s.end(); ok(); });
+              s.on('error', no);
+            }).catch((e) => fail('grpc port ' + e.message));
+            console.log('OK capacity: 401 without token, 404 with token, gRPC port open');
+          })().catch((e) => fail(e.stack));

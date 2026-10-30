@@ -42,7 +42,7 @@ step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
 .PHONY: help targets completion status check doctor install up up-all down ps logs seed token demo qa docs \
-        docs-events kafka-ui events verify compat test test-unit test-int contracts load dlq-replay isolation-live
+        docs-events kafka-ui events verify helm-check compat test test-unit test-int contracts load dlq-replay isolation-live
 
 ## Help
 help: ## list every command (the default goal)
@@ -189,6 +189,9 @@ load: ## k6 against the compose stack; fails when NFR-03 is missed
 
 isolation-live: ## prove main's stack and this branch's stack run together (MS-02)
 	@bash tools/isolation-live.sh
+
+helm-check: ## helm lint, helm template and kubeconform for every chart in deploy/helm (K8-01)
+	@tools/helm-check.sh
 
 dlq-replay: ## republish fixed DLQ messages: make dlq-replay TOPIC=treasury.capacity.v1.dlq FROM=0
 	npm run dlq-replay -- --topic "$(TOPIC)" --from "$(FROM)"

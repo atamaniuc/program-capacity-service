@@ -88,9 +88,9 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   funding metrics, Prometheus alert rules `FundingNeedsAttention`, `FundingCompensationStuck`,
   `FundingReserveUnresolved`; runbook entries for each alert and for a manual release with the
   saga's `releaseRef`. proof (planned): `make demo-funding`
-- [ ] T15 — **Helm charts** (ADR 026). `deploy/helm/capacity` (derived from `deploy/k8s/`, gRPC
+- [x] T15 — **Helm charts** (ADR 026). `deploy/helm/capacity` (derived from `deploy/k8s/`, gRPC
   port on the Service), `deploy/helm/funding`, `deploy/helm/local-infra`; migrate Jobs as hooks;
-  `make helm-check` with kubeconform. proof (planned): `make helm-check`
+  `make helm-check` with kubeconform. <!-- proof: make helm-check -->
 - [ ] T16 — **kind cluster and smoke** (ADR 026). `deploy/kind/cluster.yaml` (no host port
   mappings), `make kind-up`, `make kind-smoke` (`helm test funding`), `make kind-forward`
   (23000–23099), `make kind-down`; kubeconfig only in `.kind/kubeconfig`; doctor warnings.

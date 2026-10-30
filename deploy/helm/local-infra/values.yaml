@@ -1,0 +1,27 @@
+# LOCAL ONLY. These stand in for RDS, MSK, the bank's IdP and a payment rail.
+postgres:
+  image: postgres:18
+  adminPassword: postgres
+  # One server, two databases, two roles, no grants across (ADR 023).
+  databases:
+    - { name: capacity, role: capacity, password: capacity }
+    - { name: funding, role: funding, password: funding }
+kafka:
+  image: apache/kafka:4.2.0
+  topics:
+    - treasury.capacity.v1
+    - treasury.capacity.v1.dlq
+    - treasury.fx-rates.v1
+    - treasury.fx-rates.v1.dlq
+    - capacity.events.v1
+    - capacity.events.v1.dlq
+    - funding.events.v1
+    - funding.events.v1.dlq
+  partitions: 6
+oauth:
+  image: ghcr.io/navikt/mock-oauth2-server:3.0.1
+paymentsMock:
+  enabled: true
+  image: payments-mock:ms-local
+  pullPolicy: IfNotPresent
+  port: 8080
