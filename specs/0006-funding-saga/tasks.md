@@ -63,10 +63,10 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   a drift check; mock OAuth2 mappings for the funding audience and the per-tenant
   `funding-service.<tenant>` capacity clients.
   proof (planned): `services/funding/test/e2e/api.e2e.test.ts#FS-02`
-- [ ] T10 — **Payments mock**. `services/payments-mock`: `POST /v1/payments` with
+- [x] T10 — **Payments mock**. `services/payments-mock`: `POST /v1/payments` with
   `Idempotency-Key` (stored result), `GET /v1/payments/{key}`, fault markers by invoice id
   (decline, timeout after commit, 5xx n times), ops port with liveness; no database.
-  proof (planned): `services/payments-mock/test/payments.test.ts#PM-01`
+  <!-- proof: services/payments-mock/test/payments.test.ts#PM-01 -->
 - [ ] T11 — **Saga driver, happy and rejection paths** (ADR 025) **[review]**. Worker loop:
   claim with `FOR UPDATE SKIP LOCKED` and lease, step executors (risk, reserve via gRPC with a
   per-tenant token cache and deadline, disburse), record with the version check, attempt log and
