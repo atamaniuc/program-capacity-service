@@ -122,7 +122,7 @@ with `Location` and state `RECEIVED`; the same body with the same `Idempotency-K
 a different body with the key answers 422 `idempotency-key-mismatch`; a second request for the
 same invoice without a key answers 200 with the existing one, with different terms 409;
 another tenant's request answers 404; no token 401; read scope 403.
-proof (planned): `services/funding/test/e2e/api.e2e.test.ts#FS-02`
+proof: `services/funding/test/e2e/api.e2e.test.ts#FS-02`
 
 **FS-03** — GIVEN a program with available capacity and a rail that pays WHEN a funding request
 is submitted THEN it reaches `COMPLETED`; capacity holds exactly one reservation for the
@@ -180,7 +180,7 @@ proof (planned): `services/funding/test/integration/driver.int.test.ts#FS-13`
 
 **FS-14** — GIVEN the `funding` and `capacity` databases on one server WHEN each service's
 role connects to the other's database or reads its tables THEN it is refused.
-proof (planned): `services/funding/test/integration/database.int.test.ts#FS-14`
+proof: `services/funding/test/integration/database.int.test.ts#FS-14`
 
 **PM-01** — GIVEN the payments mock WHEN a payment is posted twice with one key THEN one
 payment; `GET /v1/payments/{key}` returns it; the documented fault markers (decline, timeout

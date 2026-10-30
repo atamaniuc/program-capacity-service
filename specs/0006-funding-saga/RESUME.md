@@ -37,3 +37,49 @@ Dockerfile, `start` script.
    > T11–T13, T16a). On 429 wait 60/120/240 s and run one teammate fewer. Merge each side
    > branch into `microservices` as it goes green; never touch ~/work/finverity or `main`;
    > no push; leave CONSTRAINTS.md for the owner. Report to the owner in Russian.
+
+## Resume with independent agents, one herdr pane each (2026-10-30, supersedes the team prompt)
+
+The agent team was started and paused within minutes: no commits; its edits are uncommitted in
+each worktree. A kind cluster `finverity-ms` is running. The coordinator pane (`claude` in this
+worktree) opens the panes and starts the agents itself with `herdr agent start` and
+`herdr agent prompt`; the owner does not copy prompts. Side worktrees branch off before this file
+existed, so every prompt is self-contained and names this file by absolute path.
+
+Common rules (inlined in every prompt): absolute paths, work only in your own worktree; no push;
+never touch `~/work/finverity` or `main`; never stage `.harness/1-instructions/CONSTRAINTS.md`;
+commit per task only after `make verify`, `make test` and `npx harnessimo check` are green, the
+message ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; blocked more than
+three attempts → write it in the worktree's handoff.md and stop; report to the owner in Russian.
+
+| Agent | Worktree (branch) | Task |
+| --- | --- | --- |
+| `funding` | `~/work/finverity-microservices` (`microservices`) | T7 review findings (missing deadline = passed; `EXISTING → FAILED` test), T8 (FS-14), T9 (FS-02); then architect review of T8–T9 |
+| `k8s` | `~/work/finverity-ms-helm` (`ms-helm`) | tick T15, T16 (K8-04), T16a (GW-05), live `make kind-up kind-smoke` |
+| `contracts` | `~/work/finverity-ms-contracts` (`ms-contracts`) | T18 (CT-01, CT-04), `docker build` |
+
+Merges into `microservices` belong to the coordinator: `ms-contracts` after T8+T9 (conflict in
+`services/funding/package.json`), `ms-helm` after its architect review of T16a. Then T11 → T12 →
+T13 → T14 in `funding`; T17 recheck in `~/work/finverity-ms-docs` last.
+
+## Finish plan after the quota reset (written 2026-10-30 16:30, quota at 90 %+)
+
+State at 16:30: `funding` (T7+T8, T9), `k8s` (T16, T16a) and `contracts` (T18) had `make verify`
+green and were waiting for their own `make test` before committing; nothing committed yet.
+`disk` (cleanup, 22 GB free now) and `harnessimo` (0.13.0 = `ccd297b`, unpushed, unreviewed) are
+not finverity work: leave them until finverity is done.
+
+Order, no detours:
+1. Each lane agent: if its work is uncommitted, run `make test` once, then commit. Run `make test`
+   in one worktree at a time (three parallel Testcontainers runs caused timeouts).
+2. Coordinator merges into `microservices`: funding commits are already there; then `ms-contracts`
+   (resolve `services/funding/package.json`), then `ms-helm`. One `make verify` after each merge.
+3. One architect review (opus) for T8–T9 + T18, one for T16a. Apply findings in the same lane,
+   no second review unless a BLOCKER.
+4. `funding`: T11 → T12 → T13 → T14, one batched architect review for T11–T13.
+5. T17 docs recheck in `~/work/finverity-ms-docs`, merge, final `make verify` + `make test`.
+
+Harness friction to avoid: gates run only at commit and merge, not after every edit; no re-reading
+of rules mid-task; no `/model` or `/effort` in a running agent (launch with
+`-- --model sonnet --effort high`); at most 4 panes per herdr tab; the coordinator does herdr routine
+itself and never asks the owner about routine.

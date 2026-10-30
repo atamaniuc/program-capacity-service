@@ -13,6 +13,20 @@ module.exports = {
       to: { pathNot: '^src/funding/domain/' },
     },
     {
+      name: 'application-imports-no-adapter',
+      comment: 'Application services depend on ports, never on adapters.',
+      severity: 'error',
+      from: { path: '^src/funding/application/', pathNot: NOT_TEST },
+      to: { path: '^src/funding/adapters/' },
+    },
+    {
+      name: 'adapters-do-not-import-each-other',
+      comment: 'in/http must not import out/postgres, nor the reverse.',
+      severity: 'error',
+      from: { path: '^src/funding/adapters/([^/]+/[^/]+)/', pathNot: NOT_TEST },
+      to: { path: '^src/funding/adapters/', pathNot: '^src/funding/adapters/$1/' },
+    },
+    {
       name: 'no-cross-service-imports',
       comment:
         'A service imports only its own code, its dependencies and generated contract stubs.',

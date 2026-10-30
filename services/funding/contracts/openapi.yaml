@@ -1,0 +1,260 @@
+openapi: 3.1.0
+info:
+  title: Funding Service
+  version: 1.0.0
+  description: "Early payment of supplier invoices. A request completes eventually: poll `GET
+    /v1/funding-requests/{id}`. Errors are RFC 9457 `application/problem+json`; clients branch on
+    `type`. Amounts are decimal strings at the ISO 4217 scale."
+servers:
+  - url: http://localhost:13100
+security:
+  - bearerAuth: []
+paths:
+  /v1/funding-requests:
+    post:
+      operationId: createFundingRequest
+      summary: Ask to pay one invoice early
+      description: Scope `funding:write`, audience `funding-service`. 202 with `Location` when recorded;
+        200 with the existing request when one exists for the same tenant, program and invoice with
+        the same terms; 409 with other terms.
+      parameters:
+        - in: header
+          name: idempotency-key
+          schema:
+            description: Makes the call idempotent per tenant. The first outcome is stored and replayed for the
+              key, including business rejections; validation and authentication errors are not
+              stored.
+            example: 6f1c0e2a-9d7b-4c1e-8a55-0b3c2f1d7e90
+            type: string
+            minLength: 1
+            maxLength: 255
+            pattern: ^[\x21-\x7e]+$
+          description: Makes the call idempotent per tenant. The first outcome is stored and replayed for the
+            key, including business rejections; validation and authentication errors are not stored.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFundingRequest"
+      responses:
+        "200":
+          description: The existing funding request with the same terms.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FundingRequest"
+        "202":
+          description: Recorded in state RECEIVED.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FundingRequest"
+        "400":
+          description: Validation error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "409":
+          description: A funding request for this invoice exists with other terms.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: Payload too large.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: The Idempotency-Key was used with a different request.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/funding-requests/{id}:
+    get:
+      operationId: getFundingRequest
+      summary: Current state of a funding request
+      description: Scope `funding:read`. Another tenant's request answers 404.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            description: UUID of the funding request.
+          required: true
+          description: UUID of the funding request.
+      responses:
+        "200":
+          description: The funding request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FundingRequest"
+        "401":
+          description: Missing, invalid or expired bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: The token lacks the required scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: No such funding request.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+components:
+  schemas:
+    CreateFundingRequest:
+      type: object
+      properties:
+        programId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: prg_grand_usd
+        invoiceId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: INV-1003
+        amount:
+          description: Invoice amount to pay early; greater than zero.
+          $ref: "#/components/schemas/Amount"
+      required:
+        - programId
+        - invoiceId
+        - amount
+      additionalProperties: false
+    Amount:
+      type: object
+      properties:
+        value:
+          type: string
+          maxLength: 32
+          description: Decimal string at the currency scale.
+          example: "1250.50"
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO 4217 code.
+          example: USD
+      required:
+        - value
+        - currency
+    FundingRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        programId:
+          type: string
+        invoiceId:
+          type: string
+        amount:
+          $ref: "#/components/schemas/AmountOutput"
+        state:
+          type: string
+          enum:
+            - RECEIVED
+            - RESERVING
+            - DISBURSING
+            - COMPENSATING
+            - COMPLETED
+            - REJECTED
+            - FAILED
+            - NEEDS_ATTENTION
+        reason:
+          type:
+            - string
+            - "null"
+        reservationId:
+          type:
+            - string
+            - "null"
+        paymentId:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+      required:
+        - id
+        - programId
+        - invoiceId
+        - amount
+        - state
+        - reason
+        - reservationId
+        - paymentId
+        - createdAt
+      additionalProperties: false
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: https://errors.funding.example/<problem>; clients branch on this, not on status.
+          example: https://errors.funding.example/funding-request-conflict
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        detail:
+          type: string
+      required:
+        - type
+        - title
+        - status
+        - detail
+      additionalProperties: false
+    AmountOutput:
+      type: object
+      properties:
+        value:
+          type: string
+          maxLength: 32
+          description: Decimal string at the currency scale.
+          example: "1250.50"
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO 4217 code.
+          example: USD
+      required:
+        - value
+        - currency
+      additionalProperties: false
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

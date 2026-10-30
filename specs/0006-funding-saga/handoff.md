@@ -369,3 +369,28 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 
 Start T7 (ADR 025, ADR 023): `services/funding/src/funding/domain`, the saga state machine as
 pure code, property test `services/funding/test/property/saga.property.test.ts#FS-01`.
+
+## T7 closed, T8 and T9 built (2026-10-30, agent `funding`)
+
+T7: review findings closed. `deadlinePassed()` in `saga.ts` treats a missing deadline as passed
+(reserve, resolution, disburse); tests FS-09 x3 and FS-10 added, incl. `EXISTING -> FAILED` while
+resolving a compensation. FS-01 green, T7 ticked.
+T8: `deploy/postgres/init-databases.sh` (roles `capacity`/`funding`, CONNECT revoked from PUBLIC),
+migrations 0001/0002 (CHECKs: a step state always has its deadline; append-only `saga_step_attempt`
+by trigger), Testcontainers helper `test/support/postgres.ts`. Proof FS-14.
+T9: REST adapter, JWT (`aud` funding-service), idempotency per ADR 006, RFC 9457, OpenAPI from zod
+with drift check, mock OAuth2 mappings. Proof FS-02.
+Also: root `vitest.config.ts` unit project `testTimeout: 30_000` (buf and the AsyncAPI parser took
+>5 s under parallel load and failed `make verify`).
+
+Check results:
+- `make verify` (verify3.log): `✔ verify passed`.
+- `npx harnessimo check`: `harnessimo: every check required at "watched" passes.`
+- funding `vitest run --project int`: `Test Files 2 passed (2)  Tests 15 passed (15)` (FS-14, FS-02).
+- `make test`: **no single green run.** Full run: `Test Files 11 failed | 16 passed (27)`, all
+  `beforeAll` Testcontainers startup timeouts (Docker host shared with other agents: 17 postgres + 7
+  kafka containers, load 11-25; errors `address already in use`, `Kafka Server started not
+  received`, `all broker connections are down`). No code changed between runs. Re-running the failed
+  files alone: schema + migrations (1 SK-05 failure under load), then 9 files (3 passed), then the
+  last 6: `Test Files 6 passed (6)  Tests 17 passed (17)`. So each of the 27 root files has passed
+  with this code; a full serial `make test` on a quiet host is still owed (coordinator).

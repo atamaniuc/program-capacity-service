@@ -57,12 +57,12 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   per tenant/program/invoice, version, lease, deadlines), append-only `saga_step_attempt`,
   `idempotency_key`, `outbox_event`; capacity's role refused on `funding` and vice versa.
   <!-- proof: services/funding/test/integration/database.int.test.ts#FS-14 -->
-- [ ] T9 — **Funding API**. `POST /v1/funding-requests`, `GET /v1/funding-requests/{id}`;
+- [x] T9 — **Funding API**. `POST /v1/funding-requests`, `GET /v1/funding-requests/{id}`;
   JWT (`aud` = `funding-service`, scopes `funding:write`/`funding:read`), tenant from the token,
   `Idempotency-Key` per ADR 006, natural key, RFC 9457 problems, OpenAPI generated from zod with
   a drift check; mock OAuth2 mappings for the funding audience and the per-tenant
   `funding-service.<tenant>` capacity clients.
-  proof (planned): `services/funding/test/e2e/api.e2e.test.ts#FS-02`
+  <!-- proof: services/funding/test/e2e/api.e2e.test.ts#FS-02 -->
 - [x] T10 — **Payments mock**. `services/payments-mock`: `POST /v1/payments` with
   `Idempotency-Key` (stored result), `GET /v1/payments/{key}`, fault markers by invoice id
   (decline, timeout after commit, 5xx n times), ops port with liveness; no database.
