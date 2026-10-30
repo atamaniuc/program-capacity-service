@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FundingRequestCompleted",
+  "description": "The reservation holds and the disbursement is PAID; terminal.",
+  "type": "object",
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Outbox row id; consumers deduplicate on it."
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "fundingRequestId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Gap-free per-request sequence; the topic is keyed by fundingRequestId (ADR 009 pattern)."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "const": "FundingRequestCompleted"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "fundingRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "programId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "invoiceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "COMPLETED"
+          ]
+        },
+        "invoiceAmount": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "description": "Non-negative decimal string at the currency scale."
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code."
+            }
+          },
+          "required": [
+            "value",
+            "currency"
+          ],
+          "description": "In invoice currency."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Problem type or failure reason; present on REJECTED, FAILED and NEEDS_ATTENTION."
+        },
+        "reservationId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Capacity reservation held by the saga, when one exists."
+        },
+        "paymentId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Payment rail id, when a disbursement was made."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "fundingRequestId",
+        "tenantId",
+        "programId",
+        "invoiceId",
+        "state",
+        "invoiceAmount",
+        "updatedAt"
+      ]
+    }
+  },
+  "required": [
+    "messageId",
+    "schemaVersion",
+    "tenantId",
+    "fundingRequestId",
+    "seq",
+    "occurredAt",
+    "type",
+    "payload"
+  ]
+}

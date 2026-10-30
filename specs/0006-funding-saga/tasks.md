@@ -131,14 +131,14 @@ T19–T24 can follow in the same lane or a successor lane.
 
 ## P1 — after the cut
 
-- [ ] T18 — **Contracts package** (ADR 028). `packages/contracts` (`@finverity/contracts`):
+- [x] T18 — **Contracts package** (ADR 028). `packages/contracts` (`@finverity/contracts`):
   proto moved from `contracts/proto`, generated stubs, JSON Schemas of `capacity.events.v1`
   and `funding.events.v1`; both services import it; `proto:*` scripts move. Closes the ADR 021
   precondition left open by ADR 023. Also the build-time substitute for a schema registry (ADR
   028): a JSON Schema backward-compatibility check of every event schema against the merge base,
   run in `make verify`; removing or renaming a field, adding a required one, or narrowing a type
-  fails (CT-04). proof (planned): `test/architecture/workspaces.test.ts#CT-01`,
-  `packages/contracts/test/schema-compat.test.ts#CT-04`
+  fails (CT-04).
+  <!-- proof: test/architecture/workspaces.test.ts#CT-01 --> <!-- proof: packages/contracts/test/schema-compat.test.ts#CT-04 -->
 - [ ] T19 — **Pact consumer tests in funding** (ADR 028). Six interactions, protobuf plugin,
   pact file committed to `contracts/pacts/`; fallback recorded in ADR 028 if the plugin fails
   on CI. proof (planned): `services/funding/test/pact/capacity.consumer.pact.test.ts#CT-02`

@@ -1,7 +1,7 @@
 import { status } from '@grpc/grpc-js';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ReserveResult } from '#src/capacity/adapters/in/grpc/generated/finverity/capacity/v1/capacity_service.js';
+import { ReserveResult } from '@finverity/contracts/capacity/v1';
 import { closeWithin } from '#src/platform/bootstrap/shutdown.js';
 import { createLogger } from '#src/platform/logging/logger.js';
 import { startFaultApp, waitFor, type FaultApp } from '../support/fault-app.js';

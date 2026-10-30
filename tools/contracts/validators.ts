@@ -29,7 +29,7 @@ export async function contractValidators(): Promise<ContractValidators> {
   const committed = new Map<ContractMessage, ValidateFunction>();
   const strict = new Map<ContractMessage, ValidateFunction>();
   for (const name of CONTRACT_MESSAGES) {
-    const file = await readFile(resolve(ROOT, `contracts/json-schema/${name}.schema.json`), 'utf8');
+    const file = await readFile(resolve(ROOT, `packages/contracts/json-schema/capacity.events.v1/${name}.schema.json`), 'utf8');
     committed.set(name, ajv.compile(JSON.parse(file) as object));
     strict.set(name, ajv.compile(messageJsonSchema(name, 'output')));
   }

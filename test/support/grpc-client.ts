@@ -8,7 +8,7 @@ import {
   type ReleaseResponse,
   type ReserveRequest,
   type ReserveResponse,
-} from '#src/capacity/adapters/in/grpc/generated/finverity/capacity/v1/capacity_service.js';
+} from '@finverity/contracts/capacity/v1';
 
 export interface ErrorInfo {
   readonly reason: string;

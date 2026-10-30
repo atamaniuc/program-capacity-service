@@ -162,7 +162,7 @@ const keyBinding = (description: string) => ({
 const PROGRAM_KEY = 'tenantId:programId, for example bank-a:prg_grand_usd.';
 
 /**
- * `payloads: 'files'` references `./json-schema/<name>.schema.json` (the committed layout);
+ * `payloads: 'files'` references `../packages/contracts/json-schema/capacity.events.v1/<name>.schema.json` (the committed layout);
  * `'inline'` embeds the same schemas, for a browser that cannot follow relative files.
  */
 export interface AsyncApiDocument extends JsonObject {
@@ -187,7 +187,7 @@ export function buildAsyncApiDocument(options: {
       : {}),
     payload:
       options.payloads === 'files'
-        ? { $ref: `./json-schema/${name}.schema.json` }
+        ? { $ref: `../packages/contracts/json-schema/capacity.events.v1/${name}.schema.json` }
         : messageJsonSchema(name),
     bindings: name === 'FxRatePublished' ? fxKey : capacityKey,
     examples: MESSAGE_EXAMPLES[name],

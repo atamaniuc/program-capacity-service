@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { messageJsonSchema } from '#src/platform/contracts/asyncapi.js';
-import { compareSchemas } from '../../tools/contracts/compare-schemas.js';
+import { compareSchemas } from '@finverity/contracts/compare-schemas';
 
 interface Node {
   [key: string]: unknown;

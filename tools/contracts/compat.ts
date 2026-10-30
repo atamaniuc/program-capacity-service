@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { parse } from 'yaml';
-import { compareSchemas } from './compare-schemas.js';
+import { compareSchemas } from '@finverity/contracts/compare-schemas';
 
 /**
  * NFR-14: no breaking change to a published contract within v1. Compares `contracts/` with the
  * same files at `--base` (default HEAD):
- * - every Kafka message schema in `json-schema/` and the header schemas in `asyncapi.yaml`, with
+ * - the header schemas in `asyncapi.yaml` (the event schemas live in @finverity/contracts, ADR 028), with
  *   `compareSchemas` (the only allowed change is a new optional field or a new event type);
  * - `openapi.yaml` with oasdiff (`breaking --fail-on ERR`) in Docker.
  * A breaking change needs a new version (`/v2`, `capacity.events.v2`), not an edit.
@@ -58,21 +58,6 @@ const current = (path: string): string | null => {
 };
 
 const problems: string[] = [];
-const baseSchemas = git('ls-tree', '--name-only', `${base}:contracts/json-schema`)
-  .split('\n')
-  .filter((name) => name.endsWith('.schema.json'));
-for (const name of baseSchemas) {
-  const now = current(`json-schema/${name}`);
-  if (now === null) {
-    problems.push(`json-schema/${name}: message removed`);
-    continue;
-  }
-  const before = JSON.parse(atBase(`json-schema/${name}`) ?? '{}') as object;
-  for (const problem of compareSchemas(before, JSON.parse(now) as object)) {
-    problems.push(`json-schema/${name}: ${problem}`);
-  }
-}
-
 type AsyncApi = { components?: { schemas?: Record<string, object> } } | null;
 const baseAsync = parse(atBase('asyncapi.yaml') ?? 'null') as AsyncApi;
 const nowAsync = parse(current('asyncapi.yaml') ?? 'null') as AsyncApi;
@@ -113,7 +98,7 @@ if (baseOpenApi !== null) {
 }
 
 console.log(
-  `contracts:compat: base ${base.slice(0, 7)}; ${baseSchemas.length} message schema(s) and the header schemas compared; OpenAPI: ${oasdiff}; breaking=${problems.length}`,
+  `contracts:compat: base ${base.slice(0, 7)}; header schemas compared (event schemas: npm run schema:compat in @finverity/contracts); OpenAPI: ${oasdiff}; breaking=${problems.length}`,
 );
 for (const problem of problems) console.error(`  ${problem}`);
 process.exit(problems.length === 0 ? 0 : 1);
