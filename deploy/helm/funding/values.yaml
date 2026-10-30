@@ -49,7 +49,7 @@ resources:
     memory: 512Mi
 
 migrate:
-  command: ['node', 'src/migrate.js']
+  command: ['node', 'src/funding/adapters/out/postgres/migrate.js']
 
 # helm test: the in-cluster smoke (K8-03). `saga: true` once the funding API is built.
 test:

@@ -27,7 +27,9 @@
     "test:unit": "vitest run --project unit",
     "test:int": "vitest run --project int",
     "contracts": "tsx tools/contracts.ts",
-    "contracts:check": "tsx tools/contracts.ts --check"
+    "contracts:check": "tsx tools/contracts.ts --check",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/funding/adapters/out/postgres/migrations dist/funding/adapters/out/postgres/",
+    "start": "node dist/main.js"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "12.2.1",

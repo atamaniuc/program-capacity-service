@@ -235,6 +235,25 @@ describe('kind targets (ADR 026)', () => {
     expect(release('gateway')).toContain('--set-string issuer=$(KIND_OAUTH_ISSUER)');
   });
 
+  it('K8-02 kind-up builds, loads and installs all three images, each from its own Dockerfile', () => {
+    const up = recipe('kind-up');
+    for (const [image, dockerfile] of [
+      ['program-capacity-service', 'Dockerfile'],
+      ['funding-service', 'services/funding/Dockerfile'],
+      ['payments-mock', 'services/payments-mock/Dockerfile'],
+    ] as const) {
+      expect(read(dockerfile)).toContain('FROM node:24');
+      const build =
+        dockerfile === 'Dockerfile' ? 'docker build -t' : `docker build -f ${dockerfile} -t`;
+      expect(up).toContain(`${build} ${image}:ms-local .`);
+      expect(up).toMatch(
+        new RegExp(`kind load docker-image --name \\$\\(KIND_CLUSTER\\)[^\\n]*${image}:ms-local`),
+      );
+    }
+    expect(up).toContain('--set paymentsMock.enabled=true');
+    expect(up).toContain('upgrade --install funding deploy/helm/funding');
+  });
+
   it('K8-04 forwards only host ports 23000-23099 and the cluster has no host port mapping', () => {
     const forwards = [...recipe('kind-forward').matchAll(/(\d{5}):/g)].map((m) => Number(m[1]));
     expect(forwards.length).toBeGreaterThan(0);

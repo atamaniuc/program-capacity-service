@@ -8,6 +8,8 @@
 .codegraph
 node_modules
 dist
+**/node_modules
+**/dist
 coverage
 docs
 specs

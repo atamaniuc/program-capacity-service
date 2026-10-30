@@ -25,6 +25,7 @@ KIND_NAMESPACE := finverity-ms
 KUBECTL := kubectl --kubeconfig $(KUBECONFIG_FILE) --context kind-$(KIND_CLUSTER) --namespace $(KIND_NAMESPACE)
 # In-cluster Service ports (the charts' defaults), not host ports.
 OAUTH_SVC_PORT := 8080
+PAYMENTS_SVC_PORT := 8080
 # The one issuer string of the kind deployment (ADR 029): the in-cluster FQDN of the mock OAuth2
 # Service. Passed to capacity, funding and gateway; tokens are minted at this address.
 KIND_OAUTH_ISSUER := http://oauth.$(KIND_NAMESPACE).svc.cluster.local:$(OAUTH_SVC_PORT)/default
@@ -218,24 +219,17 @@ kind-up: ## create the kind cluster, build and load the :ms-local images, instal
 	  kind create cluster --name $(KIND_CLUSTER) --config deploy/kind/cluster.yaml --kubeconfig $(KUBECONFIG_FILE) --wait 120s
 	$(call step,Images · program-capacity-service funding-service payments-mock (:ms-local))
 	docker build -t program-capacity-service:ms-local .
-	@for svc in funding payments-mock; do \
-	  if [ -f services/$$svc/Dockerfile ]; then \
-	    img=$$([ $$svc = funding ] && echo funding-service || echo payments-mock); \
-	    docker build -f services/$$svc/Dockerfile -t $$img:ms-local . || exit 1; \
-	  else printf '$(C_YELLOW)! services/%s has no Dockerfile yet: its release is skipped$(C_RESET)\n' $$svc; fi; done
-	kind load docker-image --name $(KIND_CLUSTER) program-capacity-service:ms-local
-	@for img in funding-service payments-mock; do \
-	  if docker image inspect $$img:ms-local >/dev/null 2>&1; then kind load docker-image --name $(KIND_CLUSTER) $$img:ms-local || exit 1; fi; done
+	docker build -f services/funding/Dockerfile -t funding-service:ms-local .
+	docker build -f services/payments-mock/Dockerfile -t payments-mock:ms-local .
+	kind load docker-image --name $(KIND_CLUSTER) program-capacity-service:ms-local funding-service:ms-local payments-mock:ms-local
 	$(call step,Releases · local-infra · capacity · funding)
 	$(HELM) upgrade --install local-infra deploy/helm/local-infra --create-namespace --wait --timeout 6m \
-	  --set paymentsMock.enabled=$$(docker image inspect payments-mock:ms-local >/dev/null 2>&1 && echo true || echo false)
+	  --set paymentsMock.enabled=true
 	$(HELM) upgrade --install capacity deploy/helm/capacity --wait --timeout 6m \
 	  --set-string oauth.issuer=$(KIND_OAUTH_ISSUER) --set-string corsOrigins=
-	@if docker image inspect funding-service:ms-local >/dev/null 2>&1; then \
-	  $(HELM) upgrade --install funding deploy/helm/funding --wait --timeout 6m \
-	    --set-string oauth.issuer=$(KIND_OAUTH_ISSUER) --set-string oauth.tokenUrl=$(KIND_OAUTH_ISSUER)/token \
-	    --set-string corsOrigins=; \
-	else printf '$(C_YELLOW)! funding-service:ms-local is not built yet: the funding release is skipped$(C_RESET)\n'; fi
+	$(HELM) upgrade --install funding deploy/helm/funding --wait --timeout 6m \
+	  --set-string oauth.issuer=$(KIND_OAUTH_ISSUER) --set-string oauth.tokenUrl=$(KIND_OAUTH_ISSUER)/token \
+	  --set-string corsOrigins=
 	@$(MAKE) --no-print-directory kind-seed
 	$(call step,API gateway · Envoy Gateway $(ENVOY_GATEWAY_VERSION) · release gateway)
 	$(HELM) upgrade --install eg \
@@ -243,7 +237,7 @@ kind-up: ## create the kind cluster, build and load the :ms-local images, instal
 	  --namespace envoy-gateway-system --create-namespace --wait --timeout 6m
 	$(HELM) upgrade --install gateway deploy/helm/gateway --wait --timeout 6m \
 	  --set-string issuer=$(KIND_OAUTH_ISSUER) \
-	  --set test.fundingDeployed=$$(docker image inspect funding-service:ms-local >/dev/null 2>&1 && echo true || echo false)
+	  --set test.fundingDeployed=true
 	@# The release wait does not cover the proxy Pod that Envoy Gateway creates later: wait for the Gateway and that Deployment.
 	$(KUBECTL) wait gateway/edge --for=condition=Programmed --timeout=180s
 	$(KUBECTL) --namespace envoy-gateway-system wait deployment -l gateway.envoyproxy.io/owning-gateway-name=edge --for=condition=Available --timeout=180s
@@ -259,8 +253,7 @@ kind-seed: ## seed capacity's database in kind through a short port-forward (pro
 
 kind-smoke: ## in-cluster tests: helm test capacity and funding (K8-03)
 	$(HELM) test capacity --logs --timeout 3m
-	@if $(HELM) status funding >/dev/null 2>&1; then $(HELM) test funding --logs --timeout 3m; \
-	else printf '$(C_YELLOW)! funding release not installed: only capacity was tested$(C_RESET)\n'; fi
+	$(HELM) test funding --logs --timeout 3m
 	$(HELM) test gateway --logs --timeout 5m
 	$(call done,kind smoke passed)
 
@@ -272,7 +265,7 @@ kind-forward: ## port-forward to host ports 23000-23099 (Ctrl-C stops): capacity
 	$(KUBECTL) port-forward --address 127.0.0.1 svc/oauth 23020:$(OAUTH_SVC_PORT) & \
 	$(KUBECTL) port-forward --address 127.0.0.1 svc/postgres 23040:$(PG_SVC_PORT) & \
 	if $(KUBECTL) get svc funding-api >/dev/null 2>&1; then $(KUBECTL) port-forward --address 127.0.0.1 svc/funding-api 23010:3100 & fi; \
-	if $(KUBECTL) get svc payments-mock >/dev/null 2>&1; then $(KUBECTL) port-forward --address 127.0.0.1 svc/payments-mock 23030:$(OAUTH_SVC_PORT) & fi; \
+	if $(KUBECTL) get svc payments-mock >/dev/null 2>&1; then $(KUBECTL) port-forward --address 127.0.0.1 svc/payments-mock 23030:$(PAYMENTS_SVC_PORT) & fi; \
 	wait
 
 kind-token: ## print a JWT valid in kind (issuer = the cluster issuer): make kind-token TENANT=bank-a (needs make kind-forward)

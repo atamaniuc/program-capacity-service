@@ -38,7 +38,7 @@ spec:
           image: {{ .Values.paymentsMock.image }}
           imagePullPolicy: {{ .Values.paymentsMock.pullPolicy }}
           env:
-            - { name: HTTP_PORT, value: {{ .Values.paymentsMock.port | quote }} }
+            - { name: PAYMENTS_PORT, value: {{ .Values.paymentsMock.port | quote }} }
           ports:
             - name: http
               containerPort: {{ .Values.paymentsMock.port }}

@@ -418,6 +418,27 @@ lands in kind (agent `k8s`, one commit, then `make verify`, `make helm-check`, `
   `Distinct` selector does not match). The mock always sets `tenant_id` and the services answer
   401 without it, so this is accepted for kind; revisit with a real IdP.
 
+### T14 images for kind (agent `k8s`, branch `ms-helm`, 2026-10-30)
+
+`services/funding/Dockerfile` and `services/payments-mock/Dockerfile` (build context = repository
+root, multi-stage like the root Dockerfile; `@finverity/contracts` compiled and swapped in as in
+T18; funding installs only its own production dependencies). `tsconfig.build.json` and the
+`build` / `start` scripts in both packages (`node dist/main.js`; funding's `build` also copies the
+SQL migrations). Both images built with `docker build` and smoke-run: contracts resolve, migrations
+are in the image, the services stop on a missing configuration, payments-mock answers on 3200 (API)
+and 9466 (ops `/health/live`). `kind-up` builds and loads all three images and installs
+`local-infra` (payments-mock on), `capacity`, `funding` (`oauth.tokenUrl` from `KIND_OAUTH_ISSUER`)
+and `gateway`, with no skip branches left. Chart fixes found while wiring: the funding worker
+runs `node src/worker.js`, the migrate Job runs the real path, the configmap says
+`PAYMENTS_BASE_URL` (what `worker-config.ts` reads), payments-mock gets `PAYMENTS_PORT`.
+
+Open before the live run (K8-03, M2(c)); not exercised, nothing was installed in kind:
+- funding's `api` and `worker` expose no ops port yet (`main.ts` serves only HTTP; no
+  `/health/ready` or `/health/live` on 9464), while the chart's probes need them; until the funding
+  agent adds the ops server (or the probes move), `helm upgrade --install funding --wait` times out.
+- `deploy/compose.yaml`, the payments host port 13200 -> 3200 and ops 9466, alerts and the demo
+  are the funding agent's T14 part; the `test.saga` flag of `helm test funding` is still off.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.
