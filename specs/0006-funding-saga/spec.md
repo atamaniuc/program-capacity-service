@@ -148,12 +148,12 @@ proof: `services/funding/test/system/saga.system.test.ts#FS-06`
 **FS-07** — GIVEN capacity commits a reserve but the answer is lost (Toxiproxy timeout after
 the request) WHEN the saga retries THEN it sends the same key and gets the same
 `reservationId`; capacity has one reservation and one `RESERVE` ledger entry.
-proof (planned): `services/funding/test/system/saga.system.test.ts#FS-07`
+proof: `services/funding/test/system/saga.system.test.ts#FS-07`
 
 **FS-08** — GIVEN a step's call succeeded but recording its result fails (injected) WHEN the
 driver runs again THEN it repeats the call with the same key and records one result, for the
 reserve and for the disburse step.
-proof (planned): `services/funding/test/integration/saga.int.test.ts#FS-08`
+proof: `services/funding/test/integration/saga.int.test.ts#FS-08`
 
 **FS-09** — GIVEN the reserve outcome stays unknown past `FUNDING_RESERVE_DEADLINE` WHEN the
 deadline passes THEN the saga repeats `Reserve` under the same key, releases what it gets, and
@@ -173,11 +173,11 @@ proof: `services/funding/test/system/saga.system.test.ts#FS-11`
 
 **FS-12** — GIVEN two drivers and a lease that expires mid-call WHEN both run the same step
 THEN one result is recorded (version check) and the receiver sees one effect.
-proof (planned): `services/funding/test/integration/driver.int.test.ts#FS-12`
+proof: `services/funding/test/integration/driver.int.test.ts#FS-12`
 
 **FS-13** — GIVEN a transition WHEN the outbox insert or the attempt-log insert fails THEN the
 whole transition rolls back: state, version, attempt log, outbox and idempotency row unchanged.
-proof (planned): `services/funding/test/integration/driver.int.test.ts#FS-13`
+proof: `services/funding/test/integration/driver.int.test.ts#FS-13`
 
 **FS-14** — GIVEN the `funding` and `capacity` databases on one server WHEN each service's
 role connects to the other's database or reads its tables THEN it is refused.

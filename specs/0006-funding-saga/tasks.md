@@ -79,11 +79,11 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   `NEEDS_ATTENTION`, never release; compensation retried without deadline; already-released
   counts as compensated (prove capacity's answer first).
   <!-- proof: services/funding/test/system/saga.system.test.ts#FS-06 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-09 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-10 --> <!-- proof: services/funding/test/system/saga.system.test.ts#FS-11 -->
-- [ ] T13 — **Exactly-once effect and atomicity** (ADR 025) **[review]**. Lost reserve
+- [x] T13 — **Exactly-once effect and atomicity** (ADR 025) **[review]**. Lost reserve
   answer via Toxiproxy; crash between call and record; two drivers with an expired lease;
   injected failure inside a transition. Mutation probes: remove the version check, then the
   deterministic key, and expect red.
-  proof (planned): `services/funding/test/system/saga.system.test.ts#FS-07`, `services/funding/test/integration/saga.int.test.ts#FS-08`, `services/funding/test/integration/driver.int.test.ts#FS-12`, `services/funding/test/integration/driver.int.test.ts#FS-13`
+  <!-- proof: services/funding/test/system/saga.system.test.ts#FS-07 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-08 --> <!-- proof: services/funding/test/integration/driver.int.test.ts#FS-12 --> <!-- proof: services/funding/test/integration/driver.int.test.ts#FS-13 -->
 - [ ] T14 — **Compose stack, demo and alerts**. Funding `api` and `worker`, payments mock,
   capacity gRPC port in `deploy/compose.yaml`; `make demo-funding` with the five scenarios;
   funding metrics, Prometheus alert rules `FundingNeedsAttention`, `FundingCompensationStuck`,

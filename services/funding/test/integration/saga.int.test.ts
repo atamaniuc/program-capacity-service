@@ -1,6 +1,8 @@
 import { status } from '@grpc/grpc-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { created, existing, released, startFakeCapacity } from '../support/fake-capacity.js';
+import type { Claim, SagaStore } from '#src/funding/application/saga-ports.js';
+import type { Transition } from '#src/funding/domain/index.js';
 import { startSagaWorld, type SagaWorld } from '../support/saga-world.js';
 
 let world: SagaWorld;
@@ -340,5 +342,93 @@ describe('saga driver: unknown reserve, compensation (ADR 025)', () => {
     expect(row['state']).toBe('NEEDS_ATTENTION');
     expect(row['reason']).toBe('release-failed:not-found');
     expect(alerts).toEqual([id]);
+  });
+});
+
+/** A store whose `record` fails on demand: the call succeeded, the result is lost (FS-08). */
+class LosingStore implements SagaStore {
+  failNext = 0;
+  constructor(private readonly inner: SagaStore) {}
+  claimDue(owner: string, leaseMs: number, limit: number): Promise<readonly Claim[]> {
+    return this.inner.claimDue(owner, leaseMs, limit);
+  }
+  now(): Promise<number> {
+    return this.inner.now();
+  }
+  record(claim: Claim, transition: Transition): Promise<boolean> {
+    if (this.failNext > 0) {
+      this.failNext -= 1;
+      return Promise.reject(new Error('injected: recording the result failed'));
+    }
+    return this.inner.record(claim, transition);
+  }
+}
+
+describe('saga driver: a lost result is a replay (ADR 025 exactly-once effect)', () => {
+  it('FS-08 Reserve succeeded but recording failed: the driver repeats it with the same key and records one result', async () => {
+    const effects = new Map<string, string>();
+    world.capacity.onReserve = (call) => {
+      const key = call.metadata['idempotency-key'] ?? '';
+      if (!effects.has(key)) effects.set(key, `res-${(effects.size + 1).toString()}-fs08`);
+      return created(effects.get(key) ?? '');
+    };
+    world.rail.onDisburse = () => ({ kind: 'paid', paymentId: 'pay-fs08' });
+    const losing = new LosingStore(world.store);
+    const errors: unknown[] = [];
+    const driver = world.driver({
+      store: losing,
+      leaseMs: 300,
+      hooks: { onError: (_claim, error) => errors.push(error) },
+    });
+    const reserves = world.capacity.reserves.length;
+    const id = await world.submit({ invoiceId: 'inv-fs08-reserve' });
+
+    await driver.runOnce(); // risk
+    losing.failNext = 1;
+    await driver.runOnce(); // Reserve called, result lost
+    expect(errors).toHaveLength(1);
+    expect((await world.row(id))['state']).toBe('RESERVING');
+    await sleep(450); // the lease expires
+    await world.drain(driver);
+
+    expect((await world.row(id))['state']).toBe('COMPLETED');
+    const mine = world.capacity.reserves.slice(reserves);
+    expect(mine).toHaveLength(2);
+    expect(new Set(mine.map((c) => c.metadata['idempotency-key']))).toEqual(
+      new Set([`funding:${id}:reserve`]),
+    );
+    expect(effects.size).toBeGreaterThanOrEqual(1);
+    const attempts = await world.attempts(id);
+    expect(attempts.filter((a) => a.step === 'reserve')).toHaveLength(1);
+    expect(attempts.filter((a) => a.step === 'disburse')).toHaveLength(1);
+  });
+
+  it('FS-08 Disburse succeeded but recording failed: the rail is asked again with the same key, one result is recorded', async () => {
+    world.capacity.onReserve = () => created('res-fs08-disburse');
+    const paid = new Map<string, string>();
+    world.rail.onDisburse = (call) => {
+      if (!paid.has(call.key)) paid.set(call.key, `pay-${(paid.size + 1).toString()}`);
+      return { kind: 'paid', paymentId: paid.get(call.key) ?? '' };
+    };
+    const losing = new LosingStore(world.store);
+    const driver = world.driver({ store: losing, leaseMs: 300 });
+    const calls = world.rail.calls.length;
+    const id = await world.submit({ invoiceId: 'inv-fs08-disburse' });
+
+    await driver.runOnce(); // risk
+    await driver.runOnce(); // reserve
+    losing.failNext = 1;
+    await driver.runOnce(); // disburse called, result lost
+    expect((await world.row(id))['state']).toBe('DISBURSING');
+    await sleep(450);
+    await world.drain(driver);
+
+    const row = await world.row(id);
+    expect(row['state']).toBe('COMPLETED');
+    expect(row['payment_id']).toBe(paid.get(`funding:${id}:disburse`));
+    const mine = world.rail.calls.slice(calls);
+    expect(mine).toHaveLength(2);
+    expect(new Set(mine.map((c) => c.key))).toEqual(new Set([`funding:${id}:disburse`]));
+    expect((await world.attempts(id)).filter((a) => a.step === 'disburse')).toHaveLength(1);
   });
 });

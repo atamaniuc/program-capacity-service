@@ -5,6 +5,7 @@ import type {
   CapacityGateway,
   DisburseCall,
   PaymentRail,
+  SagaStore,
   TenantTokens,
 } from '#src/funding/application/saga-ports.js';
 import { GrpcCapacityGateway } from '#src/funding/adapters/out/grpc/capacity-gateway.js';
@@ -49,6 +50,7 @@ export interface SagaWorld {
     saga?: Partial<SagaConfig>;
     hooks?: DriverHooks;
     gateway?: CapacityGateway;
+    store?: SagaStore;
     owner?: string;
     leaseMs?: number;
     batchSize?: number;
@@ -90,7 +92,7 @@ export async function startSagaWorld(): Promise<SagaWorld> {
     gateway,
     driver: (options = {}) =>
       new SagaDriver(
-        store,
+        options.store ?? store,
         options.gateway ?? gateway,
         rail,
         {

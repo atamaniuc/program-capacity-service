@@ -4,7 +4,8 @@ import { startSystemStack, type SystemStack } from '../support/system-stack.js';
 let stack: SystemStack;
 
 beforeAll(async () => {
-  stack = await startSystemStack();
+  // A short call deadline: FS-07 loses an answer and must not wait the production 21 s for it.
+  stack = await startSystemStack({ grpcDeadlineMs: 3_000 });
   await stack.seedProgram({
     tenantId: 'bank-a',
     id: 'prg_sys',
@@ -267,4 +268,76 @@ describe('compensation against the real capacity image', () => {
     expect(ledger.map((l) => l['kind'])).toEqual(['RESERVE', 'RELEASE']);
     expect(await reserved('prg_gone')).toBe('0');
   }, 120_000);
+});
+
+describe('exactly-once effect across the gRPC hop', () => {
+  it('FS-07 capacity commits the Reserve but the answer is lost: the retry sends the same key and gets the same reservation', async () => {
+    await stack.seedProgram({
+      tenantId: 'bank-a',
+      id: 'prg_lost',
+      currency: 'USD',
+      limitMinor: 5_000_000_00n,
+    });
+    const driver = stack.driver();
+    // Warm the channel and the token with a first, unharmed request.
+    const warm = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_lost',
+      invoiceId: 'inv-warm',
+      value: '10.00',
+    });
+    await stack.drain(driver);
+    expect(await stateOf(warm)).toBe('COMPLETED');
+
+    const id = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_lost',
+      invoiceId: 'inv-lost-answer',
+      value: '75.00',
+    });
+    await driver.runOnce(); // risk
+    // Requests still reach capacity; its answers are held back until the toxic is removed.
+    const toxic = await stack.capacityProxy.instance.addToxic({
+      name: 'lost-answer',
+      type: 'timeout',
+      stream: 'downstream',
+      toxicity: 1,
+      attributes: { timeout: 0 },
+    });
+    try {
+      await driver.runOnce(); // Reserve: committed in capacity, answer lost, deadline passes
+      expect(await stateOf(id)).toBe('RESERVING');
+      const committed = await stack.capacity(
+        `SELECT id::text FROM reservation WHERE invoice_id = 'inv-lost-answer'`,
+      );
+      expect(committed).toHaveLength(1);
+    } finally {
+      await toxic.remove();
+    }
+
+    await until(async () => {
+      await driver.runOnce();
+      return (await stateOf(id)) === 'COMPLETED';
+    }, 'the retry to finish once the answer path is back');
+
+    const [row] = await stack.funding('SELECT reservation_id FROM funding_request WHERE id = $1', [
+      id,
+    ]);
+    const reservations = await stack.capacity(
+      `SELECT id::text FROM reservation WHERE invoice_id = 'inv-lost-answer'`,
+    );
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0]?.['id']).toBe(row?.['reservation_id']);
+    const ledger = await stack.capacity(
+      `SELECT kind FROM ledger_entry WHERE reservation_id = $1::uuid ORDER BY id`,
+      [reservations[0]?.['id']],
+    );
+    expect(ledger.map((l) => l['kind'])).toEqual(['RESERVE']);
+    expect(await reserved('prg_lost')).toBe('8500'); // 10.00 + 75.00, once each
+    const attempts = await stack.funding(
+      `SELECT outcome_class FROM saga_step_attempt WHERE request_id = $1 AND step = 'reserve' ORDER BY created_at, id`,
+      [id],
+    );
+    expect(attempts.map((a) => a['outcome_class'])).toEqual(['unknown', 'success']);
+  }, 180_000);
 });

@@ -130,7 +130,9 @@ export interface SystemStack {
  * Capacity (the real image, api role, gRPC on 50051 behind Toxiproxy), PostgreSQL with both
  * databases, mock OAuth2 with the committed mappings, and the payments mock (ADR 025, T11).
  */
-export async function startSystemStack(): Promise<SystemStack> {
+export async function startSystemStack(
+  options: { grpcDeadlineMs?: number } = {},
+): Promise<SystemStack> {
   const network: StartedNetwork = await new Network().start();
   const postgres = await startFundingPostgres(network);
   const oauthPort = await freePort();
@@ -204,7 +206,7 @@ export async function startSystemStack(): Promise<SystemStack> {
   const raw = new CapacityServiceClient(target, credentials.createInsecure());
   const gateway = new GrpcCapacityGateway({
     target,
-    deadlineMs: 21_000,
+    deadlineMs: options.grpcDeadlineMs ?? 21_000,
     tokens: new TenantTokenProvider({
       tokenUrl: `http://127.0.0.1:${oauthPort.toString()}/default/token`,
       clientIdPrefix: 'funding-service',

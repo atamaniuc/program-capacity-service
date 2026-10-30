@@ -660,3 +660,34 @@ stops at the first failing step, so funding int did not run in that pass. Reruns
 same code: `auth.e2e.test.ts` 8/8, `npm run test:int -w @finverity/funding`:
 `Test Files 5 passed (5)  Tests 45 passed (45)`. The other 26 root integration files passed in the
 `make test` pass (133 passed | 7 skipped, the skips being the failed file's).
+
+## T13 built (2026-10-30, agent `funding`) — the batched review T11–T13 comes next
+
+Tests only (the driver and store from T11 already carry the mechanism).
+`saga.int.test.ts` FS-08: Reserve called, recording fails (`LosingStore`), lease expires, the driver
+repeats the call under the same key and records exactly one result; the same for Disburse (rail
+fake deduplicates by key). `driver.int.test.ts` FS-12: driver A stalls inside its Reserve call,
+its 250 ms lease expires, driver B takes the step over and finishes the request; A's late answer
+is dropped (`onDropped: lease-lost`, attempt log unchanged), two calls reached the receiver under
+one key and it did one thing. FS-13: a trigger makes the outbox insert (and in the second case the
+attempt-log insert) fail inside `record`; state, version, lease, attempt log, outbox and
+idempotency row equal the snapshot taken after the claim; healed, the step goes through once.
+`saga.system.test.ts` FS-07: Toxiproxy `timeout` toxic (downstream, 0) holds capacity's answers
+while requests still arrive: capacity commits the reservation, the call hits the 3 s deadline
+(unknown), the toxic is removed, the retry sends the same key and gets the same reservation id:
+one reservation, one `RESERVE` ledger entry, `reserved` counted once, attempts `unknown` then
+`success`. The stack takes `grpcDeadlineMs` (3 s in this file; 21 s is the production default).
+
+Mutation probes (each reverted, `git diff src` empty afterwards):
+- Version check removed from the `UPDATE` in `saga-store.ts` (`AND version = …`): two FS-12 tests
+  red (`expected true to be false`; `expected [] to deeply equal [ 'lease-lost' ]`), 5 others green.
+- `stepKey` made non-deterministic (random suffix): FS-07 system (timed out waiting for the retry:
+  the second Reserve meets the natural key and is REJECTED as EXISTING), FS-07 int retry-bytes,
+  both FS-08 tests red.
+
+Checks: `make verify`: `✔ verify passed`.
+
+`make test` (one serial run): root unit 159/159 (31 files), funding unit 54/54, payments-mock 8/8,
+contracts 9/9, root int 140/140 (27 files), funding int/system `Test Files 6 passed (6)  Tests
+54 passed (54)`, `✔ all tests passed`. (The tree already held T14 work in progress; T13 is
+committed by path.)
