@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'npx --no-install harnessimo check >&2 || { echo \"harnessimo check is red: fix it before completing the task\" >&2; exit 2; }'"
+            "command": "npx --no-install harnessimo hook task-completed"
           }
         ]
       }

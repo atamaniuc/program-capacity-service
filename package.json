@@ -68,9 +68,9 @@
     "zod-openapi": "6.0.2"
   },
   "devDependencies": {
-    "@bufbuild/buf": "1.75.0",
     "@asyncapi/parser": "3.6.6",
     "@asyncapi/react-component": "3.2.2",
+    "@bufbuild/buf": "1.75.0",
     "@eslint/js": "10.0.1",
     "@swc/core": "1.16.20",
     "@testcontainers/kafka": "12.2.1",
@@ -87,7 +87,7 @@
     "eslint-config-prettier": "10.1.8",
     "fast-check": "4.10.2",
     "globals": "17.13.0",
-    "harnessimo": "^0.10.1",
+    "harnessimo": "^0.12.0",
     "prettier": "3.9.10",
     "supertest": "7.3.1",
     "testcontainers": "12.2.1",
