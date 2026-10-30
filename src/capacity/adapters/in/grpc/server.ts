@@ -40,7 +40,7 @@ import {
   type ReleaseResponse,
   type ReserveRequest,
   type ReserveResponse,
-} from './generated/finverity/capacity/v1/capacity_service.js';
+} from '@finverity/contracts/capacity/v1';
 import { capacityMessage, releaseBody, releaseResponse, reserveResponse } from './mapping.js';
 import { encodeStatusDetails, STATUS_DETAILS_KEY } from './status-details.js';
 

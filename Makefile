@@ -158,6 +158,8 @@ verify: ## lint, types, layer rules, contract drift, unit and property tests
 	@npm run --silent proto:lint
 	@npm run --silent proto:breaking
 	@npm run --silent proto:check
+	$(call step,Event schemas are backward compatible (CT-04))
+	@SCHEMA_BASE="$(BASE)" npm run --silent schema:compat
 	$(call step,Unit and property tests)
 	@npm run --silent test:unit
 	@npm run --silent test:unit --workspaces --if-present
@@ -181,8 +183,9 @@ test-int: ## integration, e2e, Kafka and fault tests (Docker)
 contracts: ## regenerate contracts/ (OpenAPI, AsyncAPI, JSON Schema) from the zod schemas
 	npm run contracts
 
-compat: ## no breaking contract change against BASE (default HEAD, as the proto rule of ADR 024): oasdiff + message schemas
+compat: ## no breaking contract change against BASE (default HEAD, as the proto rule of ADR 024): oasdiff + header schemas + event schemas
 	npm run contracts:compat -- --base "$(or $(BASE),HEAD)"
+	SCHEMA_BASE="$(BASE)" npm run --silent schema:compat
 
 load: ## k6 against the compose stack; fails when NFR-03 is missed
 	npm run load

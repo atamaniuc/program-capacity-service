@@ -157,7 +157,7 @@ components:
       summary: Treasury sets the credit limit of a program, and optionally suspends it.
       contentType: application/json
       payload:
-        $ref: ./json-schema/ProgramLimitSet.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/ProgramLimitSet.schema.json
       bindings:
         kafka:
           key:
@@ -186,7 +186,7 @@ components:
       summary: Treasury received a repayment; the reservation of the invoice is released by it.
       contentType: application/json
       payload:
-        $ref: ./json-schema/RepaymentReceived.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/RepaymentReceived.schema.json
       bindings:
         kafka:
           key:
@@ -217,7 +217,7 @@ components:
         platform events treasury has applied."
       contentType: application/json
       payload:
-        $ref: ./json-schema/ProgramReconciled.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/ProgramReconciled.schema.json
       bindings:
         kafka:
           key:
@@ -255,7 +255,7 @@ components:
       summary: Treasury FX rate; usable for FX_MAX_AGE (24 hours by default), the newest asOf wins.
       contentType: application/json
       payload:
-        $ref: ./json-schema/FxRatePublished.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/FxRatePublished.schema.json
       bindings:
         kafka:
           key:
@@ -287,7 +287,7 @@ components:
       headers:
         $ref: "#/components/schemas/CapacityEventHeaders"
       payload:
-        $ref: ./json-schema/ReservationCreated.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/ReservationCreated.schema.json
       bindings:
         kafka:
           key:
@@ -350,7 +350,7 @@ components:
       headers:
         $ref: "#/components/schemas/CapacityEventHeaders"
       payload:
-        $ref: ./json-schema/ReservationReleased.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/ReservationReleased.schema.json
       bindings:
         kafka:
           key:
@@ -408,7 +408,7 @@ components:
       headers:
         $ref: "#/components/schemas/CapacityEventHeaders"
       payload:
-        $ref: ./json-schema/ProgramCapacityChanged.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/ProgramCapacityChanged.schema.json
       bindings:
         kafka:
           key:
@@ -493,7 +493,7 @@ components:
       headers:
         $ref: "#/components/schemas/CapacityEventHeaders"
       payload:
-        $ref: ./json-schema/ReconciliationDriftDetected.schema.json
+        $ref: ../packages/contracts/json-schema/capacity.events.v1/ReconciliationDriftDetected.schema.json
       bindings:
         kafka:
           key:

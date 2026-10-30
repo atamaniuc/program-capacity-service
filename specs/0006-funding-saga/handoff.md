@@ -357,3 +357,23 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 
 Start T7 (ADR 025, ADR 023): `services/funding/src/funding/domain`, the saga state machine as
 pure code, property test `services/funding/test/property/saga.property.test.ts#FS-01`.
+
+T18 done (2026-10-30, branch `ms-contracts`): `packages/contracts` (`@finverity/contracts`) holds
+the proto, the committed ts-proto stubs (`src/generated`), the JSON Schemas of `capacity.events.v1`
+(8) and `funding.events.v1` (5), `compare-schemas` and the CT-04 check. Root `proto:*` and
+`schema:compat` delegate to the package (`-w @finverity/contracts`); `make verify` and `make compat`
+run `schema:compat` against `BASE` (CI passes the PR base or `github.event.before`). Capacity
+imports `@finverity/contracts/capacity/v1`; the old `contracts/proto`, `contracts/json-schema`,
+`tools/proto`, `src/capacity/adapters/in/grpc/generated` and funding's `src/clients` copy are gone.
+The Dockerfile compiles the package with `tsc` and swaps it for the workspace link in the build
+and runtime stages (image smoke: `import('@finverity/contracts/capacity/v1')` ok).
+Proof: `test/architecture/workspaces.test.ts#CT-01`, `packages/contracts/test/schema-compat.test.ts#CT-04`.
+`services/funding` files changed (for the merge with `microservices`): `package.json` (+dependency
+`@finverity/contracts`), and the stub copy `src/clients/capacity/generated/finverity/capacity/v1/capacity_service.ts`
+moved to `packages/contracts/src/generated/...` (deleted from funding; funding's own import paths
+are not touched here because the branch has no client code yet).
+Checks (serial, Docker free, 2026-10-30):
+- `make verify`: green (30 unit files / 144 tests; `schema:compat: base d97709c; 8 base and 13 current event schema(s); breaking=0`). Two earlier runs failed on timeouts under machine load (AsyncAPI NFR-14 5 s parse, `generate.ts` spawn); both pass alone.
+- `make test`: `Test Files 27 passed (27)`, `Tests 140 passed (140)`, exit 0. A run under three parallel Docker suites timed out (outage fault test, 120 s) and was stopped; not a regression.
+- `docker build .`: exit 0; `docker run ... import('@finverity/contracts/capacity/v1')` -> `import ok 24`.
+- `npx harnessimo check`: `harnessimo: every check required at "watched" passes.` (89 proof markers, task gate ok).

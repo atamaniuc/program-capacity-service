@@ -1,0 +1,34 @@
+{
+  "name": "@finverity/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./capacity/v1": "./src/generated/finverity/capacity/v1/capacity_service.ts",
+    "./compare-schemas": "./tools/compare-schemas.ts",
+    "./json-schema/*": "./json-schema/*",
+    "./proto/*": "./proto/*"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@grpc/grpc-js": "1.14.6"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "depcruise": "depcruise src --config .dependency-cruiser.cjs",
+    "proto:lint": "buf lint proto",
+    "proto:breaking": "bash tools/breaking.sh",
+    "proto:generate": "tsx tools/generate.ts",
+    "proto:check": "tsx tools/generate.ts --check",
+    "schema:compat": "tsx tools/schema-compat.ts",
+    "test:unit": "vitest run --project unit",
+    "test:int": "vitest run --project int"
+  }
+}

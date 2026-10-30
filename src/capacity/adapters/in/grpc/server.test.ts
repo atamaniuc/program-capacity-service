@@ -2,7 +2,7 @@ import { Metadata, status, type ServerUnaryCall } from '@grpc/grpc-js';
 import { Registry } from 'prom-client';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReserveCapacity } from '#src/capacity/application/use-cases/reserve-capacity/reserve-capacity.js';
-import type { ReserveRequest } from './generated/finverity/capacity/v1/capacity_service.js';
+import type { ReserveRequest } from '@finverity/contracts/capacity/v1';
 import { createGrpcServer } from './server.js';
 
 describe('GR-05 deadline check', () => {

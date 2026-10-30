@@ -17,7 +17,10 @@ async function validator(): Promise<Map<string, ValidateFunction>> {
 describe('treasury message contracts', () => {
   it('T1 schemas: the committed JSON Schema files and asyncapi.yaml match the zod source', async () => {
     for (const [name, content] of renderJsonSchemas()) {
-      const committed = await readFile(resolve(ROOT, 'contracts/json-schema', name), 'utf8');
+      const committed = await readFile(
+        resolve(ROOT, 'packages/contracts/json-schema/capacity.events.v1', name),
+        'utf8',
+      );
       expect(committed, `${name} is stale; run npm run contracts`).toBe(content);
     }
     const asyncapi = await readFile(resolve(ROOT, 'contracts/asyncapi.yaml'), 'utf8');

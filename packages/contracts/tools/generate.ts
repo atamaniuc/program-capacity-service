@@ -1,7 +1,7 @@
 /**
- * Generates the committed gRPC stubs (ADR 024) with buf and ts-proto.
- *   tsx tools/proto/generate.ts          write the stubs
- *   tsx tools/proto/generate.ts --check  fail when the committed stubs differ from a fresh run
+ * Generates the committed gRPC stubs (ADR 024, 028) with buf and ts-proto into @finverity/contracts.
+ *   tsx packages/contracts/tools/generate.ts          write the stubs
+ *   tsx packages/contracts/tools/generate.ts --check  fail when the committed stubs differ from a fresh run
  * Run from the repository root; the buf.gen templates use root-relative output paths.
  */
 import { spawnSync } from 'node:child_process';
@@ -9,12 +9,10 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const root = new URL('../..', import.meta.url).pathname;
-const templates = ['contracts/proto/buf.gen.capacity.yaml', 'contracts/proto/buf.gen.funding.yaml'];
-const outputs = [
-  'src/capacity/adapters/in/grpc/generated',
-  'services/funding/src/clients/capacity/generated',
-];
+const root = new URL('../../..', import.meta.url).pathname;
+const proto = 'packages/contracts/proto';
+const templates = [`${proto}/buf.gen.yaml`];
+const outputs = ['packages/contracts/src/generated'];
 const check = process.argv.includes('--check');
 
 function buf(args: string[]): void {
@@ -31,14 +29,14 @@ function files(dir: string): string[] {
 }
 
 if (!check) {
-  for (const template of templates) buf(['generate', 'contracts/proto', '--template', template]);
+  for (const template of templates) buf(['generate', proto, '--template', template]);
   process.exit(0);
 }
 
 const scratch = mkdtempSync(join(tmpdir(), 'proto-check-'));
 try {
   for (const template of templates) {
-    buf(['generate', 'contracts/proto', '--template', template, '--output', scratch]);
+    buf(['generate', proto, '--template', template, '--output', scratch]);
   }
   const drift: string[] = [];
   for (const out of outputs) {

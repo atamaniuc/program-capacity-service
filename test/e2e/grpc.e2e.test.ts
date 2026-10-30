@@ -5,11 +5,7 @@ import { Registry } from 'prom-client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { BoundaryProblem } from '#src/capacity/adapters/in/boundary/problem.js';
 import { JwtVerifier } from '#src/capacity/adapters/in/boundary/auth.js';
-import {
-  ReleaseReason,
-  ReservationStatus,
-  ReserveResult,
-} from '#src/capacity/adapters/in/grpc/generated/finverity/capacity/v1/capacity_service.js';
+import { ReleaseReason, ReservationStatus, ReserveResult } from '@finverity/contracts/capacity/v1';
 import { createGrpcServer, METHOD_SCOPES } from '#src/capacity/adapters/in/grpc/server.js';
 import type { ReserveCapacity } from '#src/capacity/application/use-cases/reserve-capacity/reserve-capacity.js';
 import { startTestApp, freePort, type TestApp } from '../support/app.js';

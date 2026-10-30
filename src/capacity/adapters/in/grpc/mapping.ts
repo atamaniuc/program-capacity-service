@@ -8,7 +8,7 @@ import {
   type ReleaseResponse,
   type Reservation,
   type ReserveResponse,
-} from './generated/finverity/capacity/v1/capacity_service.js';
+} from '@finverity/contracts/capacity/v1';
 import type {
   CapacitySnapshot,
   CapacityView,

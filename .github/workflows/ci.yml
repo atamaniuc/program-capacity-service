@@ -45,6 +45,10 @@ jobs:
         env:
           # A pull request is compared with its target branch, a push with what it replaced (ADR 024).
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+      - name: Event schemas stay backward compatible (CT-04)
+        run: npm run schema:compat
+        env:
+          SCHEMA_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
       - name: Proto lint
         run: npm run proto:lint
       - name: Proto breaking changes against the PR base or the previous head

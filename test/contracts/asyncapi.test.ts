@@ -73,7 +73,7 @@ describe('AsyncAPI contract', () => {
     const served = inline();
     for (const name of CONTRACT_MESSAGES) {
       expect(files.components.messages[name]?.payload).toEqual({
-        $ref: `./json-schema/${name}.schema.json`,
+        $ref: `../packages/contracts/json-schema/capacity.events.v1/${name}.schema.json`,
       });
       expect(served.components.messages[name]?.payload).toEqual(messageJsonSchema(name));
     }

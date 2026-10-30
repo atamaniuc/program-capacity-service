@@ -4,7 +4,7 @@ import {
   ReservationStatus,
   ReserveResult,
   type Money as WireMoney,
-} from '#src/capacity/adapters/in/grpc/generated/finverity/capacity/v1/capacity_service.js';
+} from '@finverity/contracts/capacity/v1';
 import type { TestApp } from './app.js';
 import { grpcTestClient, type CallOptions, type GrpcTestClient } from './grpc-client.js';
 

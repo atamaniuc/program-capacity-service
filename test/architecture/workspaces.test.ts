@@ -93,6 +93,56 @@ describe('npm workspaces', () => {
     expect(offences).toEqual([]);
   });
 
+  it('CT-01 packages/contracts holds the proto, the stubs and both event schema sets, and the services import it', () => {
+    const pkg = json('packages/contracts/package.json') as Json & { exports: Json; scripts: Json };
+    expect(pkg.name).toBe('@finverity/contracts');
+    expect(pkg.private).toBe(true);
+    expect(Object.keys(pkg.exports)).toContain('./capacity/v1');
+    expect(existsSync(join(root, 'packages/contracts/proto/buf.yaml'))).toBe(true);
+    expect(
+      existsSync(
+        join(root, 'packages/contracts/src/generated/finverity/capacity/v1/capacity_service.ts'),
+      ),
+    ).toBe(true);
+    for (const topic of ['capacity.events.v1', 'funding.events.v1']) {
+      const dir = join(root, 'packages/contracts/json-schema', topic);
+      expect(
+        readdirSync(dir).some((f) => f.endsWith('.schema.json')),
+        topic,
+      ).toBe(true);
+    }
+    // Nothing is left behind in the old locations.
+    expect(existsSync(join(root, 'contracts/proto'))).toBe(false);
+    expect(existsSync(join(root, 'contracts/json-schema'))).toBe(false);
+    expect(existsSync(join(root, 'src/capacity/adapters/in/grpc/generated'))).toBe(false);
+    expect(existsSync(join(root, 'services/funding/src/clients'))).toBe(false);
+    // Capacity imports its gRPC stubs from the package, never its own copy.
+    const capacity = [...sourceFiles(join(root, 'src')), ...sourceFiles(join(root, 'test'))];
+    for (const file of capacity) {
+      for (const s of specifiers(readFileSync(file, 'utf8'))) {
+        expect(s, file).not.toMatch(/grpc\/generated/);
+      }
+    }
+    const grpc = capacity.filter(
+      (f) => f.includes('/adapters/in/grpc/') && f.endsWith('server.ts'),
+    );
+    expect(grpc.length).toBe(1);
+    expect(specifiers(readFileSync(grpc[0]!, 'utf8'))).toContain(
+      '@finverity/contracts/capacity/v1',
+    );
+    // Funding depends on the package and carries no copy of the stubs.
+    const funding = json('services/funding/package.json') as Json & { dependencies: Json };
+    expect(funding.dependencies).toHaveProperty(['@finverity/contracts']);
+    // The proto and event-schema checks run from the package, inside make verify.
+    const scripts = pkg.scripts;
+    for (const name of ['proto:lint', 'proto:breaking', 'proto:check', 'schema:compat']) {
+      expect(scripts, name).toHaveProperty([name]);
+    }
+    const make = read('Makefile');
+    const verify = make.slice(make.indexOf('\nverify:'), make.indexOf('\ntest:'));
+    expect(verify).toContain('schema:compat');
+  });
+
   it('WS-01 the crossing detector flags a sibling service and passes own code', () => {
     expect(crossing('../../../services/payments-mock/src/x.ts', 'funding')).toBe(true);
     expect(crossing('../../../services/funding/src/x.ts', 'funding')).toBe(false);

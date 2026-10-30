@@ -2,17 +2,29 @@
 FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY packages/contracts/package.json ./packages/contracts/
 RUN npm ci --ignore-scripts
 
 FROM deps AS build
 COPY tsconfig.json tsconfig.build.json ./
+COPY packages/contracts ./packages/contracts
+# @finverity/contracts ships TypeScript stubs in the repository (ADR 028); the image needs JS.
+# Compile them into a real package that replaces the workspace link, in this stage and the runtime.
+RUN npx tsc -p packages/contracts/tsconfig.build.json \
+    && rm -rf node_modules/@finverity/contracts \
+    && mkdir -p node_modules/@finverity \
+    && cp -R packages/contracts/dist node_modules/@finverity/contracts \
+    && printf '%s' '{"name":"@finverity/contracts","version":"0.1.0","type":"module","exports":{"./capacity/v1":{"types":"./finverity/capacity/v1/capacity_service.d.ts","default":"./finverity/capacity/v1/capacity_service.js"}}}' > node_modules/@finverity/contracts/package.json
 COPY src ./src
 RUN npm run build
 
 FROM node:24-bookworm-slim AS prod-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY packages/contracts/package.json ./packages/contracts/
 RUN npm ci --omit=dev --ignore-scripts \
+    # The workspace link is replaced by the compiled package in the runtime stage.
+    && rm -f node_modules/@finverity/contracts \
     # --ignore-scripts also skips the native Kafka binding; fetch only that one.
     && npm rebuild @confluentinc/kafka-javascript \
     && npm cache clean --force
@@ -26,6 +38,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack 
 WORKDIR /app
 COPY --chown=node:node package.json ./
 COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/node_modules/@finverity/contracts ./node_modules/@finverity/contracts
 # The AsyncAPI viewer behind /docs/asyncapi is a devDependency: the page needs only its prebuilt
 # browser bundle and stylesheet, not the parser's dependency tree, so only those files ship.
 ARG ASYNCAPI_UI=node_modules/@asyncapi/react-component
