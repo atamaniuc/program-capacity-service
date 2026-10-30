@@ -394,3 +394,37 @@ Check results:
   files alone: schema + migrations (1 SK-05 failure under load), then 9 files (3 passed), then the
   last 6: `Test Files 6 passed (6)  Tests 17 passed (17)`. So each of the 27 root files has passed
   with this code; a full serial `make test` on a quiet host is still owed (coordinator).
+
+## Architect review of T7 fixes, T8, T9 (2026-10-30): APPROVE WITH FIXES
+
+No BLOCKER, no second review. Rulings in `.harness/4-state/DECISIONS.md` (2026-10-30, T7
+fixes, T8, T9). Fix in the `funding` lane before T11:
+
+1. M1 `deploy/oauth/config.json`: `match` is a regex. Scope mapping `".*funding:.*"`, client
+   mapping `"funding-service\\..+"`; a compose check mints a funding token and asserts `aud`.
+2. m1 `services/funding/src/funding/adapters/in/http/server.ts`: authenticate every `/v1/`
+   request before routing; 405 gets type `method-not-allowed`.
+3. m2 `deploy/compose.yaml`: postgres healthcheck `pg_isready -h 127.0.0.1 -U funding -d funding`;
+   runbook: `make down -v` once for volumes created before 9b89069.
+4. m3 `services/funding/test/e2e/api.e2e.test.ts`: FS-02 cases for a 409 stored and replayed
+   under a key, and JWKS outage → 503 with `Retry-After`.
+5. m4 (T11): the capacity-client token request sends `tenant_id`; a test asserts the claim.
+
+Checked by the reviewer: `make verify` → `✔ verify passed`; `npx harnessimo check` →
+`every check required at "watched" passes`. `make test` not run by the reviewer (the
+coordinator's serial run owns it).
+
+### Serial `make test` on a quiet host (2026-10-30, owed above) — green
+
+Docker held only the main stack and kind. Tail of the run:
+
+```
+root unit:        Test Files 30 passed (30)   Tests 143 passed (143)
+funding unit:     Test Files  6 passed (6)    Tests  27 passed (27)
+payments-mock:    Test Files  2 passed (2)    Tests   8 passed (8)
+root int:         Test Files 27 passed (27)   Tests 140 passed (140)
+funding int/e2e:  Test Files  2 passed (2)    Tests  15 passed (15)
+✔ all tests passed
+```
+
+The earlier failures were Docker-host contention, not code.
