@@ -82,7 +82,10 @@ Three constraints shape the design:
   reaches a service could forge them.
 - The two 401s are distinguishable: the gateway's carries `WWW-Authenticate: Bearer` and an
   Envoy body; the service's is an RFC 9457 problem (ADR 014). GW-02 uses that to prove the
-  request never reached the service.
+  request never reached the service. One exception, found in the live run (2026-10-30): a token
+  whose `aud` is not the route's is answered **403** ("Audiences in Jwt are not allowed"), not
+  401, by Envoy's JWT filter; bad signature, expiry and foreign `iss` are 401. The edge still
+  refuses the call and the service never sees it.
 
 ### The issuer, resolved
 

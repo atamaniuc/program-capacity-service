@@ -36,11 +36,17 @@ cmp -s deploy/oauth/config.json deploy/helm/local-infra/files/oauth-config.json 
   exit 1
 }
 
+# The gateway chart has no default issuer (ADR 029): one constant, passed by make kind-up.
+OAUTH_SVC_PORT="8080" # in-cluster Service port, not a host port
+ISSUER=http://oauth.finverity-ms.svc.cluster.local:${OAUTH_SVC_PORT}/default
+
 for chart in deploy/helm/*/; do
   chart=${chart%/}
+  extra=()
+  [[ $(basename "$chart") == gateway ]] && extra=(--set-string "issuer=$ISSUER")
   echo "▸ $chart"
-  helm lint --strict "$chart"
-  helm template "$(basename "$chart")" "$chart" --namespace finverity-ms |
+  helm lint --strict "$chart" ${extra[@]+"${extra[@]}"}
+  helm template "$(basename "$chart")" "$chart" --namespace finverity-ms ${extra[@]+"${extra[@]}"} |
     "$bin" -strict -summary -kubernetes-version "$KUBERNETES_VERSION" -skip "$SKIP_KINDS" -
 done
 echo "✔ helm-check passed"

@@ -1,0 +1,39 @@
+# The one issuer string of the deployment (ADR 029). make kind-up passes KIND_OAUTH_ISSUER here
+# and to the capacity and funding releases; there is no default on purpose.
+issuer: ''
+jwksUri: ''
+oauthService: { name: oauth, port: 8080 }
+
+# Name of the proxy's ClusterIP Service (EnvoyProxy envoyService.name), so Pods can address it.
+# Envoy Gateway creates it in its own namespace, not the Gateway's.
+proxyServiceName: gateway-edge
+proxyNamespace: envoy-gateway-system
+listenerPort: 80
+gatewayClassName: finverity-eg
+
+# Browser origins allowed at the edge; the services' own CORS stays off in kind.
+corsOrigins: ['http://localhost:23050']
+
+routes:
+  - name: capacity
+    prefix: /v1/programs
+    audience: capacity-service
+    backend: { name: capacity-api, port: 3000 }
+  - name: funding
+    prefix: /v1/funding-requests
+    audience: funding-service
+    backend: { name: funding-api, port: 3100 }
+
+# Local per-tenant limit (no Redis): requests per minute per tenant per route, one replica.
+rateLimit:
+  requestsPerMinute: 20
+
+# helm test: the in-cluster Pod; it runs the capacity image only for its Node.js runtime.
+test:
+  image: program-capacity-service:ms-local
+  pullPolicy: IfNotPresent
+  capacityDirect: http://capacity-api:3000
+  fundingDirect: http://funding-api:3100
+  fundingDeployed: false
+  # bank-a's program from db/seeds/seed.ts; make kind-up seeds it (make kind-seed).
+  seededProgram: prg_grand_usd

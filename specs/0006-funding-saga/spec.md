@@ -224,9 +224,11 @@ and funding answers 202 with `Location: /v1/funding-requests/…`; the same call
 gateway. proof (planned): `make kind-smoke`
 
 **GW-02** — GIVEN the gateway WHEN a request on either route has no token, a token with a bad
-signature, an expired token, a token whose `iss` is not the cluster issuer, or a capacity token
-on the funding route (wrong `aud`) THEN the gateway answers 401 with `WWW-Authenticate: Bearer`
-and a body that is not `application/problem+json`, so the service never saw the request.
+signature, an expired token, a token whose `iss` is not the cluster issuer THEN the gateway
+answers 401 with `WWW-Authenticate: Bearer`; a capacity token on the funding route (wrong `aud`)
+is answered 403 by Envoy's JWT filter ("Audiences in Jwt are not allowed", observed live with
+Envoy Gateway v1.9.3). Either way the body is not `application/problem+json`, so the service
+never saw the request.
 proof (planned): `make kind-smoke`
 
 **GW-03** — GIVEN capacity's and funding's `api` Services WHEN a Pod calls their ClusterIP HTTP

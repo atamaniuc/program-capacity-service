@@ -1,0 +1,65 @@
+{{- required "gateway: set issuer (make kind-up passes KIND_OAUTH_ISSUER)" .Values.issuer | trunc 0 }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ .Values.gatewayClassName }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: edge-proxy
+    namespace: {{ .Release.Namespace }}
+---
+# One replica and a ClusterIP Service: kind has no load balancer and the cluster binds no host port.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: edge-proxy
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 1
+      envoyService:
+        type: ClusterIP
+        name: {{ .Values.proxyServiceName }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: edge
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ .Values.gatewayClassName }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: {{ .Values.listenerPort }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# A client-sent x-tenant-id is removed before any filter runs, so only the value copied from the
+# verified token can pick a rate-limit bucket.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: edge-clients
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: edge
+  headers:
+    earlyRequestHeaders:
+      remove:
+        - x-tenant-id

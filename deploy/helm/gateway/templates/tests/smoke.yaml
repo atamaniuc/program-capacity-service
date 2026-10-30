@@ -1,0 +1,129 @@
+# helm test gateway (GW-01..GW-05, live): runs inside the cluster, through the gateway's
+# ClusterIP Service. Tokens come from the cluster issuer; a gateway answer is told apart from a
+# service answer by its body (services answer errors as application/problem+json, Envoy does not).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gateway-smoke
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  enableServiceLinks: false
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: {{ .Values.test.image }}
+      imagePullPolicy: {{ .Values.test.pullPolicy }}
+      env:
+        - { name: GATEWAY, value: 'http://{{ .Values.proxyServiceName }}.{{ .Values.proxyNamespace }}.svc.cluster.local:{{ .Values.listenerPort }}' }
+        - { name: ISSUER, value: {{ .Values.issuer | quote }} }
+        - { name: FOREIGN_TOKEN_URL, value: 'http://{{ .Values.oauthService.name }}:{{ .Values.oauthService.port }}/default/token' }
+        - { name: CAPACITY_DIRECT, value: {{ .Values.test.capacityDirect | quote }} }
+        - { name: FUNDING_DIRECT, value: {{ .Values.test.fundingDirect | quote }} }
+        - { name: FUNDING_DEPLOYED, value: {{ .Values.test.fundingDeployed | quote }} }
+        - { name: LIMIT, value: {{ .Values.rateLimit.requestsPerMinute | quote }} }
+        - { name: SEEDED_PROGRAM, value: {{ .Values.test.seededProgram | quote }} }
+      command:
+        - node
+        - -e
+        - |
+          const assert = require('node:assert/strict');
+          const PROGRAM = '/v1/programs/00000000-0000-4000-8000-000000000000';
+          const mint = async (url, client) => {
+            const r = await fetch(url, { method: 'POST', body: new URLSearchParams({
+              grant_type: 'client_credentials', client_id: client, client_secret: 's', scope: 'capacity:read' }) });
+            assert.equal(r.status, 200, 'token endpoint ' + r.status);
+            return (await r.json()).access_token;
+          };
+          const get = (base, path, token, extra = {}) =>
+            fetch(base + path, { headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), ...extra } });
+          const gatewayRefusal = async (label, res) => {
+            assert.equal(res.status, 401, label + ': expected 401, got ' + res.status);
+            assert.match(res.headers.get('www-authenticate') ?? '', /^Bearer/i, label + ': WWW-Authenticate');
+            assert.doesNotMatch(res.headers.get('content-type') ?? '', /problem\+json/, label + ': reached the service');
+          };
+          const steps = [];
+          const step = (name, fn) => steps.push([name, fn]);
+          const G = process.env.GATEWAY;
+          const issuerToken = () => mint(process.env.ISSUER + '/token', 'bank-a');
+
+          step('GW-01 capacity route answers 200 with a seeded program (make kind-seed)', async () => {
+            const res = await get(G, '/v1/programs/' + process.env.SEEDED_PROGRAM + '/capacity', await issuerToken());
+            assert.equal(res.status, 200, 'status ' + res.status + ' (is the database seeded?)');
+            const body = await res.json();
+            assert.ok(JSON.stringify(body).includes(process.env.SEEDED_PROGRAM), 'body ' + JSON.stringify(body));
+          });
+          step('GW-01 funding route reaches funding (POST 202 with Location)', async () => {
+            if (process.env.FUNDING_DEPLOYED !== 'true') return 'SKIP';
+            assert.fail('funding is deployed but this check is not written yet: write it with lane 0006 T9');
+          });
+          step('GW-01 a path under neither prefix answers 404 from the gateway', async () => {
+            const res = await get(G, '/v2/anything', await issuerToken());
+            assert.equal(res.status, 404);
+            assert.doesNotMatch(res.headers.get('content-type') ?? '', /problem\+json/);
+          });
+          step('GW-02 no token is refused at the edge on both routes', async () => {
+            await gatewayRefusal('capacity', await get(G, PROGRAM + '/capacity'));
+            await gatewayRefusal('funding', await get(G, '/v1/funding-requests/x'));
+          });
+          step('GW-02 a bad signature is refused at the edge', async () => {
+            const t = await issuerToken();
+            await gatewayRefusal('bad signature', await get(G, PROGRAM + '/capacity', t.slice(0, -6) + 'AAAAAA'));
+          });
+          step('GW-02 a foreign issuer is refused at the edge', async () => {
+            await gatewayRefusal('foreign issuer', await get(G, PROGRAM + '/capacity', await mint(process.env.FOREIGN_TOKEN_URL, 'bank-a')));
+          });
+          step('GW-02 a capacity token on the funding route (wrong aud) is refused at the edge', async () => {
+            // Envoy's JWT filter answers an audience mismatch 403 (ADR 029), not 401.
+            const res = await get(G, '/v1/funding-requests/x', await issuerToken());
+            assert.equal(res.status, 403, 'wrong aud: expected 403, got ' + res.status);
+            assert.doesNotMatch(res.headers.get('content-type') ?? '', /problem\+json/, 'wrong aud: reached the service');
+          });
+          step('GW-03 the capacity service refuses a direct call without a token or with a foreign issuer', async () => {
+            const foreign = await mint(process.env.FOREIGN_TOKEN_URL, 'bank-a');
+            for (const t of [undefined, foreign]) {
+              const res = await get(process.env.CAPACITY_DIRECT, PROGRAM + '/capacity', t);
+              assert.equal(res.status, 401);
+              assert.match(res.headers.get('content-type') ?? '', /problem\+json/);
+            }
+          });
+          step('GW-03 the funding service refuses a direct call without a token', async () => {
+            if (process.env.FUNDING_DEPLOYED !== 'true') return 'SKIP';
+            const res = await get(process.env.FUNDING_DIRECT, '/v1/funding-requests/x');
+            assert.equal(res.status, 401);
+            assert.match(res.headers.get('content-type') ?? '', /problem\+json/);
+          });
+          step('GW-04 the local limit answers 429 after L requests, per tenant, 401s excluded', async () => {
+            const L = Number(process.env.LIMIT);
+            const suffix = Math.random().toString(36).slice(2, 8);
+            const a = await mint(process.env.ISSUER + '/token', 'gw-limit-a-' + suffix);
+            const b = await mint(process.env.ISSUER + '/token', 'gw-limit-b-' + suffix);
+            for (let i = 0; i < 5; i++) await gatewayRefusal('no token', await get(G, PROGRAM + '/capacity'));
+            const forged = { 'x-tenant-id': 'gw-limit-b-' + suffix };
+            for (let i = 0; i < L; i++) {
+              const res = await get(G, PROGRAM + '/capacity', a, i % 2 ? forged : {});
+              assert.notEqual(res.status, 429, 'request ' + (i + 1) + ' of ' + L + ' was limited');
+            }
+            assert.equal((await get(G, PROGRAM + '/capacity', a, forged)).status, 429, 'request L+1');
+            assert.notEqual((await get(G, PROGRAM + '/capacity', b)).status, 429, 'second tenant');
+          });
+          step('GW-05 a gRPC path is not routed', async () => {
+            const res = await fetch(G + '/finverity.capacity.v1.CapacityService/GetAvailability', {
+              method: 'POST', headers: { 'content-type': 'application/grpc', authorization: 'Bearer ' + await issuerToken() }, body: new Uint8Array(5) });
+            assert.ok(res.status === 404 || res.headers.get('grpc-status') === '12', 'status ' + res.status);
+          });
+
+          (async () => {
+            let failed = 0, skipped = 0;
+            for (const [name, fn] of steps) {
+              try {
+                if ((await fn()) === 'SKIP') { skipped++; console.log('SKIP ' + name + ' (funding release not installed)'); }
+                else console.log('ok   ' + name);
+              } catch (e) { failed++; console.error('FAIL ' + name + ': ' + e.message); }
+            }
+            console.log(steps.length - failed - skipped + ' passed, ' + failed + ' failed, ' + skipped + ' skipped');
+            process.exit(failed ? 1 : 0);
+          })();

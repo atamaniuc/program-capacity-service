@@ -314,6 +314,46 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 `contracts:compat` and `make compat` default to base `HEAD` (CI: PR base / push before), not
 `origin/main`, as in ADR 024 for proto. Docs from `main` carry the branch ports.
 
+### T15 – T16a (agent `k8s`, branch `ms-helm`, 2026-10-30)
+
+Done: T15 ticked (commit `5206901`, `make helm-check`). T16: `deploy/kind/cluster.yaml`,
+`kind-up`, `kind-seed`, `kind-smoke`, `kind-forward`, `kind-token`, `kind-down`, K8-04 tests in
+`test/architecture/isolation.test.ts`. T16a: chart `deploy/helm/gateway`, `GW-05` static tests in
+`test/architecture/gateway.test.ts`, `helm test gateway` (GW-01..05 live).
+
+Checks (quoted from the logs; the machine was overloaded by parallel runs, so an earlier
+`make test` / `make verify` hit the 5 s default timeout in `GR-01` (`buf generate`) and `NFR-14`
+(AsyncAPI parser); both pass alone and the coordinator then ran `make test` serially):
+
+- `make test` serial: `✔ all tests passed`, `MAKE_TEST_EXIT=0`, unit 31 files / 150 tests, int 27 files / 140 tests.
+- `make verify`: `✔ verify passed`, `VERIFY_EXIT=0`.
+- `npx harnessimo check`: `harnessimo: every check required at "watched" passes.`
+- `make helm-check`: `✔ helm-check passed` (gateway chart: 12 resources found with the gateway kinds skipped by name).
+- `make kind-up`: exit 0 (cluster `finverity-ms` reused; capacity and local-infra upgraded, Envoy Gateway `v1.9.3` as release `eg`, release `gateway`, 6 programs and 200 invoices seeded).
+- `make kind-smoke`: `✔ kind smoke passed`; `helm test capacity`: `OK capacity: 401 without token, 404 with token, gRPC port open`; `helm test gateway`: `9 passed, 0 failed, 2 skipped`.
+
+Found live and fixed: (1) Envoy Gateway creates the proxy Service `gateway-edge` in
+`envoy-gateway-system`, not in `finverity-ms`: the smoke Pod addresses it by FQDN (`proxyNamespace`
+value) and `kind-forward` forwards with `--namespace envoy-gateway-system`. (2) `helm --wait` does
+not wait for the proxy: `kind-up` now waits for `gateway/edge` Programmed and the proxy Deployment.
+(3) A token with the wrong `aud` is answered **403** by Envoy's JWT filter, not 401; GW-02 and
+ADR 029 are amended (the request is still refused at the edge and never reaches the service).
+
+NOT exercised by the live smoke (do not read the green run as covering these):
+- funding: no `services/funding/Dockerfile` yet, so no `funding` or `payments-mock` release;
+  skipped: GW-01 funding route (POST 202 + `Location`), GW-03 for funding, `helm test funding`
+  and the K8-03 saga scenario (one funded request, one compensated); the mock OAuth2 config
+  still issues only `aud=capacity-service`, so a funding-audience token does not exist yet.
+- GW-02 with an expired token and CORS preflight at the edge; GW-04 only with tenants minted
+  from the in-cluster issuer.
+- GW-05 live: the gRPC path is shown not routed (404 or `UNIMPLEMENTED`), but "capacity records
+  no gRPC call" is not checked.
+- calls through `make kind-forward` (`Host: localhost:…`) and `make kind-token` from the host.
+- K8-04 is checked statically only; `make kind-down` was not run (the cluster stays up by the
+  coordinator's order).
+- `make test` was not re-run after the last Makefile/chart/doc edits (they touch no code under
+  `src/`); `make verify` and `harnessimo check` were.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.

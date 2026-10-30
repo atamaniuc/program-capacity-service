@@ -1,0 +1,79 @@
+{{- range .Values.routes }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "gateway.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: edge
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .prefix }}
+      backendRefs:
+        - name: {{ .backend.name }}
+          port: {{ .backend.port }}
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "gateway.labels" $ | nindent 4 }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ .name }}
+  cors:
+    allowOrigins:
+      {{- range $.Values.corsOrigins }}
+      - {{ . | quote }}
+      {{- end }}
+    allowMethods: [GET, POST, OPTIONS]
+    allowHeaders: [authorization, content-type, idempotency-key]
+  jwt:
+    providers:
+      - name: cluster-issuer
+        issuer: {{ $.Values.issuer | quote }}
+        audiences:
+          - {{ .audience }}
+        remoteJWKS:
+          uri: {{ default (printf "%s/jwks" $.Values.issuer) $.Values.jwksUri | quote }}
+          cacheDuration: 30s
+          backendRefs:
+            - name: {{ $.Values.oauthService.name }}
+              port: {{ $.Values.oauthService.port }}
+        claimToHeaders:
+          - claim: tenant_id
+            header: x-tenant-id
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "gateway.labels" $ | nindent 4 }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ .name }}
+  rateLimit:
+    type: Local
+    local:
+      rules:
+        - clientSelectors:
+            - headers:
+                - name: x-tenant-id
+                  type: Distinct
+          limit:
+            requests: {{ $.Values.rateLimit.requestsPerMinute }}
+            unit: Minute
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gateway
+description: Edge policy and routes for the two public REST APIs on Envoy Gateway (ADR 029). kind only.
+type: application
+version: 0.1.0
+appVersion: ms-local
