@@ -1,0 +1,42 @@
+image:
+  repository: program-capacity-service
+  tag: ms-local
+  pullPolicy: IfNotPresent
+
+# Endpoints of the platform the service runs on. In kind they point at the local-infra release.
+kafkaBrokers: kafka:9092
+oauth:
+  issuer: http://oauth:8080/default
+  audience: capacity-service
+  jwksUrl: http://oauth:8080/default/jwks
+corsOrigins: ''
+
+# Local default for kind only; production creates the Secret from a secret manager and sets
+# database.existingSecret (the Secret needs a DATABASE_URL key).
+database:
+  existingSecret: ''
+  url: postgres://capacity:capacity@postgres:5432/capacity
+
+ports:
+  http: 3000
+  grpc: 50051
+  ops: 9464
+
+# NFR-07: above the 25 s application shutdown deadline, so SIGKILL never cuts a drain.
+terminationGracePeriodSeconds: 40
+
+api:
+  replicas: 1
+worker:
+  replicas: 1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: '1'
+    memory: 512Mi
+
+migrate:
+  command: ['node', 'src/capacity/adapters/out/postgres/migrate.js']

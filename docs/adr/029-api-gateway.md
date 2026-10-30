@@ -68,8 +68,8 @@ Three constraints shape the design:
   only for OIDC discovery, which is not used. `cacheDuration: 30s`, so a restarted mock OAuth2
   Pod (new keys) is picked up quickly.
 - Envoy Gateway's JWT filter runs before the local rate limit filter (its fixed filter order:
-  CORS, then JWT, then local rate limit). A request without a valid token answers 401 and does
-  not consume a rate-limit token. CORS preflights are answered before the JWT check, as browsers
+  CORS, then JWT, then local rate limit). A request without a valid token is refused (401, or 403
+  for a wrong audience) and does not consume a rate-limit token. CORS preflights are answered before the JWT check, as browsers
   expect.
 - The gateway forwards the original `Authorization` header (Envoy Gateway sets the JWT filter's
   `forward`), so **each service verifies the same token again** with its own issuer, audience
@@ -82,7 +82,10 @@ Three constraints shape the design:
   reaches a service could forge them.
 - The two 401s are distinguishable: the gateway's carries `WWW-Authenticate: Bearer` and an
   Envoy body; the service's is an RFC 9457 problem (ADR 014). GW-02 uses that to prove the
-  request never reached the service.
+  request never reached the service. One exception, found in the live run (2026-10-30): a token
+  whose `aud` is not the route's is answered **403** ("Audiences in Jwt are not allowed"), not
+  401, by Envoy's JWT filter; bad signature, expiry and foreign `iss` are 401. The edge still
+  refuses the call and the service never sees it.
 
 ### The issuer, resolved
 

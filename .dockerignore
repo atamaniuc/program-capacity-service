@@ -4,6 +4,7 @@
 .harness
 .claude
 .omc
+.kind
 .codegraph
 node_modules
 dist

@@ -326,6 +326,98 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 `contracts:compat` and `make compat` default to base `HEAD` (CI: PR base / push before), not
 `origin/main`, as in ADR 024 for proto. Docs from `main` carry the branch ports.
 
+### T15 – T16a (agent `k8s`, branch `ms-helm`, 2026-10-30)
+
+Done: T15 ticked (commit `5206901`, `make helm-check`). T16: `deploy/kind/cluster.yaml`,
+`kind-up`, `kind-seed`, `kind-smoke`, `kind-forward`, `kind-token`, `kind-down`, K8-04 tests in
+`test/architecture/isolation.test.ts`. T16a: chart `deploy/helm/gateway`, `GW-05` static tests in
+`test/architecture/gateway.test.ts`, `helm test gateway` (GW-01..05 live).
+
+Checks (quoted from the logs; the machine was overloaded by parallel runs, so an earlier
+`make test` / `make verify` hit the 5 s default timeout in `GR-01` (`buf generate`) and `NFR-14`
+(AsyncAPI parser); both pass alone and the coordinator then ran `make test` serially):
+
+- `make test` serial: `✔ all tests passed`, `MAKE_TEST_EXIT=0`, unit 31 files / 150 tests, int 27 files / 140 tests.
+- `make verify`: `✔ verify passed`, `VERIFY_EXIT=0`.
+- `npx harnessimo check`: `harnessimo: every check required at "watched" passes.`
+- `make helm-check`: `✔ helm-check passed` (gateway chart: 12 resources found with the gateway kinds skipped by name).
+- `make kind-up`: exit 0 (cluster `finverity-ms` reused; capacity and local-infra upgraded, Envoy Gateway `v1.9.3` as release `eg`, release `gateway`, 6 programs and 200 invoices seeded).
+- `make kind-smoke`: `✔ kind smoke passed`; `helm test capacity`: `OK capacity: 401 without token, 404 with token, gRPC port open`; `helm test gateway`: `9 passed, 0 failed, 2 skipped`.
+
+Found live and fixed: (1) Envoy Gateway creates the proxy Service `gateway-edge` in
+`envoy-gateway-system`, not in `finverity-ms`: the smoke Pod addresses it by FQDN (`proxyNamespace`
+value) and `kind-forward` forwards with `--namespace envoy-gateway-system`. (2) `helm --wait` does
+not wait for the proxy: `kind-up` now waits for `gateway/edge` Programmed and the proxy Deployment.
+(3) A token with the wrong `aud` is answered **403** by Envoy's JWT filter, not 401; GW-02 and
+ADR 029 are amended (the request is still refused at the edge and never reaches the service).
+
+NOT exercised by the live smoke (do not read the green run as covering these):
+- funding: no `services/funding/Dockerfile` yet, so no `funding` or `payments-mock` release;
+  skipped: GW-01 funding route (POST 202 + `Location`), GW-03 for funding, `helm test funding`
+  and the K8-03 saga scenario (one funded request, one compensated); the mock OAuth2 config
+  still issues only `aud=capacity-service`, so a funding-audience token does not exist yet.
+- GW-02 with an expired token and CORS preflight at the edge; GW-04 only with tenants minted
+  from the in-cluster issuer.
+- GW-05 live: the gRPC path is shown not routed (404 or `UNIMPLEMENTED`), but "capacity records
+  no gRPC call" is not checked.
+- calls through `make kind-forward` (`Host: localhost:…`) and `make kind-token` from the host.
+- K8-04 is checked statically only; `make kind-down` was not run (the cluster stays up by the
+  coordinator's order).
+- GW-02 bad signature and foreign `iss` ran on the capacity route only; GW-04 with a token lacking
+  `tenant_id` is not limited (no header, so the `Distinct` selector does not match). The mock always
+  sets `tenant_id` and the services answer 401 without it: accepted for kind, revisit with a real IdP.
+- The funding half of GW-01 (POST 202 + `Location`) is written but has never run: it needs the
+  funding release and the mock's `funding:` scope mapping (M2 b).
+- `make test` was not re-run after the last Makefile/chart/doc edits (they touch no code under
+  `src/`); `make verify` and `harnessimo check` were.
+
+### Architect review of T16 + T16a (732e7a5, 39f15e4): APPROVE WITH FIXES
+
+Rulings in DECISIONS.md (2026-10-30). T16 and T16a stay ticked; fix before the funding release
+lands in kind (agent `k8s`, one commit, then `make verify`, `make helm-check`, `harnessimo check`).
+
+- [x] **M1 — funding mints capacity tokens at the short Service name in kind.** `Makefile` kind-up
+  (funding release, ~line 75) passes only `oauth.issuer`; `deploy/helm/funding/values.yaml:11`
+  defaults `oauth.tokenUrl: http://oauth:8080/default/token`, so funding's per-tenant capacity
+  tokens carry `iss=http://oauth:8080/default` and capacity answers every saga reserve
+  `UNAUTHENTICATED` (ADR 029 "Every in-cluster token minter … calls the token endpoint at that same
+  FQDN"). Fix: add `--set-string oauth.tokenUrl=$(KIND_OAUTH_ISSUER)/token` to the funding
+  release; extend K8-04's static test (or a new GW-test) to assert the Makefile passes both
+  `oauth.issuer` and `oauth.tokenUrl` from `KIND_OAUTH_ISSUER`.
+- [ ] **M2 — the funding half (a) done in the review-fix commit: the smoke now mints a `funding:write funding:read` token and checks POST 202 + `Location`; (b) and (c) OPEN: (b) is synced after the merge, because funding already changed `deploy/oauth/config.json` on `microservices` (mapping by scope `.*funding:.*` → `aud=funding-service`) and this branch must not edit it; then the `local-infra` copy is synced (`make helm-check` compares them); (c) runs in the live kind run after T14.** Original text: the funding half of GW-01/GW-02 cannot turn green on its own.** (a)
+  `deploy/helm/gateway/templates/tests/smoke.yaml:471-474` is a placeholder that `assert.fail`s
+  once `fundingDeployed=true`, and its message points at T9, which is done. Write the check now:
+  mint a token with `aud=funding-service` from `ISSUER/token`, `POST /v1/funding-requests` with an
+  `Idempotency-Key` and a seeded program, expect 202 and `Location` matching
+  `^/v1/funding-requests/`. (b) `deploy/oauth/config.json` (and its byte-equal copy
+  `deploy/helm/local-infra/files/oauth-config.json`) issues only `aud=capacity-service`, so no
+  funding-audience token exists: add a request mapping chosen by a token-request parameter (for
+  example `audience=funding-service`) before the wildcard one, keep the wildcard's
+  `aud=capacity-service` so compose and capacity tests are unchanged. (c) Once (b) exists, run the
+  bad-signature and foreign-issuer GW-02 steps on the funding route too, and the GW-03 funding
+  step with a foreign-issuer token as well as without a token (the capacity step already does both).
+- [x] m1 — `test/architecture/gateway.test.ts` checks only GW-05. The edge-security properties are
+  enforced only by the live smoke, which CI does not run. Add static assertions over the rendered
+  chart: one `SecurityPolicy` per `HTTPRoute`, `audiences` equals that route's audience
+  (`capacity-service` / `funding-service`), `issuer` equals the value passed, `claimToHeaders`
+  `tenant_id → x-tenant-id`; the `ClientTrafficPolicy` targets `Gateway/edge` and removes
+  `x-tenant-id` in `earlyRequestHeaders`; each `BackendTrafficPolicy` selects `x-tenant-id` with
+  `type: Distinct`. Name them `GW-02`/`GW-04 (static)`; each must fail when its line is removed.
+- [x] m2 — K8-04 does not assert the most dangerous kind call: `kind create cluster` without
+  `--kubeconfig` writes `~/.kube/config` and switches the user's current context. Add: every
+  recipe line matching `\bkind (create|export|delete)\b` contains `--kubeconfig $(KUBECONFIG_FILE)`.
+- [x] m3 — `.dockerignore` does not list `.kind/`: `docker build .` in kind-up sends the cluster's
+  admin kubeconfig into the build context. The current Dockerfile copies paths explicitly, so it
+  does not reach the image, but add `.kind` (and keep the funding/payments Dockerfiles explicit).
+- [x] m4 — `docs/adr/029-api-gateway.md` "Authentication at the edge" still says "A request without
+  a valid token answers 401 and does not consume a rate-limit token"; say "is refused (401, or 403
+  for a wrong audience)". `docs/api.md` (T17) lists the edge 403 next to the service's 401 for the
+  same wrong-`aud` token, so a client sees which layer refused it.
+- [x] m5 — note in the handoff's "NOT exercised" list: GW-02 bad signature and foreign `iss` ran on
+  the capacity route only; GW-04 with a token lacking `tenant_id` is not limited (no header, the
+  `Distinct` selector does not match). The mock always sets `tenant_id` and the services answer
+  401 without it, so this is accepted for kind; revisit with a real IdP.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.

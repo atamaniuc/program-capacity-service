@@ -1,0 +1,50 @@
+{{- if .Values.paymentsMock.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-mock
+  labels:
+    {{- include "infra.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: payments-mock
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.paymentsMock.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-mock
+  labels:
+    {{- include "infra.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments-mock
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payments-mock
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: payments-mock
+          image: {{ .Values.paymentsMock.image }}
+          imagePullPolicy: {{ .Values.paymentsMock.pullPolicy }}
+          env:
+            - { name: HTTP_PORT, value: {{ .Values.paymentsMock.port | quote }} }
+          ports:
+            - name: http
+              containerPort: {{ .Values.paymentsMock.port }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 3
+            failureThreshold: 20
+{{- end }}

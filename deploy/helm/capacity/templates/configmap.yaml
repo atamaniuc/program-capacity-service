@@ -1,0 +1,23 @@
+# A pre-install hook (weight -10) so the migrate hook Job can read it before the release's
+# other resources exist; before-hook-creation replaces it on upgrade.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: capacity-env
+  labels:
+    {{- include "capacity.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-10'
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  KAFKA_BROKERS: {{ .Values.kafkaBrokers | quote }}
+  OAUTH_ISSUER: {{ .Values.oauth.issuer | quote }}
+  OAUTH_AUDIENCE: {{ .Values.oauth.audience | quote }}
+  OAUTH_JWKS_URL: {{ .Values.oauth.jwksUrl | quote }}
+  OPS_PORT: {{ .Values.ports.ops | quote }}
+  HTTP_PORT: {{ .Values.ports.http | quote }}
+  GRPC_PORT: {{ .Values.ports.grpc | quote }}
+  {{- with .Values.corsOrigins }}
+  CORS_ORIGINS: {{ . | quote }}
+  {{- end }}

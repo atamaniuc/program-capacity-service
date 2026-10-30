@@ -89,14 +89,14 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   funding metrics, Prometheus alert rules `FundingNeedsAttention`, `FundingCompensationStuck`,
   `FundingReserveUnresolved`; runbook entries for each alert and for a manual release with the
   saga's `releaseRef`. proof (planned): `make demo-funding`
-- [ ] T15 — **Helm charts** (ADR 026). `deploy/helm/capacity` (derived from `deploy/k8s/`, gRPC
+- [x] T15 — **Helm charts** (ADR 026). `deploy/helm/capacity` (derived from `deploy/k8s/`, gRPC
   port on the Service), `deploy/helm/funding`, `deploy/helm/local-infra`; migrate Jobs as hooks;
-  `make helm-check` with kubeconform. proof (planned): `make helm-check`
-- [ ] T16 — **kind cluster and smoke** (ADR 026). `deploy/kind/cluster.yaml` (no host port
+  `make helm-check` with kubeconform. <!-- proof: make helm-check -->
+- [x] T16 — **kind cluster and smoke** (ADR 026). `deploy/kind/cluster.yaml` (no host port
   mappings), `make kind-up`, `make kind-smoke` (`helm test funding`), `make kind-forward`
   (23000–23099), `make kind-down`; kubeconfig only in `.kind/kubeconfig`; doctor warnings.
-  proof (planned): `make kind-up`, `make kind-smoke`, `test/architecture/isolation.test.ts#K8-04`
-- [ ] T16a — **API gateway in kind** (ADR 029) **[review]**. Envoy Gateway `v1.9.3` from
+  <!-- proof: test/architecture/isolation.test.ts#K8-04 -->
+- [x] T16a — **API gateway in kind** (ADR 029) **[review]**. Envoy Gateway `v1.9.3` from
   `oci://docker.io/envoyproxy/gateway-helm` (constant `ENVOY_GATEWAY_VERSION`, release `eg` in
   `envoy-gateway-system`); chart `deploy/helm/gateway`: `Gateway` with one HTTP listener,
   `EnvoyProxy` (one replica, `ClusterIP`), `HTTPRoute`s `/v1/programs` → capacity and
@@ -108,8 +108,7 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   services' `CORS_ORIGINS` empty in kind; `make kind-token` sends the issuer's `Host`;
   `make kind-forward` adds the gateway port; `make helm-check` renders the chart (kubeconform
   skips the Gateway API and Envoy Gateway kinds by name); `make kind-smoke` also runs
-  `helm test gateway`. proof (planned): `make kind-smoke`,
-  `test/architecture/gateway.test.ts#GW-05`
+  `helm test gateway`. <!-- proof: test/architecture/gateway.test.ts#GW-05 -->
 - [ ] T17 — **Docs for the delivered MVP** (architect with implementer). `docs/architecture.md`
   C4 context and container views for the branch, `docs/api.md` funding endpoints and the gRPC
   status table, README sections beyond "Why this branch exists", PRD branch note re-checked,

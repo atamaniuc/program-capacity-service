@@ -1,0 +1,6 @@
+apiVersion: v2
+name: local-infra
+description: LOCAL ONLY. PostgreSQL, Kafka, mock OAuth2 and the payments mock for kind (ADR 026). Never installed outside kind.
+type: application
+version: 0.1.0
+appVersion: ms-local
