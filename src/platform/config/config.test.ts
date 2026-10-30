@@ -75,4 +75,10 @@ describe('config', () => {
     expect(() => loadConfig({ ...valid, GRPC_PORT: '70000' })).toThrow(/GRPC_PORT/);
     expect(() => loadConfig({ ...valid, GRPC_PORT: 'grpc' })).toThrow(/GRPC_PORT/);
   });
+
+  it('SK-03 accepts port 0 (the OS picks) for the HTTP, ops and gRPC ports and rejects negatives', () => {
+    const config = loadConfig({ ...valid, HTTP_PORT: '0', OPS_PORT: '0', GRPC_PORT: '0' });
+    expect([config.httpPort, config.opsPort, config.grpcPort]).toEqual([0, 0, 0]);
+    expect(() => loadConfig({ ...valid, HTTP_PORT: '-1' })).toThrow(/HTTP_PORT/);
+  });
 });

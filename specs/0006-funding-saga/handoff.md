@@ -65,6 +65,8 @@ only if a task touches them.
 - test/e2e/ops.e2e.test.ts
 - test/e2e/grpc.e2e.test.ts
 - test/fault/grpc-shutdown.fault.test.ts
+- test/fault/shutdown.fault.test.ts
+- src/platform/config/config.test.ts
 - test/pact/**
 - services/**
 - packages/**
@@ -248,7 +250,33 @@ Carried (MINOR, fix in T6 unless noted):
   `waitFor` until the count is 0 (deadline a few seconds) and keep the 25 s budget assertion.
 - NOTE: `GrpcServer.handlers` is exposed for the unit test; keep it out of any non-test caller.
 
-Next: T6 (acceptance cases over both transports), after the two flake fixes above.
+Flakes fixed (2026-10-30, after the T5 re-review). (a) Port race: `HTTP_PORT`, `OPS_PORT` and
+`GRPC_PORT` accept `0` (config `min(0)`; production validation still takes any 0..65535, and 0 is
+harmless there: the OS picks a port that nothing advertises, so the pod fails its probes instead
+of binding something unsafe). `RunningApp.httpPort` is now the bound port (`getHttpServer().address()`),
+`opsPort` and `grpcPort` already were. `test/support/{app,fault-app}.ts` and `ops.e2e.test.ts`
+pass `0` and build URLs from `RunningApp`; `freePort()` stays for "nothing listens here" URLs
+(`grpc.e2e.test.ts`, `outage-containers.ts`) and the Kafka support. Regression test
+`ops.e2e.test.ts#SK-04 binds port 0 ...`: a stand-in holds 127.0.0.1:<p>; asking the app for <p>
+either fails with EADDRINUSE (Linux) or binds and `127.0.0.1:<p>` answers as the stand-in
+(macOS); port 0 returns a different real port that answers 401 problem+json as this service.
+`config.test.ts#SK-03 accepts port 0` covers the config. (b) Backend teardown: both shutdown
+fault tests `waitFor` the `pg_stat_activity` count to reach 0 (5 s deadline) and keep the 25 s
+budget assertion. `make verify` green; `make test` three runs in a row, logs
+`flake-run{1,2,3}.log` in the session scratchpad: see PROGRESS for the counts.
+
+Patch note for `main` (do not apply here; main has no gRPC): port these unchanged:
+`src/platform/config/config.ts` (the `port` schema `.min(0)`, drop the `GRPC_PORT` line),
+`src/platform/config/config.test.ts` (the port-0 test, without `GRPC_PORT`),
+`src/platform/bootstrap/start.ts` (the `HttpServer` import, `let httpPort`, the three lines after
+`http.listen` that read the bound port, `httpPort` in the log and in the returned `RunningApp`;
+drop the `grpc` parts), `test/support/app.ts` (`HTTP_PORT`/`OPS_PORT` `'0'`, `baseUrl` from
+`app.httpPort`; drop `grpcTarget`), `test/support/fault-app.ts` (same, drop gRPC), `test/e2e/ops.e2e.test.ts`
+(`'0'` ports, `app.httpPort`, the new regression test minus `GRPC_PORT: '0'`; its local `freePort`
+goes), `test/fault/shutdown.fault.test.ts` (the `waitFor` hunk at the end of the first test).
+`test/fault/grpc-shutdown.fault.test.ts` is branch-only.
+
+Next: T6 (acceptance cases over both transports; cross-currency release case, see above).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -304,5 +332,5 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 
 ## First step
 
-Fix the two flakes carried from the T5 re-review (State), then start T6 in `test/support/` and
+Start T6 (the two flakes are fixed, see State) in `test/support/` and
 `test/e2e/transports.e2e.test.ts`.

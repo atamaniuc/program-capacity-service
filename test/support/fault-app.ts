@@ -3,7 +3,6 @@ import { startApp, type RunningApp } from '#src/platform/bootstrap/start.js';
 import { loadConfig, type AppRole } from '#src/platform/config/config.js';
 import { createLogger } from '#src/platform/logging/logger.js';
 import { loadRuntimeSettings } from '#src/platform/telemetry/settings.js';
-import { freePort } from './app.js';
 import { startTestIssuer, type TestIssuer } from './auth.js';
 
 export interface FaultApp {
@@ -33,13 +32,11 @@ export async function startFaultApp(options: {
 }): Promise<FaultApp> {
   if (options.migrateFirst !== false) await migrate(options.databaseUrl);
   const issuer = await startTestIssuer();
-  const httpPort = await freePort();
-  const grpcPort = await freePort();
   const env = {
     APP_ROLE: options.role,
-    HTTP_PORT: String(httpPort),
-    OPS_PORT: String(await freePort()),
-    GRPC_PORT: String(grpcPort),
+    HTTP_PORT: '0',
+    OPS_PORT: '0',
+    GRPC_PORT: '0',
     DATABASE_URL: options.databaseUrl,
     KAFKA_BROKERS: options.kafkaBrokers ?? '127.0.0.1:1',
     OAUTH_ISSUER: issuer.issuer,
@@ -53,7 +50,7 @@ export async function startFaultApp(options: {
     createLogger('silent'),
     loadRuntimeSettings({ OUTBOX_POLL_INTERVAL_MS: '200', ...options.env }),
   );
-  const baseUrl = `http://127.0.0.1:${httpPort}`;
+  const baseUrl = `http://127.0.0.1:${app.httpPort ?? 0}`;
   const opsUrl = `http://127.0.0.1:${app.opsPort}`;
   const token = (): Promise<string> =>
     issuer.sign({ tenantId: 'bank-a', scope: 'capacity:read capacity:write', sub: 'svc-orders' });
@@ -81,7 +78,7 @@ export async function startFaultApp(options: {
     app,
     baseUrl,
     opsUrl,
-    grpcTarget: `127.0.0.1:${grpcPort}`,
+    grpcTarget: `127.0.0.1:${app.grpcPort ?? 0}`,
     issuer,
     token,
     get: (path) => call('GET', path),

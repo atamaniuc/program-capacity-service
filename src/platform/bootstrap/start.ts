@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import type { Server as HttpServer } from 'node:http';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { sql } from 'kysely';
@@ -63,6 +64,7 @@ export async function startApp(
   let app: INestApplication | INestApplicationContext;
   let grpc: GrpcServer | null = null;
   let grpcPort: number | null = null;
+  let httpPort: number | null = null;
   if (serveHttp) {
     const http = await NestFactory.create(module, { logger: nestLogger });
     http.use(httpMetrics(registry));
@@ -83,6 +85,8 @@ export async function startApp(
     });
     http.use('/v1', createAuthMiddleware(verifier));
     await http.listen(config.httpPort, '0.0.0.0');
+    const address = (http.getHttpServer() as HttpServer).address();
+    httpPort = typeof address === 'object' && address !== null ? address.port : config.httpPort;
     // The same use cases, verifier and metrics registry as REST (ADR 024).
     grpc = createGrpcServer({
       verifier,
@@ -139,7 +143,7 @@ export async function startApp(
   logger.info(
     {
       role: config.appRole,
-      httpPort: serveHttp ? config.httpPort : null,
+      httpPort,
       grpcPort,
       opsPort: ops.port(),
     },
@@ -149,7 +153,7 @@ export async function startApp(
   let closing: Promise<void> | undefined;
   return {
     opsPort: ops.port(),
-    httpPort: serveHttp ? config.httpPort : null,
+    httpPort,
     grpcPort,
     close: () => {
       closing ??= (async () => {

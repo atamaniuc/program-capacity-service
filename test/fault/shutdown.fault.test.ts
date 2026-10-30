@@ -68,7 +68,11 @@ describe('shutdown', () => {
 
     await closing;
     expect(Date.now() - started).toBeLessThan(25_000);
-    expect(await serviceConnections()).toBe(0);
+    await waitFor(
+      'the service backends to leave pg_stat_activity',
+      async () => (await serviceConnections()) === 0,
+      5_000,
+    );
     await expect(fetch(`${service.baseUrl}/v1/programs/prg-drain/capacity`)).rejects.toThrow();
   });
 

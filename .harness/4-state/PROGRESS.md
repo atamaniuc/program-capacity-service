@@ -79,6 +79,9 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
   `google.rpc.Status`, deadline check, RED metrics and spans, drain on SIGTERM), `GRPC_PORT`,
   readiness `grpc`, compose host port 127.0.0.1:60051. Tests GR-04..GR-07. Review fixes (additive
   `Release` message, early-auth and deadline tests) done, awaiting re-review.
+- Branch `microservices`, flakes fixed (2026-10-30): port 0 for HTTP/ops/gRPC with `RunningApp`
+  reporting the bound ports, tests build URLs from it (regression test in `ops.e2e.test.ts`);
+  shutdown fault tests poll `pg_stat_activity`. `make test` green three runs in a row (each: unit 30 files / 143 tests, integration 26 files / 119 tests). Next: T6.
 
 - AsyncAPI and contract compatibility (2026-10-29, post-lane like the Swagger UI): event
   schemas in `capacity-events.ts`, builder in `src/platform/contracts/`, `/docs/asyncapi`,
@@ -99,4 +102,4 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
 - Drift amounts in `ReconciliationDriftDetected` are minor units without currency (documented
   exception); unifying them is a `v2` of that event — owner's call.
 
-_Last updated: 2026-10-30 (branch `microservices`: lane 0006 T5 built, awaiting review)_
+_Last updated: 2026-10-30 (branch `microservices`: lane 0006 T5 approved, test flakes fixed, next T6)_

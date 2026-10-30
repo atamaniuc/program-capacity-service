@@ -49,13 +49,11 @@ export async function startTestApp(env: Record<string, string> = {}): Promise<Te
   const postgres: TestPostgres = await startPostgres();
   await migrate(postgres.url);
   const issuer = await startTestIssuer();
-  const httpPort = await freePort();
-  const grpcPort = await freePort();
   const config = loadConfig({
     APP_ROLE: 'api',
-    HTTP_PORT: String(httpPort),
-    OPS_PORT: String(await freePort()),
-    GRPC_PORT: String(grpcPort),
+    HTTP_PORT: '0',
+    OPS_PORT: '0',
+    GRPC_PORT: '0',
     DATABASE_URL: postgres.url,
     KAFKA_BROKERS: 'localhost:9092',
     OAUTH_ISSUER: issuer.issuer,
@@ -66,7 +64,8 @@ export async function startTestApp(env: Record<string, string> = {}): Promise<Te
   });
   const app: RunningApp = await startApp(config, createLogger('silent'));
   const persistence = createPersistence(postgres.url, 5);
-  const baseUrl = `http://127.0.0.1:${httpPort}`;
+  if (app.httpPort === null || app.grpcPort === null) throw new Error('api role did not bind');
+  const baseUrl = `http://127.0.0.1:${app.httpPort}`;
 
   const token = (claims: TokenClaims = {}): Promise<string> =>
     issuer.sign({
@@ -79,7 +78,7 @@ export async function startTestApp(env: Record<string, string> = {}): Promise<Te
   return {
     baseUrl,
     opsUrl: `http://127.0.0.1:${app.opsPort}`,
-    grpcTarget: `127.0.0.1:${grpcPort}`,
+    grpcTarget: `127.0.0.1:${app.grpcPort}`,
     databaseUrl: postgres.url,
     persistence,
     issuer,

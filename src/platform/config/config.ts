@@ -10,7 +10,8 @@ const duration = z
     return Number.parseInt(value.slice(0, -1), 10) * DURATION_UNIT_SECONDS[unit];
   });
 
-const port = z.coerce.number().int().min(1).max(65535);
+/** 0 asks the OS for a free port (tests); the bound port is reported by `RunningApp`. */
+const port = z.coerce.number().int().min(0).max(65535);
 
 const schema = z.object({
   APP_ROLE: z.enum(['api', 'worker', 'all']).default('all'),
