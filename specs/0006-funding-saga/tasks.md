@@ -154,8 +154,11 @@ T19–T24 can follow in the same lane or a successor lane.
 
 ## P2
 
-- [ ] T23 — kind job in CI (`helm/kind-action`) running `make kind-up kind-smoke` on pull
-  requests to `microservices`. proof (planned): `.github/workflows/kind.yml`
+- [x] T23 — CI for the Kubernetes part in `.github/workflows/ci.yml`: job `charts` runs
+  `make helm-check` (helm pinned), job `image` also builds the funding and payments-mock images,
+  and job `kind` (push to `microservices` and pull requests into it, 30 min) installs kind with
+  `helm/kind-action` and runs `make kind-up` then `make kind-smoke`; kubectl state is uploaded on
+  failure. <!-- proof: test/architecture/ci.test.ts#T23 -->
 - [ ] T24 — Funding consumes `capacity.events.v1` (inbox, ADR 007 semantics) to mark a
   `COMPLETED` request repaid on the final `ReservationReleased` with reason `REPAID`; message
   pact on that event. proof (planned): `services/funding/test/kafka/capacity-events.kafka.test.ts#FS-17`

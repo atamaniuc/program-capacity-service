@@ -464,6 +464,22 @@ Still NOT exercised (do not read the green run as covering these):
   after a capacity-side failure and the `FAULT-TIMEOUT` / `FAULT-5XX` markers are not driven in kind.
 - `make test` was not re-run in this worktree after the merge; `make kind-down` was not run.
 
+### T23 CI (agent `k8s`, 2026-10-31)
+
+`.github/workflows/ci.yml`: job `charts` (`azure/setup-helm@v5.0.1`, helm `v3.22.1`, which passes
+`make helm-check` locally; `make helm-check` downloads kubeconform at its pinned version and checks
+the archive's SHA-256); `image` builds `services/funding` and `services/payments-mock`; job `kind`
+(`helm/kind-action@v1.15.1` with `install_only: true`, kind `v0.33.0`, kubectl `v1.35.8`,
+`actions/upload-artifact@v7.0.2`; `timeout-minutes: 30`) runs `make kind-up` and `make kind-smoke`
+only. Versions checked with `gh api` on 2026-10-31. Static proof: `test/architecture/ci.test.ts`
+(T23): exact make targets, microservices-only condition, no cluster/kubeconfig/port inputs on the
+action, artifact on failure; each assertion was mutation-checked.
+
+NOT verified: the workflow has never run on GitHub (the branch is pushed by the coordinator only at
+the very end), so the `kind` job's first real run may still need fixes (runner resources, `nc` for
+`kind-seed`, image pulls, Envoy Gateway OCI install from `docker.io`, the 30-minute budget).
+`actionlint` is not installed here and was not run; the YAML parses and the static test reads it.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.
