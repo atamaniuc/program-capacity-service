@@ -477,3 +477,43 @@ funding int/e2e:  Test Files  2 passed (2)    Tests  18 passed (18)
 
 This also runs the three review-fix e2e cases (stored 409 replay, JWKS outage 503, auth before
 routing) that were unrun at 4edf1c7.
+
+## T11 built (2026-10-30, agent `funding`) — awaits the batched review after T13
+
+Files (`services/funding`): `src/funding/application/{saga-ports,saga-driver}.ts`;
+`adapters/out/postgres/saga-store.ts` (claim `FOR UPDATE SKIP LOCKED` + lease + version bump in one
+short transaction; record = `UPDATE … WHERE id AND version = claimed`, attempt row, outbox row when
+the transition has an event, one transaction; zero rows = lease lost, result dropped);
+`adapters/out/grpc/capacity-gateway.ts` (token per tenant, step key and `x-request-id` in
+metadata, deadline, one token refresh on `UNAUTHENTICATED`, `ErrorInfo.reason` decoded, body a pure
+function of the persisted request); `adapters/out/http/payment-rail.ts` (lookup first after an
+unknown attempt; 404 on lookup -> POST again with the same key; 409/400/unparseable stay unknown);
+`adapters/out/oauth/token-provider.ts` (m4: sends `tenant_id`; uses `node:http` because `fetch`
+ignores a custom `Host`, which the mock issuer's `iss` depends on); `src/worker.ts` and
+`src/worker-config.ts` (boot validation: resolution limit < 24 h and >= reserve deadline, lease >
+one call, gRPC deadline > capacity's 20 s lock+statement budget; durations `2m`/`12h`; risk limits
+`FUNDING_RISK_LIMITS`). Tests: unit (config, token provider incl. m4, payment rail, capacity gateway
+against a fake capacity gRPC server generated from the same proto), integration `saga.int.test.ts`
+(FS-04, FS-05, a fake-backed FS-03 path, FS-07 retry bytes) and `driver.int.test.ts` (claim and
+lease, FS-12 part), system `saga.system.test.ts` (FS-03 on the real capacity image behind
+Toxiproxy with PostgreSQL, mock OAuth2 and the payments mock as a child process; also the live
+M1 and m4 token checks). Harness: `test/support/{system-stack,saga-world,fake-capacity}.ts`.
+`services/funding/package.json`: two devDependencies (`@testcontainers/toxiproxy`, `testcontainers`).
+
+Decisions for the reviewer: outbox rows exist only for event-carrying transitions (Received,
+Completed, Rejected, Failed, NeedsAttention); FS-03's "one outbox row per transition" is stated that
+way in spec.md. The ledger actor for funding is `funding-service.<tenant>` (the per-tenant client).
+First system run builds the capacity image (~7 min); later runs reuse the layer cache (~45 s).
+The worker has no health endpoint or metrics yet (T14). Payments-mock fault markers are in spec.md.
+
+Checks: `make verify`: `✔ verify passed`. `make test` (one serial run):
+
+```
+root unit:        Test Files 30 passed (30)   Tests 144 passed (144)
+funding unit:     Test Files 11 passed (11)   Tests  54 passed (54)
+payments-mock:    Test Files  2 passed (2)    Tests   8 passed (8)
+contracts:        Test Files  1 passed (1)    Tests   9 passed (9)
+root int:         Test Files 27 passed (27)   Tests 140 passed (140)
+funding int/sys:  Test Files  5 passed (5)    Tests  33 passed (33)
+✔ all tests passed
+```

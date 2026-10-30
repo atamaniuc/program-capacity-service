@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedNetwork } from 'testcontainers';
 
 export const POSTGRES_IMAGE = 'postgres:18';
 
@@ -20,8 +21,8 @@ export interface FundingPostgres {
  * One server as in compose: bootstrap role `postgres`, then the same init script the
  * compose stack mounts creates the `capacity` and `funding` roles and databases.
  */
-export async function startFundingPostgres(): Promise<FundingPostgres> {
-  const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
+export async function startFundingPostgres(network?: StartedNetwork): Promise<FundingPostgres> {
+  const base = new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase('postgres')
     .withUsername('postgres')
     .withPassword('postgres')
@@ -31,8 +32,10 @@ export async function startFundingPostgres(): Promise<FundingPostgres> {
         target: '/docker-entrypoint-initdb.d/10-init-databases.sh',
         mode: 0o755,
       },
-    ])
-    .start();
+    ]);
+  const container = await (
+    network === undefined ? base : base.withNetwork(network).withNetworkAliases('postgres')
+  ).start();
   const url = (user: string, password: string, database: string): string =>
     `postgres://${user}:${password}@${container.getHost()}:${container.getPort().toString()}/${database}`;
   return {

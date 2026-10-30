@@ -67,13 +67,13 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   `Idempotency-Key` (stored result), `GET /v1/payments/{key}`, fault markers by invoice id
   (decline, timeout after commit, 5xx n times), ops port with liveness; no database.
   <!-- proof: services/payments-mock/test/payments.test.ts#PM-01 -->
-- [ ] T11 — **Saga driver, happy and rejection paths** (ADR 025) **[review]**. Worker loop:
+- [x] T11 — **Saga driver, happy and rejection paths** (ADR 025) **[review]**. Worker loop:
   claim with `FOR UPDATE SKIP LOCKED` and lease, step executors (risk, reserve via gRPC with a
   per-tenant token cache and deadline, disburse), record with the version check, attempt log and
   outbox in one transaction, backoff with jitter, config validated at boot (resolution limit
   below 24 h). System-test harness: capacity image, PostgreSQL, mock OAuth2, payments mock and
   Toxiproxy through Testcontainers.
-  proof (planned): `services/funding/test/system/saga.system.test.ts#FS-03`, `services/funding/test/integration/saga.int.test.ts#FS-04`, `services/funding/test/integration/saga.int.test.ts#FS-05`
+  <!-- proof: services/funding/test/system/saga.system.test.ts#FS-03 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-04 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-05 -->
 - [ ] T12 — **Compensation and unknown outcomes** (ADR 025) **[review]**. Payment declined →
   release; unknown reserve → resolve with the same key, then release; unknown disbursement →
   `NEEDS_ATTENTION`, never release; compensation retried without deadline; already-released

@@ -126,17 +126,18 @@ proof: `services/funding/test/e2e/api.e2e.test.ts#FS-02`
 
 **FS-03** — GIVEN a program with available capacity and a rail that pays WHEN a funding request
 is submitted THEN it reaches `COMPLETED`; capacity holds exactly one reservation for the
-invoice with actor `funding-service`; the rail holds exactly one payment; one outbox row per
-transition. proof (planned): `services/funding/test/system/saga.system.test.ts#FS-03`
+invoice with actor `funding-service.<tenant>` (the per-tenant client, ADR 024); the rail holds
+exactly one payment; one outbox row per event-carrying transition (`FundingRequestReceived`,
+`FundingRequestCompleted`). proof: `services/funding/test/system/saga.system.test.ts#FS-03`
 
 **FS-04** — GIVEN an invoice above the risk limit WHEN it is submitted THEN `REJECTED`
 (`risk-declined`) and capacity receives no call.
-proof (planned): `services/funding/test/integration/saga.int.test.ts#FS-04`
+proof: `services/funding/test/integration/saga.int.test.ts#FS-04`
 
 **FS-05** — GIVEN capacity answers `insufficient-capacity`, or `EXISTING` for an invoice
 reserved by someone else WHEN the reserve step runs THEN `REJECTED` with the reason; no
 disbursement, no release.
-proof (planned): `services/funding/test/integration/saga.int.test.ts#FS-05`
+proof: `services/funding/test/integration/saga.int.test.ts#FS-05`
 
 **FS-06** — GIVEN a reserved request and a rail that declines WHEN the disburse step runs THEN
 the saga releases its reservation (`releaseRef = funding:<id>:compensation`, `CANCELLED`, the
@@ -184,7 +185,12 @@ proof: `services/funding/test/integration/database.int.test.ts#FS-14`
 
 **PM-01** — GIVEN the payments mock WHEN a payment is posted twice with one key THEN one
 payment; `GET /v1/payments/{key}` returns it; the documented fault markers (decline, timeout
-after commit, 5xx) behave as described.
+after commit, 5xx) behave as described. The markers are read from the invoice id (prefix match):
+`FAULT-DECLINE…` the rail refuses, nothing moves (422 `DECLINED`, stored under the key);
+`FAULT-TIMEOUT…` the payment is committed and the response is never sent (the caller times out,
+and a `GET` by key then finds it); `FAULT-5XX-<n>…` the first `<n>` attempts under one key
+answer 503 with nothing committed. An unknown key on `GET` answers 404 (nothing was committed:
+the saga posts again with the same key).
 proof (planned): `services/payments-mock/test/payments.test.ts#PM-01`
 
 ### Delivery (T14–T16)

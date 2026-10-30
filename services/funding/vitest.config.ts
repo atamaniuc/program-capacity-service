@@ -15,7 +15,11 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'int',
-          include: ['test/integration/**/*.test.ts', 'test/e2e/**/*.test.ts'],
+          include: [
+            'test/integration/**/*.test.ts',
+            'test/e2e/**/*.test.ts',
+            'test/system/**/*.test.ts',
+          ],
           testTimeout: 120_000,
           hookTimeout: 180_000,
           fileParallelism: false,
