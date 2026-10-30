@@ -91,10 +91,10 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
 - [x] T15 — **Helm charts** (ADR 026). `deploy/helm/capacity` (derived from `deploy/k8s/`, gRPC
   port on the Service), `deploy/helm/funding`, `deploy/helm/local-infra`; migrate Jobs as hooks;
   `make helm-check` with kubeconform. <!-- proof: make helm-check -->
-- [ ] T16 — **kind cluster and smoke** (ADR 026). `deploy/kind/cluster.yaml` (no host port
+- [x] T16 — **kind cluster and smoke** (ADR 026). `deploy/kind/cluster.yaml` (no host port
   mappings), `make kind-up`, `make kind-smoke` (`helm test funding`), `make kind-forward`
   (23000–23099), `make kind-down`; kubeconfig only in `.kind/kubeconfig`; doctor warnings.
-  proof (planned): `make kind-up`, `make kind-smoke`, `test/architecture/isolation.test.ts#K8-04`
+  <!-- proof: test/architecture/isolation.test.ts#K8-04 -->
 - [ ] T16a — **API gateway in kind** (ADR 029) **[review]**. Envoy Gateway `v1.9.3` from
   `oci://docker.io/envoyproxy/gateway-helm` (constant `ENVOY_GATEWAY_VERSION`, release `eg` in
   `envoy-gateway-system`); chart `deploy/helm/gateway`: `Gateway` with one HTTP listener,

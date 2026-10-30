@@ -1,0 +1,12 @@
+# Local cluster for the branch (ADR 026). One node and NO extraPortMappings: the cluster binds no
+# host port beyond the API server port kind picks itself, so nothing can collide with main's
+# compose stack or this branch's. Reach services with `make kind-forward` (host ports 23000-23099).
+#
+# The node image is pinned by tag and digest. Envoy Gateway v1.9.3 (ADR 029) supports Kubernetes
+# 1.33-1.36 ; v1.35.8 sits inside that range.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: finverity-ms
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0

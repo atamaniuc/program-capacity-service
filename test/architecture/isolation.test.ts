@@ -169,3 +169,61 @@ describe('make doctor on the shifted ports', () => {
     expect(doctor).not.toMatch(/fail "?\$?\{?(tool|kind|helm|kubectl)\b/);
   });
 });
+
+describe('kind targets (ADR 026)', () => {
+  const makefile = read('Makefile');
+  const recipe = (target: string) => {
+    const start = makefile.indexOf(`\n${target}:`);
+    expect(start).toBeGreaterThan(-1);
+    const rest = makefile
+      .slice(start + 1)
+      .split('\n')
+      .slice(1);
+    const end = rest.findIndex((l) => l !== '' && !l.startsWith('\t') && !l.startsWith(' '));
+    return rest.slice(0, end === -1 ? undefined : end).join('\n');
+  };
+
+  it('K8-04 deletes only cluster finverity-ms, with a constant name', () => {
+    expect(makefile).toMatch(/^KIND_CLUSTER := finverity-ms$/m);
+    const down = recipe('kind-down');
+    const deletes = down.split('\n').filter((l) => /\bkind delete\b/.test(l));
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]).toContain('kind delete cluster --name $(KIND_CLUSTER)');
+    expect(deletes[0]).toContain('--kubeconfig $(KUBECONFIG_FILE)');
+    expect(down).not.toMatch(/--all|delete clusters|\.kube\/config/);
+  });
+
+  it('K8-04 passes the kubeconfig file and context to every kubectl and helm call', () => {
+    expect(makefile).toMatch(
+      /^KUBECTL := kubectl --kubeconfig \$\(KUBECONFIG_FILE\) --context kind-\$\(KIND_CLUSTER\)/m,
+    );
+    expect(makefile).toMatch(
+      /^HELM := helm --kubeconfig \$\(KUBECONFIG_FILE\) --kube-context kind-\$\(KIND_CLUSTER\)/m,
+    );
+    const bare = makefile
+      .split('\n')
+      .filter(
+        (l) =>
+          /^\t/.test(l) &&
+          /(^|[\s;&(])(kubectl|helm) /.test(l) &&
+          !/helm-check|\$\((KUBECTL|HELM)\)/.test(l),
+      );
+    expect(bare).toEqual([]);
+    expect(makefile).not.toContain('~/.kube');
+  });
+
+  it('K8-04 forwards only host ports 23000-23099 and the cluster has no host port mapping', () => {
+    const forwards = [...recipe('kind-forward').matchAll(/(\d{5}):/g)].map((m) => Number(m[1]));
+    expect(forwards.length).toBeGreaterThan(0);
+    for (const port of forwards) {
+      expect(port).toBeGreaterThanOrEqual(23000);
+      expect(port).toBeLessThanOrEqual(23099);
+    }
+    const cluster = parse(read('deploy/kind/cluster.yaml')) as {
+      name: string;
+      nodes: { extraPortMappings?: unknown }[];
+    };
+    expect(cluster.name).toBe('finverity-ms');
+    for (const node of cluster.nodes) expect(node.extraPortMappings).toBeUndefined();
+  });
+});
