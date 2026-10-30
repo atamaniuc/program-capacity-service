@@ -21,10 +21,10 @@ Dockerfile, `start` script.
 
 ## Resume with an agent team inside herdr
 
-1. Start `herdr` in a terminal. In a pane: `cd ~/work/finverity-microservices && herdr-claude-teams`
-   (agent teams on, teammates open as herdr panes; `.claude/settings.json` sets
-   `teammateMode: auto`, a 1 h teammate prompt cache, and a `TaskCompleted` hook that refuses
-   completion while `harnessimo check` is red).
+1. Start `herdr` in a terminal. In a pane: `cd ~/work/finverity-microservices && claude`
+   (`.claude/settings.json` turns agent teams on, sets `teammateMode: auto` — in-process
+   teammates unless the terminal is tmux or iTerm2 —, a 1 h teammate prompt cache, and a
+   `TaskCompleted` hook that refuses completion while `harnessimo check` is red).
 2. Give the lead this prompt:
 
    > Read specs/0006-funding-saga/RESUME.md and CLAUDE.md. You lead lane 0006 as an agent
