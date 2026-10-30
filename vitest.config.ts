@@ -32,6 +32,8 @@ export default defineConfig({
             'test/property/**/*.test.ts',
             'test/contracts/**/*.test.ts',
           ],
+          // buf and the AsyncAPI parser take seconds under the parallel unit run (workspaces add load).
+          testTimeout: 30_000,
         },
       },
       {

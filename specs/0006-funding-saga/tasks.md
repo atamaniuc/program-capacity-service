@@ -47,16 +47,16 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   AC-04, AC-05, AC-06, AC-13, AC-16, AC-17 and FR-01 parametrised by transport, titles
   `AC-xx (http|grpc) …`. Existing test files are left as they are (their markers keep
   resolving). <!-- proof: test/e2e/transports.e2e.test.ts#AC-01 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-02 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-03 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-04 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-05 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-06 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-13 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-16 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-17 --> <!-- proof: test/e2e/transports.e2e.test.ts#FR-01 -->
-- [ ] T7 — **Funding domain: state machine and money** (ADR 025) **[review]**.
+- [x] T7 — **Funding domain: state machine and money** (ADR 025) **[review]**.
   `services/funding/src/funding/domain`: `FundingRequest`, the transition table as pure code,
   outcome classes, deterministic step keys, minor-unit money with the no-`number` lint rule,
   risk policy.
   <!-- proof: services/funding/test/property/saga.property.test.ts#FS-01 -->
-- [ ] T8 — **Funding database** (ADR 023). `funding` database and role (compose init script
+- [x] T8 — **Funding database** (ADR 023). `funding` database and role (compose init script
   and Testcontainers helper), Kysely SQL migrations: `funding_request` (saga columns, unique
   per tenant/program/invoice, version, lease, deadlines), append-only `saga_step_attempt`,
   `idempotency_key`, `outbox_event`; capacity's role refused on `funding` and vice versa.
-  proof (planned): `services/funding/test/integration/database.int.test.ts#FS-14`
+  <!-- proof: services/funding/test/integration/database.int.test.ts#FS-14 -->
 - [ ] T9 — **Funding API**. `POST /v1/funding-requests`, `GET /v1/funding-requests/{id}`;
   JWT (`aud` = `funding-service`, scopes `funding:write`/`funding:read`), tenant from the token,
   `Idempotency-Key` per ADR 006, natural key, RFC 9457 problems, OpenAPI generated from zod with

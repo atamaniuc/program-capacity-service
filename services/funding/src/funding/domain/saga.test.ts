@@ -236,4 +236,44 @@ describe('transition table (ADR 025)', () => {
     const again = run(reserving, { step: 'reserve', outcome: { kind: 'unknown' } }, 2_000);
     expect(nextCommand(again.request)).toEqual(nextCommand(reserving));
   });
+
+  it('FS-09 a missing reserve deadline counts as passed: RESERVING unknown -> COMPENSATING with a resolution deadline', () => {
+    const t = run(
+      base({ state: 'RESERVING' }),
+      { step: 'reserve', outcome: { kind: 'unknown' } },
+      5_000,
+    );
+    expect(t.request.state).toBe('COMPENSATING');
+    expect(t.request.resolutionDeadlineAt).toBe(
+      5_000 + DEFAULT_SAGA_CONFIG.reserveResolutionLimitMs,
+    );
+  });
+
+  it('FS-09 a missing resolution deadline counts as passed: unknown reservation -> NEEDS_ATTENTION', () => {
+    const t = run(
+      base({ state: 'COMPENSATING' }),
+      { step: 'reserve', outcome: { kind: 'unknown' } },
+      5_000,
+    );
+    expect(t.request.state).toBe('NEEDS_ATTENTION');
+    expect(t.alert).toBe(true);
+  });
+
+  it('FS-10 a missing disburse deadline counts as passed: DISBURSING unknown -> NEEDS_ATTENTION, not a retry', () => {
+    const t = run(
+      base({ state: 'DISBURSING', reservationId: 'res-1' }),
+      { step: 'disburse', outcome: { kind: 'unknown' } },
+      5_000,
+    );
+    expect(t.request.state).toBe('NEEDS_ATTENTION');
+    expect(t.request.reservationId).toBe('res-1');
+  });
+
+  it('FS-09 resolving a compensation, EXISTING is not ours: FAILED, nothing is released', () => {
+    const resolving = base({ state: 'COMPENSATING', resolutionDeadlineAt: 50_000 });
+    const t = run(resolving, { step: 'reserve', outcome: { kind: 'existing' } }, 2_000);
+    expect(t.request.state).toBe('FAILED');
+    expect(t.request.reservationId).toBeUndefined();
+    expect(t.event).toBe('FundingRequestFailed');
+  });
 });

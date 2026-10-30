@@ -90,6 +90,11 @@ export function nextCommand(request: FundingRequest): Command | undefined {
   }
 }
 
+/** A missing deadline counts as passed: it must never mean unbounded retries (ADR 025). */
+function deadlinePassed(deadlineAt: number | undefined, now: number): boolean {
+  return deadlineAt === undefined || now >= deadlineAt;
+}
+
 /** A state change: the step's counters restart and the next step is due at once. */
 function moveTo(
   request: FundingRequest,
@@ -190,7 +195,7 @@ export function applyOutcome(
               { event: 'FundingRequestRejected' },
             );
           case 'unknown':
-            if (request.reserveDeadlineAt !== undefined && now >= request.reserveDeadlineAt) {
+            if (deadlinePassed(request.reserveDeadlineAt, now)) {
               return done(
                 moveTo(
                   request,
@@ -220,7 +225,7 @@ export function applyOutcome(
             event: 'FundingRequestFailed',
           });
         case 'unknown':
-          if (request.resolutionDeadlineAt !== undefined && now >= request.resolutionDeadlineAt) {
+          if (deadlinePassed(request.resolutionDeadlineAt, now)) {
             return done(
               moveTo(request, { state: 'NEEDS_ATTENTION', reason: 'reserve-unresolved' }, now),
               'unknown',
@@ -248,7 +253,7 @@ export function applyOutcome(
           );
         case 'unknown':
           // Never compensate: the money may have left (ADR 025).
-          if (request.disburseDeadlineAt !== undefined && now >= request.disburseDeadlineAt) {
+          if (deadlinePassed(request.disburseDeadlineAt, now)) {
             return done(
               moveTo(request, { state: 'NEEDS_ATTENTION', reason: 'disbursement-unknown' }, now),
               'unknown',

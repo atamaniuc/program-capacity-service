@@ -41,9 +41,11 @@ services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_USER: capacity
-      POSTGRES_PASSWORD: capacity
-      POSTGRES_DB: capacity
+      # Bootstrap role only; init-databases.sh creates the capacity and funding roles (ADR 023).
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
     ports:
       - '${HOST_PORT_POSTGRES:-15432}:5432'
     healthcheck:

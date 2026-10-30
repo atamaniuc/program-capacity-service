@@ -11,13 +11,26 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
-    "@grpc/grpc-js": "1.14.6"
+    "@grpc/grpc-js": "1.14.6",
+    "kysely": "0.29.7",
+    "pg": "8.23.1",
+    "jose": "6.2.13",
+    "zod": "4.6.7",
+    "zod-openapi": "6.0.2",
+    "yaml": "2.9.1"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "test:unit": "vitest run --project unit",
-    "test:int": "vitest run --project int"
+    "test:int": "vitest run --project int",
+    "contracts": "tsx tools/contracts.ts",
+    "contracts:check": "tsx tools/contracts.ts --check"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/pg": "8.23.1",
+    "@types/node": "24.19.2"
   }
 }
