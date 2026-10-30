@@ -34,6 +34,19 @@ You implement one lane of the Program Capacity Service. Repository artifacts are
 - Never edit `docs/PRD.md`, `specs/*/spec.md`, `.harness/1-instructions/**` or ADRs.
 - Never spawn agents. Never use `--no-verify` or weaken a check to get green.
 
+## Speed and evidence (learned on branch `microservices`)
+
+- A fresh worktree needs `npm ci` before anything; pre-commit fails without it.
+- Inner loop: run only the affected workspace or file (`npm test -w services/<name>`,
+  `npx vitest run <file>`); run `make verify` and `make test` once per task, at the end.
+- Capture every gate run whole: `make test > /tmp/<task>-test.log 2>&1; echo "exit=$?"`, then
+  quote the summary lines. Never pipe a gate through `tail`: it hides the exit code.
+- Tests bind port `0` and read back the bound port; poll for state (`waitFor`) instead of a
+  single read. Both removed real flakes here.
+- When the caller hands you a chain of tasks, commit each and go straight to the next; do
+  not stop to report in between. A `[review]` task stays unticked for the batched review.
+- Before reporting, stop every background process you started.
+
 ## Escalate
 
 Blocked for more than 3 attempts on one task, or facing an invariant or architecture
