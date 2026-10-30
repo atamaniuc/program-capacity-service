@@ -222,9 +222,33 @@ with the check disabled it fails (`code 16` instead of 4). MINOR 3 proto comment
 `capacity` fields. MINOR 4 `ops.e2e.test.ts` passes a free `GRPC_PORT` (added to Owns). NOTE 1 a
 span for interceptor auth failures.
 
-Next: architect re-review of T5; on APPROVE tick T5 with markers
-`test/e2e/grpc.e2e.test.ts#GR-04`, `#GR-05`, `#GR-06` and `test/fault/grpc-shutdown.fault.test.ts#GR-07`,
-then T6.
+T5 re-reviewed (architect, 2026-10-30, at 76d6020): **APPROVE**; T5 ticked with the four markers.
+Probes re-run in a scratch copy: skipping JWT verify, dropping the `idempotency-key` mapping,
+mapping a stored problem to UNAVAILABLE, skipping the scope check or default-deny, swapping
+CREATED/EXISTING, reporting a JWKS outage as UNAUTHENTICATED, removing the deadline check (now
+caught by `in/grpc/server.test.ts#GR-05`), the old release mapping, a constant release reason and a
+blank `releaseRef` all fail a test; forwarding message and half-close synchronously (with or
+without the handler's principal check) fails 12 / 14 tests. Correction to the first review: its
+"P9b" mutant still waited for authentication before forwarding, so it was weaker than reported;
+the late-rejection GR-04 test kills the strong one. Rulings in DECISIONS.md (2026-10-30, T5 re-review).
+Carried (MINOR, fix in T6 unless noted):
+- Swapping `repaid_amount` and `released_amount` in `mapping.ts` survives: GR-06 releases on a USD
+  program with a USD invoice, where both are equal. T6's cross-transport release case must use a
+  cross-currency reservation (EUR invoice on a USD program) and compare both amounts.
+- Flake (a), port race, also on `main`: `freePort()` (`test/support/app.ts:10`) picks a port, closes
+  it, and the app binds later on `0.0.0.0`. On macOS another process can take the port on
+  `127.0.0.1` meanwhile, and the wildcard bind still succeeds, so the test's `127.0.0.1` request
+  reaches that process ("Proxy key is incorrect", 503). Fix here before T6 adds more servers: the
+  config accepts port `0` for `HTTP_PORT`, `OPS_PORT` and `GRPC_PORT`, `RunningApp` reports the
+  bound HTTP, ops and gRPC ports, and `test/support/{app,fault-app}.ts` and `ops.e2e.test.ts`
+  pass `0` and build URLs from `RunningApp`. `freePort()` stays only for "nothing listens here".
+- Flake (b), backend teardown, also on `main`: `test/fault/shutdown.fault.test.ts:71` (and
+  `grpc-shutdown.fault.test.ts:92`) reads `pg_stat_activity` once right after the pool closed; a
+  PostgreSQL backend leaves the view shortly after its client disconnects. Fix: poll with
+  `waitFor` until the count is 0 (deadline a few seconds) and keep the 25 s budget assertion.
+- NOTE: `GrpcServer.handlers` is exposed for the unit test; keep it out of any non-test caller.
+
+Next: T6 (acceptance cases over both transports), after the two flake fixes above.
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -280,6 +304,5 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 
 ## First step
 
-Wait for the architect's verdict on T5 (files listed in State). On approval tick T5 with the four
-markers named in State, then start T6 in `test/support/` and
+Fix the two flakes carried from the T5 re-review (State), then start T6 in `test/support/` and
 `test/e2e/transports.e2e.test.ts`.

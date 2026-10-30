@@ -254,6 +254,28 @@ promised, with the invariants intact.
 **Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
 (ADR 025).
 
+## 2026-10-30 — Architect re-review of lane 0006 T5: APPROVE
+
+APPROVE at 76d6020: every first-review finding fixed and probed. T5 ticked.
+
+- **The first review's GR-04 probe was weaker than reported.** Its mutant still forwarded the
+  message only after authentication settled. The strong mutant (forward at once, with or
+  without the handler's principal check) fails 12 or 14 of 15 tests, including the new
+  late-rejection test. The new test stays: it is the one that proves "no use case before auth".
+- **Two `make test` flakes predate the branch and exist on `main` unchanged.** (a) `freePort()`
+  picks a port and closes it before the app binds `0.0.0.0`; on macOS a wildcard bind succeeds
+  next to another process's `127.0.0.1` listener on the same port (reproduced), so a request to
+  `127.0.0.1` reaches that process. Fix: servers bind port `0` and report the bound port.
+  (b) `pg_stat_activity` still lists a backend shortly after its client disconnects; the
+  shutdown tests must poll for zero, not read it once. Both are fixed on this branch before T6.
+  For `main`, the submitted solution, the same two test-only fixes are recommended; the owner
+  decides, because `main` changes only by owner decision.
+- **Carried to T6:** a cross-currency release over both transports, because a swap of
+  `repaid_amount` and `released_amount` survives a same-currency test.
+
+**Why:** a reviewer running `make test` on `main` can hit (a) on a busy machine, and a red run is
+read as a broken solution.
+
 ## 2026-10-30 — Architect review of lane 0006 T5 (gRPC adapter, GR-04..GR-07): rulings
 
 CHANGES REQUIRED at a90b53e (T4 carry-overs at 0292242 accepted). T5 stays unticked.

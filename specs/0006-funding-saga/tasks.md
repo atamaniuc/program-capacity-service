@@ -36,12 +36,12 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   `{ http, grpc }`; amend the dependency-cruiser rule with the boundary exception. No
   behaviour change: every existing test green, `contracts:check` shows no diff.
   <!-- proof: src/capacity/adapters/in/boundary/problem-map.test.ts#GR-02 -->
-- [ ] T5 — **gRPC server adapter in the `api` role** (ADR 024) **[review]**. Auth interceptor
+- [x] T5 — **gRPC server adapter in the `api` role** (ADR 024) **[review]**. Auth interceptor
   before parsing, scope table with default-deny, `idempotency-key` and `x-request-id`
   metadata, `ErrorInfo` details, deadline check before the transaction, `GRPC_PORT` in config
   (validated at boot), readiness reports the gRPC server, OpenTelemetry spans and RED metrics,
   graceful shutdown inside NFR-07.
-  proof (planned): `test/e2e/grpc.e2e.test.ts#GR-04`, `test/e2e/grpc.e2e.test.ts#GR-05`, `test/e2e/grpc.e2e.test.ts#GR-06`, `test/fault/grpc-shutdown.fault.test.ts#GR-07`
+  <!-- proof: test/e2e/grpc.e2e.test.ts#GR-04 --> <!-- proof: test/e2e/grpc.e2e.test.ts#GR-05 --> <!-- proof: test/e2e/grpc.e2e.test.ts#GR-06 --> <!-- proof: test/fault/grpc-shutdown.fault.test.ts#GR-07 -->
 - [ ] T6 — **Acceptance cases over both transports**. A transport-neutral `CapacityClient`
   (HTTP via Supertest, gRPC via the generated client) in `test/support/`; AC-01, AC-02, AC-03,
   AC-04, AC-05, AC-06, AC-13, AC-16, AC-17 and FR-01 parametrised by transport, titles
