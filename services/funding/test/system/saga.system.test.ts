@@ -103,3 +103,168 @@ describe('saga against the real capacity image and the payments mock', () => {
     expect(without['tenant_id']).not.toBe('bank-a');
   }, 60_000);
 });
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+async function until(
+  check: () => Promise<boolean>,
+  what: string,
+  timeoutMs = 60_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await check())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await sleep(250);
+  }
+}
+
+const stateOf = async (id: string): Promise<unknown> =>
+  (await stack.funding('SELECT state FROM funding_request WHERE id = $1', [id]))[0]?.['state'];
+
+const reserved = async (programId: string): Promise<string> =>
+  String(
+    (
+      await stack.capacity(
+        `SELECT reserved_minor::text AS r FROM program WHERE tenant_id = 'bank-a' AND id = $1`,
+        [programId],
+      )
+    )[0]?.['r'],
+  );
+
+/** Runs one step at a time until the request reaches `state`. */
+async function stepUntil(id: string, state: string, driver = stack.driver()): Promise<void> {
+  for (let i = 0; i < 20 && (await stateOf(id)) !== state; i += 1) await driver.runOnce();
+  expect(await stateOf(id)).toBe(state);
+}
+
+describe('compensation against the real capacity image', () => {
+  it('FS-06 a declined payment releases the reservation: reserved is back, RESERVE then RELEASE, state FAILED', async () => {
+    await stack.seedProgram({
+      tenantId: 'bank-a',
+      id: 'prg_comp',
+      currency: 'USD',
+      limitMinor: 5_000_000_00n,
+    });
+    const before = await reserved('prg_comp');
+    const id = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_comp',
+      invoiceId: 'FAULT-DECLINE-1',
+      value: '500.00',
+    });
+    await stack.drain(stack.driver());
+
+    expect(await stateOf(id)).toBe('FAILED');
+    expect(await reserved('prg_comp')).toBe(before);
+    const [reservation] = await stack.capacity(
+      `SELECT id::text, status, released_minor::text FROM reservation WHERE invoice_id = 'FAULT-DECLINE-1'`,
+    );
+    expect(reservation).toMatchObject({ status: 'RELEASED', released_minor: '50000' });
+    const ledger = await stack.capacity(
+      `SELECT kind, actor, delta_reserved_minor::text AS delta FROM ledger_entry WHERE reservation_id = $1::uuid ORDER BY id`,
+      [reservation?.['id']],
+    );
+    expect(ledger).toEqual([
+      { kind: 'RESERVE', actor: 'funding-service.bank-a', delta: '50000' },
+      { kind: 'RELEASE', actor: 'funding-service.bank-a', delta: '-50000' },
+    ]);
+    const releases = await stack.capacity(
+      `SELECT release_ref, reason FROM reservation_release WHERE reservation_id = $1::uuid`,
+      [reservation?.['id']],
+    );
+    expect(releases).toEqual([{ release_ref: `funding:${id}:compensation`, reason: 'CANCELLED' }]);
+    const payment = await fetch(
+      `${stack.paymentsUrl}/v1/payments/${encodeURIComponent(`funding:${id}:disburse`)}`,
+    );
+    expect(await payment.json()).toMatchObject({ status: 'DECLINED' });
+  }, 120_000);
+
+  it('FS-11 capacity unreachable during a compensation: retried, reserved stays, and once it is back the release happens exactly once', async () => {
+    await stack.seedProgram({
+      tenantId: 'bank-a',
+      id: 'prg_outage',
+      currency: 'USD',
+      limitMinor: 5_000_000_00n,
+    });
+    const before = await reserved('prg_outage');
+    const id = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_outage',
+      invoiceId: 'FAULT-DECLINE-2',
+      value: '300.00',
+    });
+    const driver = stack.driver();
+    await stepUntil(id, 'COMPENSATING', driver);
+    expect(await reserved('prg_outage')).toBe(String(BigInt(before) + 30000n));
+
+    await stack.capacityProxy.setEnabled(false);
+    try {
+      for (let i = 0; i < 3; i += 1) await driver.runOnce();
+      expect(await stateOf(id)).toBe('COMPENSATING');
+      expect(await reserved('prg_outage')).toBe(String(BigInt(before) + 30000n));
+    } finally {
+      await stack.capacityProxy.setEnabled(true);
+    }
+    await until(async () => {
+      await driver.runOnce();
+      return (await stateOf(id)) === 'FAILED';
+    }, 'the compensation to finish once capacity is back');
+
+    expect(await reserved('prg_outage')).toBe(before);
+    const ledger = await stack.capacity(
+      `SELECT kind FROM ledger_entry WHERE program_id = 'prg_outage' AND kind IN ('RESERVE', 'RELEASE') ORDER BY id`,
+    );
+    expect(ledger.map((l) => l['kind'])).toEqual(['RESERVE', 'RELEASE']);
+  }, 180_000);
+
+  it('FS-11 capacity answers release-exceeds-remaining for a reservation already fully released; the saga ends FAILED without a second release', async () => {
+    await stack.seedProgram({
+      tenantId: 'bank-a',
+      id: 'prg_gone',
+      currency: 'USD',
+      limitMinor: 5_000_000_00n,
+    });
+    const id = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_gone',
+      invoiceId: 'FAULT-DECLINE-3',
+      value: '200.00',
+    });
+    const driver = stack.driver();
+    await stepUntil(id, 'COMPENSATING', driver);
+    const reservationId = String(
+      (await stack.funding('SELECT reservation_id FROM funding_request WHERE id = $1', [id]))[0]?.[
+        'reservation_id'
+      ],
+    );
+
+    // Someone else (an operator over REST, say) releases the whole remainder first.
+    const external = { tenantId: 'bank-a', programId: 'prg_gone', reservationId };
+    expect(
+      await stack.rawRelease({ ...external, releaseRef: 'external-ref', key: 'external-key' }),
+    ).toEqual({ ok: true });
+    // Proof of capacity's answer to a final release of nothing, asked with a ref of our own.
+    const probe = await stack.rawRelease({
+      ...external,
+      releaseRef: 'probe-ref',
+      key: 'probe-key',
+    });
+    expect(probe).toEqual({
+      ok: false,
+      code: 'FAILED_PRECONDITION',
+      reason: 'release-exceeds-remaining',
+    });
+
+    await stack.drain(driver);
+    expect(await stateOf(id)).toBe('FAILED');
+    const ledger = await stack.capacity(
+      `SELECT kind FROM ledger_entry WHERE reservation_id = $1::uuid ORDER BY id`,
+      [reservationId],
+    );
+    expect(ledger.map((l) => l['kind'])).toEqual(['RESERVE', 'RELEASE']);
+    expect(await reserved('prg_gone')).toBe('0');
+  }, 120_000);
+});

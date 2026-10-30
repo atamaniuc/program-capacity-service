@@ -1,6 +1,6 @@
 import { status } from '@grpc/grpc-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { created, existing, startFakeCapacity } from '../support/fake-capacity.js';
+import { created, existing, released, startFakeCapacity } from '../support/fake-capacity.js';
 import { startSagaWorld, type SagaWorld } from '../support/saga-world.js';
 
 let world: SagaWorld;
@@ -132,5 +132,213 @@ describe('saga driver: its own capacity fake', () => {
     const other = await startFakeCapacity();
     expect(other.reserves).toHaveLength(0);
     await other.close();
+  });
+});
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/** Lets a business deadline of 1 ms pass between the call and the record. */
+const pastTheDeadline = {
+  beforeRecord: async (): Promise<void> => {
+    await sleep(8);
+  },
+};
+
+describe('saga driver: unknown reserve, compensation (ADR 025)', () => {
+  it('FS-09 an unknown Reserve past its deadline is repeated under the same key; a CREATED answer is released; FAILED', async () => {
+    const reserves = world.capacity.reserves.length;
+    const releases = world.capacity.releases.length;
+    world.capacity.onReserve = (_call, index) =>
+      index === reserves ? { error: status.UNAVAILABLE } : created('res-late');
+    world.capacity.onRelease = () => released();
+    const id = await world.submit({ invoiceId: 'inv-late' });
+    await world.drain(world.driver({ saga: { reserveDeadlineMs: 1 }, hooks: pastTheDeadline }));
+
+    expect((await world.row(id))['state']).toBe('FAILED');
+    const mine = world.capacity.reserves.slice(reserves);
+    expect(mine).toHaveLength(2);
+    expect(new Set(mine.map((c) => c.metadata['idempotency-key']))).toEqual(
+      new Set([`funding:${id}:reserve`]),
+    );
+    const sent = world.capacity.releases.slice(releases);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.request).toMatchObject({
+      reservationId: 'res-late',
+      releaseRef: `funding:${id}:compensation`,
+    });
+    expect(world.rail.calls.filter((c) => c.invoiceId === 'inv-late')).toHaveLength(0);
+    expect(
+      (await world.attempts(id)).map((a) => `${a.step}:${a.outcome_class}:${a.state_after}`),
+    ).toEqual([
+      'risk:success:RESERVING',
+      'reserve:unknown:COMPENSATING',
+      'reserve:success:COMPENSATING',
+      'release:success:FAILED',
+    ]);
+    expect(await world.outbox(id)).toEqual(['FundingRequestReceived', 'FundingRequestFailed']);
+  });
+
+  it('FS-09 when the repeated Reserve is a definite failure nothing was held: FAILED, no release', async () => {
+    const reserves = world.capacity.reserves.length;
+    const releases = world.capacity.releases.length;
+    world.capacity.onReserve = (_call, index) =>
+      index === reserves
+        ? { error: status.UNAVAILABLE }
+        : { error: status.FAILED_PRECONDITION, reason: 'insufficient-capacity' };
+    const id = await world.submit({ invoiceId: 'inv-nothing-held' });
+    await world.drain(world.driver({ saga: { reserveDeadlineMs: 1 }, hooks: pastTheDeadline }));
+
+    expect((await world.row(id))['state']).toBe('FAILED');
+    expect(world.capacity.releases.length).toBe(releases);
+  });
+
+  it('FS-09 a reservation still unknown after the resolution limit parks the request: NEEDS_ATTENTION, alert, no release', async () => {
+    const releases = world.capacity.releases.length;
+    world.capacity.onReserve = () => ({ error: status.UNAVAILABLE });
+    const alerts: string[] = [];
+    const id = await world.submit({ invoiceId: 'inv-unresolved' });
+    await world.drain(
+      world.driver({
+        saga: { reserveDeadlineMs: 1, reserveResolutionLimitMs: 1 },
+        hooks: { ...pastTheDeadline, onAlert: (claim) => alerts.push(claim.request.id) },
+      }),
+    );
+
+    const row = await world.row(id);
+    expect(row['state']).toBe('NEEDS_ATTENTION');
+    expect(row['reason']).toBe('reserve-unresolved');
+    expect(alerts).toEqual([id]);
+    expect(world.capacity.releases.length).toBe(releases);
+    expect(await world.outbox(id)).toEqual([
+      'FundingRequestReceived',
+      'FundingRequestNeedsAttention',
+    ]);
+  });
+
+  it('FS-10 an unknown disbursement is retried (lookup first), never released; the rail answering later completes it', async () => {
+    world.capacity.onReserve = () => created('res-slow-rail');
+    const releases = world.capacity.releases.length;
+    let attempts = 0;
+    world.rail.onDisburse = () => {
+      attempts += 1;
+      return attempts <= 3 ? { kind: 'unknown' } : { kind: 'paid', paymentId: 'pay-late' };
+    };
+    const calls = world.rail.calls.length;
+    const id = await world.submit({ invoiceId: 'inv-slow-rail' });
+    await world.drain(world.driver());
+
+    expect((await world.row(id))['state']).toBe('COMPLETED');
+    const mine = world.rail.calls.slice(calls);
+    expect(mine.map((c) => c.lookupFirst)).toEqual([false, true, true, true]);
+    expect(new Set(mine.map((c) => c.key))).toEqual(new Set([`funding:${id}:disburse`]));
+    expect(world.capacity.releases.length).toBe(releases);
+  });
+
+  it('FS-10 a rail that times out on every attempt: after the deadline NEEDS_ATTENTION, reservation held, no release, alert', async () => {
+    world.capacity.onReserve = () => created('res-held');
+    world.rail.onDisburse = () => ({ kind: 'unknown' });
+    const releases = world.capacity.releases.length;
+    const alerts: string[] = [];
+    const id = await world.submit({ invoiceId: 'inv-dead-rail' });
+    await world.drain(
+      world.driver({
+        saga: { disburseDeadlineMs: 1 },
+        hooks: { ...pastTheDeadline, onAlert: (claim) => alerts.push(claim.request.id) },
+      }),
+    );
+
+    const row = await world.row(id);
+    expect(row['state']).toBe('NEEDS_ATTENTION');
+    expect(row['reason']).toBe('disbursement-unknown');
+    expect(row['reservation_id']).toBe('res-held');
+    expect(world.capacity.releases.length).toBe(releases);
+    expect(alerts).toEqual([id]);
+    expect(await world.outbox(id)).toEqual([
+      'FundingRequestReceived',
+      'FundingRequestNeedsAttention',
+    ]);
+    // Parked: no step is due, whatever the clock says.
+    expect(await world.driver().runOnce()).toBe(0);
+  });
+
+  it('FS-06 a declined payment compensates: Release with the compensation ref, then FAILED', async () => {
+    world.capacity.onReserve = () => created('res-declined');
+    world.capacity.onRelease = () => released();
+    world.rail.onDisburse = () => ({ kind: 'declined' });
+    const releases = world.capacity.releases.length;
+    const id = await world.submit({ invoiceId: 'inv-declined' });
+    await world.drain(world.driver());
+
+    expect((await world.row(id))['state']).toBe('FAILED');
+    const sent = world.capacity.releases.slice(releases);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.metadata['idempotency-key']).toBe(`funding:${id}:release`);
+    expect(sent[0]?.request).toMatchObject({
+      reservationId: 'res-declined',
+      releaseRef: `funding:${id}:compensation`,
+      reason: 2,
+    });
+    expect((await world.attempts(id)).map((a) => `${a.step}:${a.state_after}`)).toEqual([
+      'risk:RESERVING',
+      'reserve:DISBURSING',
+      'disburse:COMPENSATING',
+      'release:FAILED',
+    ]);
+  });
+
+  it('FS-11 a compensation is retried without a deadline, with the same key, until capacity answers', async () => {
+    world.capacity.onReserve = () => created('res-stuck');
+    world.rail.onDisburse = () => ({ kind: 'declined' });
+    const releases = world.capacity.releases.length;
+    world.capacity.onRelease = (_call, index) =>
+      index - releases < 6 ? { error: status.UNAVAILABLE } : released();
+    const id = await world.submit({ invoiceId: 'inv-stuck' });
+    // Both limits are 1 ms: a deadline on the compensation would park it long before the 7th try.
+    const driver = world.driver({
+      saga: { reserveDeadlineMs: 1, disburseDeadlineMs: 1, reserveResolutionLimitMs: 1 },
+      hooks: pastTheDeadline,
+    });
+    await world.drain(driver);
+
+    expect((await world.row(id))['state']).toBe('FAILED');
+    const sent = world.capacity.releases.slice(releases);
+    expect(sent).toHaveLength(7);
+    expect(new Set(sent.map((c) => c.metadata['idempotency-key']))).toEqual(
+      new Set([`funding:${id}:release`]),
+    );
+    expect(new Set(sent.map((c) => c.request.releaseRef))).toEqual(
+      new Set([`funding:${id}:compensation`]),
+    );
+  });
+
+  it('FS-11 release-exceeds-remaining (already released by someone else) counts as compensated', async () => {
+    world.capacity.onReserve = () => created('res-gone');
+    world.rail.onDisburse = () => ({ kind: 'declined' });
+    world.capacity.onRelease = () => ({
+      error: status.FAILED_PRECONDITION,
+      reason: 'release-exceeds-remaining',
+    });
+    const id = await world.submit({ invoiceId: 'inv-gone' });
+    await world.drain(world.driver());
+    expect((await world.row(id))['state']).toBe('FAILED');
+    expect(await world.outbox(id)).toEqual(['FundingRequestReceived', 'FundingRequestFailed']);
+  });
+
+  it('FS-11 an unexpected definite release failure parks the request for an operator: NEEDS_ATTENTION, alert', async () => {
+    world.capacity.onReserve = () => created('res-odd');
+    world.rail.onDisburse = () => ({ kind: 'declined' });
+    world.capacity.onRelease = () => ({ error: status.NOT_FOUND, reason: 'not-found' });
+    const alerts: string[] = [];
+    const id = await world.submit({ invoiceId: 'inv-odd' });
+    await world.drain(
+      world.driver({ hooks: { onAlert: (claim) => alerts.push(claim.request.id) } }),
+    );
+    const row = await world.row(id);
+    expect(row['state']).toBe('NEEDS_ATTENTION');
+    expect(row['reason']).toBe('release-failed:not-found');
+    expect(alerts).toEqual([id]);
   });
 });

@@ -74,11 +74,11 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   below 24 h). System-test harness: capacity image, PostgreSQL, mock OAuth2, payments mock and
   Toxiproxy through Testcontainers.
   <!-- proof: services/funding/test/system/saga.system.test.ts#FS-03 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-04 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-05 -->
-- [ ] T12 — **Compensation and unknown outcomes** (ADR 025) **[review]**. Payment declined →
+- [x] T12 — **Compensation and unknown outcomes** (ADR 025) **[review]**. Payment declined →
   release; unknown reserve → resolve with the same key, then release; unknown disbursement →
   `NEEDS_ATTENTION`, never release; compensation retried without deadline; already-released
   counts as compensated (prove capacity's answer first).
-  proof (planned): `services/funding/test/system/saga.system.test.ts#FS-06`, `services/funding/test/integration/saga.int.test.ts#FS-09`, `services/funding/test/integration/saga.int.test.ts#FS-10`, `services/funding/test/system/saga.system.test.ts#FS-11`
+  <!-- proof: services/funding/test/system/saga.system.test.ts#FS-06 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-09 --> <!-- proof: services/funding/test/integration/saga.int.test.ts#FS-10 --> <!-- proof: services/funding/test/system/saga.system.test.ts#FS-11 -->
 - [ ] T13 — **Exactly-once effect and atomicity** (ADR 025) **[review]**. Lost reserve
   answer via Toxiproxy; crash between call and record; two drivers with an expired lease;
   injected failure inside a transition. Mutation probes: remove the version check, then the

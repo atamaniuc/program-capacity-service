@@ -609,3 +609,33 @@ root int:         Test Files 27 passed (27)   Tests 140 passed (140)
 funding int/sys:  Test Files  5 passed (5)    Tests  33 passed (33)
 ✔ all tests passed
 ```
+
+## T12 built (2026-10-30, agent `funding`) — awaits the batched review after T13
+
+No new production code: T11's domain table and driver already implement the paths; T12 proves
+them. Integration (`saga.int.test.ts`, fake capacity from the proto, real PostgreSQL): FS-09
+(unknown Reserve past the deadline -> same-key repeat -> `CREATED` is released -> FAILED; repeat is
+a definite failure -> FAILED with no release; still unknown past the resolution limit ->
+NEEDS_ATTENTION with alert), FS-10 (unknown disbursement retried with lookup first and the same
+key, completes when the rail answers; after the deadline NEEDS_ATTENTION with the reservation held,
+no release, alert, and no step due), FS-06 and FS-11 at the driver level (declined payment ->
+Release with `funding:<id>:compensation`; release retried 7 times without a deadline under the same
+key; `release-exceeds-remaining` counts as compensated; `NOT_FOUND` -> NEEDS_ATTENTION). System
+(`saga.system.test.ts`, real capacity image behind Toxiproxy): FS-06 (decline -> `RESERVE` then
+`RELEASE` by `funding-service.bank-a`, `reserved` back to its value, reservation RELEASED, release
+ref and `CANCELLED` stored) and FS-11 (proxy disabled during the compensation -> stays
+COMPENSATING and reserved unchanged; proxy enabled -> one `RELEASE`; a reservation released in full
+by someone else: capacity answers `FAILED_PRECONDITION` / `release-exceeds-remaining` to a final
+release — proven with a raw call — and the saga ends FAILED with no second release).
+Harness addition: `rawRelease` in `test/support/system-stack.ts`.
+FS-10's "visible in metrics" is proven by the alert hook, the NEEDS_ATTENTION row and its outbox
+event until T14 adds metrics (spec.md says so).
+
+Checks: `make verify`: `✔ verify passed`. `make test`: root unit 156/156 (31 files), funding unit
+54/54, payments-mock 8/8, contracts 9/9, then root int stopped at one file:
+`test/e2e/auth.e2e.test.ts` timed out starting PostgreSQL ("Timed out after 30000ms while waiting
+for container ports to be bound", host load 10-13, other agents' stacks running); `make test`
+stops at the first failing step, so funding int did not run in that pass. Reruns on their own,
+same code: `auth.e2e.test.ts` 8/8, `npm run test:int -w @finverity/funding`:
+`Test Files 5 passed (5)  Tests 45 passed (45)`. The other 26 root integration files passed in the
+`make test` pass (133 passed | 7 skipped, the skips being the failed file's).

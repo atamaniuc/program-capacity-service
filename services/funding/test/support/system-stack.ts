@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { credentials, Metadata, status, type ServiceError } from '@grpc/grpc-js';
+import { CapacityServiceClient, ReleaseReason } from '@finverity/contracts/capacity/v1';
 import pg from 'pg';
 import { ToxiProxyContainer, type CreatedProxy } from '@testcontainers/toxiproxy';
 import {
@@ -10,7 +12,10 @@ import {
   type StartedNetwork,
   type StartedTestContainer,
 } from 'testcontainers';
-import { GrpcCapacityGateway } from '#src/funding/adapters/out/grpc/capacity-gateway.js';
+import {
+  errorReasonOf,
+  GrpcCapacityGateway,
+} from '#src/funding/adapters/out/grpc/capacity-gateway.js';
 import { HttpPaymentRail } from '#src/funding/adapters/out/http/payment-rail.js';
 import { TenantTokenProvider } from '#src/funding/adapters/out/oauth/token-provider.js';
 import { createPersistence, type Persistence } from '#src/funding/adapters/out/postgres/db.js';
@@ -84,6 +89,14 @@ export interface SystemStack {
   readonly store: PostgresSagaStore;
   readonly capacityDb: pg.Pool;
   readonly paymentsUrl: string;
+  /** A release sent straight to capacity, answer unmasked (code and `ErrorInfo.reason`). */
+  rawRelease(input: {
+    tenantId: string;
+    programId: string;
+    reservationId: string;
+    releaseRef: string;
+    key: string;
+  }): Promise<{ ok: true } | { ok: false; code: string; reason: string | undefined }>;
   /** Mints a token from the mock as a client would: `params` are the form fields. */
   mint(params: Record<string, string>): Promise<Record<string, unknown>>;
   /** Toxiproxy in front of capacity's gRPC port; funding's gateway dials this. */
@@ -180,8 +193,17 @@ export async function startSystemStack(): Promise<SystemStack> {
   const capacityDb = new pg.Pool({ connectionString: postgres.capacityUrl, max: 2 });
   const funding = persistence.pool;
 
+  const tokens = new TenantTokenProvider({
+    tokenUrl: `http://127.0.0.1:${oauthPort.toString()}/default/token`,
+    clientIdPrefix: 'funding-service',
+    clientSecret: 'funding-service',
+    scope: 'capacity:write',
+    issuerHost: `localhost:${oauthPort.toString()}`,
+  });
+  const target = `${capacityProxy.host}:${capacityProxy.port.toString()}`;
+  const raw = new CapacityServiceClient(target, credentials.createInsecure());
   const gateway = new GrpcCapacityGateway({
-    target: `${capacityProxy.host}:${capacityProxy.port.toString()}`,
+    target,
     deadlineMs: 21_000,
     tokens: new TenantTokenProvider({
       tokenUrl: `http://127.0.0.1:${oauthPort.toString()}/default/token`,
@@ -200,6 +222,36 @@ export async function startSystemStack(): Promise<SystemStack> {
     store,
     capacityDb,
     paymentsUrl: payments.baseUrl,
+    rawRelease: async (input) => {
+      const metadata = new Metadata();
+      metadata.set('authorization', `Bearer ${await tokens.tokenFor(input.tenantId)}`);
+      metadata.set('idempotency-key', input.key);
+      return new Promise((resolve) => {
+        raw.release(
+          {
+            programId: input.programId,
+            reservationId: input.reservationId,
+            releaseRef: input.releaseRef,
+            amount: undefined,
+            reason: ReleaseReason.RELEASE_REASON_CANCELLED,
+          },
+          metadata,
+          { deadline: Date.now() + 10_000 },
+          (error: ServiceError | null) => {
+            if (error === null) {
+              resolve({ ok: true });
+              return;
+            }
+            const bytes = error.metadata.get('grpc-status-details-bin')[0];
+            resolve({
+              ok: false,
+              code: status[error.code],
+              reason: bytes instanceof Buffer ? errorReasonOf(bytes) : undefined,
+            });
+          },
+        );
+      });
+    },
     mint: async (params) => {
       const response = await fetch(`http://127.0.0.1:${oauthPort.toString()}/default/token`, {
         method: 'POST',
@@ -256,6 +308,7 @@ export async function startSystemStack(): Promise<SystemStack> {
       }
     },
     close: async () => {
+      raw.close();
       gateway.close();
       await capacityDb.end();
       await persistence.close();

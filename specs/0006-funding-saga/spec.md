@@ -143,7 +143,7 @@ proof: `services/funding/test/integration/saga.int.test.ts#FS-05`
 the saga releases its reservation (`releaseRef = funding:<id>:compensation`, `CANCELLED`, the
 exact remainder), capacity's `reserved` is back to its value before the request, and the state
 is `FAILED` with compensation done.
-proof (planned): `services/funding/test/system/saga.system.test.ts#FS-06`
+proof: `services/funding/test/system/saga.system.test.ts#FS-06`
 
 **FS-07** — GIVEN capacity commits a reserve but the answer is lost (Toxiproxy timeout after
 the request) WHEN the saga retries THEN it sends the same key and gets the same
@@ -158,18 +158,18 @@ proof (planned): `services/funding/test/integration/saga.int.test.ts#FS-08`
 **FS-09** — GIVEN the reserve outcome stays unknown past `FUNDING_RESERVE_DEADLINE` WHEN the
 deadline passes THEN the saga repeats `Reserve` under the same key, releases what it gets, and
 ends `FAILED`; capacity's `reserved` ends where it started.
-proof (planned): `services/funding/test/integration/saga.int.test.ts#FS-09`
+proof: `services/funding/test/integration/saga.int.test.ts#FS-09`
 
 **FS-10** — GIVEN the rail times out on every attempt WHEN `FUNDING_DISBURSE_DEADLINE` passes
 THEN `NEEDS_ATTENTION`, the reservation is still held, no release was sent, and the
-`FundingNeedsAttention` condition is visible in metrics.
-proof (planned): `services/funding/test/integration/saga.int.test.ts#FS-10`
+`FundingNeedsAttention` condition is visible in metrics (until the metrics land with T14 the proof is the alert hook, the `NEEDS_ATTENTION` row and its outbox event).
+proof: `services/funding/test/integration/saga.int.test.ts#FS-10`
 
 **FS-11** — GIVEN a compensation while capacity is unreachable WHEN capacity comes back THEN
 the release happens exactly once and the state is `FAILED`; a compensation of a reservation
 already fully released by someone else also ends `FAILED` (compensated) without a second
 release.
-proof (planned): `services/funding/test/system/saga.system.test.ts#FS-11`
+proof: `services/funding/test/system/saga.system.test.ts#FS-11`
 
 **FS-12** — GIVEN two drivers and a lease that expires mid-call WHEN both run the same step
 THEN one result is recorded (version check) and the receiver sees one effect.
