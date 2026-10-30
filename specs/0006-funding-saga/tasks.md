@@ -42,11 +42,11 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   (validated at boot), readiness reports the gRPC server, OpenTelemetry spans and RED metrics,
   graceful shutdown inside NFR-07.
   <!-- proof: test/e2e/grpc.e2e.test.ts#GR-04 --> <!-- proof: test/e2e/grpc.e2e.test.ts#GR-05 --> <!-- proof: test/e2e/grpc.e2e.test.ts#GR-06 --> <!-- proof: test/fault/grpc-shutdown.fault.test.ts#GR-07 -->
-- [ ] T6 — **Acceptance cases over both transports**. A transport-neutral `CapacityClient`
+- [x] T6 — **Acceptance cases over both transports**. A transport-neutral `CapacityClient`
   (HTTP via Supertest, gRPC via the generated client) in `test/support/`; AC-01, AC-02, AC-03,
   AC-04, AC-05, AC-06, AC-13, AC-16, AC-17 and FR-01 parametrised by transport, titles
   `AC-xx (http|grpc) …`. Existing test files are left as they are (their markers keep
-  resolving). proof (planned): `test/e2e/transports.e2e.test.ts#AC-01` … `#FR-01`
+  resolving). <!-- proof: test/e2e/transports.e2e.test.ts#AC-01 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-02 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-03 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-04 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-05 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-06 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-13 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-16 --> <!-- proof: test/e2e/transports.e2e.test.ts#AC-17 --> <!-- proof: test/e2e/transports.e2e.test.ts#FR-01 -->
 - [ ] T7 — **Funding domain: state machine and money** (ADR 025) **[review]**.
   `services/funding/src/funding/domain`: `FundingRequest`, the transition table as pure code,
   outcome classes, deterministic step keys, minor-unit money with the no-`number` lint rule,

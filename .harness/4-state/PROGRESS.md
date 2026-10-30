@@ -82,6 +82,11 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
 - Branch `microservices`, flakes fixed (2026-10-30): port 0 for HTTP/ops/gRPC with `RunningApp`
   reporting the bound ports, tests build URLs from it (regression test in `ops.e2e.test.ts`);
   shutdown fault tests poll `pg_stat_activity`. `make test` green three runs in a row (each: unit 30 files / 143 tests, integration 26 files / 119 tests). Next: T6.
+- Branch `microservices`, lane 0006 T6 done (ticked): `CapacityClient` over REST and gRPC in
+  `test/support/capacity-client.ts`; 21 tests in `test/e2e/transports.e2e.test.ts` (AC-01..06, 13,
+  16, 17, FR-01 per transport plus a cross-transport EUR-on-USD release comparison), each shown to
+  fail against a deliberate mapping mutant. `make test` green: unit 30 files / 143 tests, integration
+  27 files / 140 tests. Next: T7.
 
 - AsyncAPI and contract compatibility (2026-10-29, post-lane like the Swagger UI): event
   schemas in `capacity-events.ts`, builder in `src/platform/contracts/`, `/docs/asyncapi`,
@@ -102,4 +107,4 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
 - Drift amounts in `ReconciliationDriftDetected` are minor units without currency (documented
   exception); unifying them is a `v2` of that event — owner's call.
 
-_Last updated: 2026-10-30 (branch `microservices`: lane 0006 T5 approved, test flakes fixed, next T6)_
+_Last updated: 2026-10-30 (branch `microservices`: lane 0006 T6 done, next T7)_

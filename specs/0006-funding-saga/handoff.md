@@ -276,7 +276,30 @@ drop the `grpc` parts), `test/support/app.ts` (`HTTP_PORT`/`OPS_PORT` `'0'`, `ba
 goes), `test/fault/shutdown.fault.test.ts` (the `waitFor` hunk at the end of the first test).
 `test/fault/grpc-shutdown.fault.test.ts` is branch-only.
 
-Next: T6 (acceptance cases over both transports; cross-currency release case, see above).
+T6 done (2026-10-30; not a [review] task, so ticked): `test/support/capacity-client.ts`
+(`CapacityClient` over REST and gRPC; money, problem slug = `ErrorInfo.reason`, REST
+`invoiceAmount` of a release normalised to `repaidAmount`) and `test/e2e/transports.e2e.test.ts`
+(GR-03, 21 tests). Cases per transport, titles `AC-xx (http|grpc) ...`: AC-01 (50 concurrent),
+AC-02 (5 concurrent + a later replay, one ledger entry), AC-03, AC-04, AC-05 (EUR invoice on a
+USD program, three releases, sum exactly USD 1,100,000.00, `repaidAmount` EUR asserted per
+step), AC-06, AC-13, AC-16, AC-17, FR-01. Plus `AC-05 REST and gRPC agree on repaid and released
+amounts ...`: the same EUR 40.00 release on a program of each transport, whole release views
+equal, repaid EUR 40.00 and released USD 44.00. Failure codes are asserted against a table in
+the test (HTTP status and gRPC code per problem), independent of `PROBLEM_MAP`. No existing test
+changed. Mutants (each reverted; logs `mut-*.log` in the session scratchpad): swapping
+`repaidAmount`/`releasedAmount` in `mapping.ts` fails AC-05 (grpc), AC-06 (grpc) and the
+cross-transport case; `insufficient-capacity` -> UNAVAILABLE fails AC-01, AC-17; `status === 201`
+inverted fails AC-02, AC-04, AC-17; `idempotency-key-mismatch` -> ABORTED fails AC-03;
+`reservation-conflict` -> FAILED_PRECONDITION fails AC-04; `release-exceeds-remaining` and
+`release-ref-mismatch` remapped fail AC-06; `not-found` -> PERMISSION_DENIED fails AC-13, FR-01;
+`forbidden` -> UNAUTHENTICATED fails AC-13; `reservedAmount` from `releasedAmount` fails AC-01,
+AC-04, AC-05, AC-17; capacity `reserved` from `available` fails AC-01, AC-03, AC-04, AC-05,
+AC-16, FR-01; `overLimitBy` from `available` fails FR-01. Only tenant isolation itself (AC-16,
+AC-13 in the interceptor) is not a mapping concern and was not mutated here.
+`make verify` green; `make test` green first run: unit 30 files / 143 tests, integration 27
+files / 140 tests (log `t6-test.log` in the session scratchpad).
+
+Next: T7 (funding domain, [review]).
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and
@@ -332,5 +355,5 @@ is deleted; MS-01 now also covers 8080, Kafka UI, local-stack/qa/runbook docs an
 
 ## First step
 
-Start T6 (the two flakes are fixed, see State) in `test/support/` and
-`test/e2e/transports.e2e.test.ts`.
+Start T7 (ADR 025, ADR 023): `services/funding/src/funding/domain`, the saga state machine as
+pure code, property test `services/funding/test/property/saga.property.test.ts#FS-01`.
