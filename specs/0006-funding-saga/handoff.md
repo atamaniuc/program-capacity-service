@@ -299,7 +299,19 @@ AC-13 in the interceptor) is not a mapping concern and was not mutated here.
 `make verify` green; `make test` green first run: unit 30 files / 143 tests, integration 27
 files / 140 tests (log `t6-test.log` in the session scratchpad).
 
-Next: T7 (funding domain, [review]).
+T7 built (2026-10-30), **awaits architect review; NOT ticked** (marker placed, box `[ ]`). Files:
+`services/funding/src/funding/domain/{saga,outcome,funding-request,keys,money,risk,config,result,index}.ts`
+with unit tests, `services/funding/test/property/saga.property.test.ts` (FS-01), the `unit` vitest
+project now includes `test/property`, `eslint.config.js` (no-`number` block extended to the funding
+domain), `services/funding/.dependency-cruiser.cjs` (`domain-imports-only-domain`). Design points for
+the reviewer: `applyOutcome(request, StepOutcome, {now, config, random})` is the whole table and refuses
+terminal / parked requests and an outcome of a step that is not due (`step-mismatch`, the stale
+executor case); state change resets `attempts` and makes the next step due at once; the reserve
+deadline check is `now >= reserveDeadlineAt` evaluated when an unknown outcome arrives; `existing`
+while resolving a compensation is FAILED (nothing of ours held); a definite Release failure and a
+resolution-limit timeout are NEEDS_ATTENTION with alert. The property test draws outcomes from a
+world model (landed reservation, paid rail) so only consistent answers occur; mutant "disburse
+deadline -> COMPENSATING" fails FS-01 and FS-10.
 
 Facts checked on 2026-10-29 with `npm view` (re-check at T3): `@grpc/grpc-js` 1.14.6,
 `ts-proto` 2.18.3, `@bufbuild/buf` 1.75.0, `@pact-foundation/pact` 17.1.4. `kind`, `helm` and

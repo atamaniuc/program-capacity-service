@@ -29,7 +29,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/capacity/domain/**/*.ts'],
+    files: ['src/capacity/domain/**/*.ts', 'services/funding/src/funding/domain/**/*.ts'],
     rules: {
       'no-restricted-globals': [
         'error',

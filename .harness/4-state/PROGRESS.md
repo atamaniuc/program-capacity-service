@@ -87,6 +87,12 @@ command (~3 min); `make qa` runs the [QA test cases](../../docs/qa.md) on the li
   16, 17, FR-01 per transport plus a cross-transport EUR-on-USD release comparison), each shown to
   fail against a deliberate mapping mutant. `make test` green: unit 30 files / 143 tests, integration
   27 files / 140 tests. Next: T7.
+- Branch `microservices`, lane 0006 T7 built (awaits architect review, NOT ticked): funding domain in
+  `services/funding/src/funding/domain` (transition table as a pure `applyOutcome`/`nextCommand`,
+  outcome classifiers, `funding:<id>:<step>` keys, bigint money, risk policy, saga config and
+  backoff); property test `FS-01` (S1-S6 over random world-consistent outcome sequences) plus unit
+  tests; depcruise `domain-imports-only-domain` and the no-`number` ESLint block now cover the
+  funding domain.
 
 - AsyncAPI and contract compatibility (2026-10-29, post-lane like the Swagger UI): event
   schemas in `capacity-events.ts`, builder in `src/platform/contracts/`, `/docs/asyncapi`,

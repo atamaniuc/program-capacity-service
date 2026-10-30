@@ -50,7 +50,8 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
 - [ ] T7 — **Funding domain: state machine and money** (ADR 025) **[review]**.
   `services/funding/src/funding/domain`: `FundingRequest`, the transition table as pure code,
   outcome classes, deterministic step keys, minor-unit money with the no-`number` lint rule,
-  risk policy. proof (planned): `services/funding/test/property/saga.property.test.ts#FS-01`
+  risk policy.
+  <!-- proof: services/funding/test/property/saga.property.test.ts#FS-01 -->
 - [ ] T8 — **Funding database** (ADR 023). `funding` database and role (compose init script
   and Testcontainers helper), Kysely SQL migrations: `funding_request` (saga columns, unique
   per tenant/program/invoice, version, lease, deadlines), append-only `saga_step_attempt`,
