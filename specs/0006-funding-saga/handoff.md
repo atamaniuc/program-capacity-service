@@ -462,3 +462,18 @@ Checks (serial, Docker free, 2026-10-30):
 - `make test`: `Test Files 27 passed (27)`, `Tests 140 passed (140)`, exit 0. A run under three parallel Docker suites timed out (outage fault test, 120 s) and was stopped; not a regression.
 - `docker build .`: exit 0; `docker run ... import('@finverity/contracts/capacity/v1')` -> `import ok 24`.
 - `npx harnessimo check`: `harnessimo: every check required at "watched" passes.` (89 proof markers, task gate ok).
+
+### `make test` on the merged tree (07f7256 + review fixes 4edf1c7), 2026-10-30 — green
+
+```
+root unit:        Test Files 30 passed (30)   Tests 144 passed (144)
+funding unit:     Test Files  7 passed (7)    Tests  30 passed (30)
+payments-mock:    Test Files  2 passed (2)    Tests   8 passed (8)
+contracts:        Test Files  1 passed (1)    Tests   9 passed (9)
+root int:         Test Files 27 passed (27)   Tests 140 passed (140)
+funding int/e2e:  Test Files  2 passed (2)    Tests  18 passed (18)
+✔ all tests passed
+```
+
+This also runs the three review-fix e2e cases (stored 409 replay, JWKS outage 503, auth before
+routing) that were unrun at 4edf1c7.
