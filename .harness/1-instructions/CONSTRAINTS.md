@@ -35,9 +35,15 @@ skeleton lane creates; until then they are review-only in practice.
    from the generated one), `npm run contracts:compat` in CI (no breaking change against the base
    commit: oasdiff and the message-schema rule) and `test/kafka/capacity-events.kafka.test.ts`
    (real events against the committed schemas) _(lands in 0002; AsyncAPI for outbound events 2026-10-29)_
-9. **Settled decisions are not relitigated: modular monolith, no Redis, no event sourcing,
-   no Saga, no GraphQL, no CQRS read store, no Pact, no gRPC adapter (ADR 022).**
-   review-only (rationale in PRD §7 and §10)
+9. **Settled decisions are not relitigated: no Redis, no event sourcing, no GraphQL, no CQRS
+   read store; the capacity service stays one modular monolith whose reservation transaction
+   is never cut.** review-only (rationale in PRD §7 and §10)
+   Branch `microservices` only: this branch exists to show the monolith's evolution, so the
+   owner lifted the former "no Saga, no Pact, no gRPC adapter" items here. The new
+   `funding-service` (ADR 023), the gRPC adapter (ADR 024, supersedes ADR 022), the
+   orchestrated saga (ADR 025) and Pact (ADR 028) are settled decisions on this branch. On
+   this branch the agent amends rules that block that goal, citing the ADR; `main` keeps the
+   original rule.
 
 ## Work discipline
 
