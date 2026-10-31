@@ -34,7 +34,7 @@ condition that would change the answer. Funding makes those conditions true:
 
 | Condition written on `main` | What makes it true here | Decision on the branch |
 | --- | --- | --- |
-| ADR 021, trigger 3 of 4: a new business domain (bounded context) appears | Funding has its own aggregate, language and lifecycle | [ADR 023](docs/adr/023-funding-context-database-per-service.md): `funding-service` with its own database |
+| ADR 021: a new business domain appears (one of the four reasons it lists for splitting the service) | Funding has its own aggregate, language and lifecycle | [ADR 023](docs/adr/023-funding-context-database-per-service.md): `funding-service` with its own database |
 | ADR 017: a multi-step flow across services | Risk check, reserve, pay and compensate span two services and a payment rail | [ADR 025](docs/adr/025-funding-saga-orchestration.md): an orchestrated saga, state in PostgreSQL |
 | ADR 022: gRPC as the standard between services | Funding needs a typed, synchronous `Reserve` before it pays | [ADR 024](docs/adr/024-grpc-driving-adapter.md): internal gRPC next to REST |
 | ADR 015 and 021: a contracts package and Pact with the first split | Funding is a real consumer of capacity's contract | [ADR 028](docs/adr/028-contracts-package-and-consumer-contracts.md): the package is built, Pact is not yet |
