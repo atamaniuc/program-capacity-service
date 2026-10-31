@@ -111,14 +111,14 @@ Tasks marked **[review]** go to a fresh-context `architect` review before the ne
   `make kind-forward` adds the gateway port; `make helm-check` renders the chart (kubeconform
   skips the Gateway API and Envoy Gateway kinds by name); `make kind-smoke` also runs
   `helm test gateway`. <!-- proof: test/architecture/gateway.test.ts#GW-05 -->
-- [ ] T17 — **Docs for the delivered MVP** (architect with implementer). `docs/architecture.md`
+- [x] T17 — **Docs for the delivered MVP** (architect with implementer). `docs/architecture.md`
   C4 context and container views for the branch, `docs/api.md` funding endpoints and the gRPC
   status table, README sections beyond "Why this branch exists", PRD branch note re-checked,
   dated facts re-checked (`npm view`, kind node image). Russian owner docs for the branch are
   new files with the `micro-srv-` prefix (`docs/micro-srv-guide.ru.md`,
   `docs/micro-srv-deffend.ru.md`); `main`'s `*.ru.md` are not edited. They stay local like every
   `docs/*.ru.md` (`.git/info/exclude`), so they carry no proof marker.
-  proof (planned): `docs/architecture.md`
+  <!-- proof: docs/architecture.md -->
 
 ---
 

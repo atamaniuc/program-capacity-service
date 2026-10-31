@@ -239,6 +239,49 @@ creates the `capacity` and `funding` roles and databases once, on an empty data 
 volume from before that change has a superuser `capacity` and no `funding` database, and the
 init script never runs on it. Run `make down` once (it already deletes the stack's volumes; `make down -v` would be read by `make` as its own option), then `make up`.
 
+## Kind cluster (branch `microservices`)
+
+The local Kubernetes deployment ([ADR 026](adr/026-helm-and-kind.md),
+[ADR 029](adr/029-api-gateway.md)). Cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` only;
+every `kubectl` and `helm` call in the Makefile names that file and the context
+`kind-finverity-ms`, so your own cluster and `~/.kube/config` are never touched. It binds no host
+port; reach it with `make kind-forward` (host ports 23000–23099: capacity 23000–23002, funding
+23010, OAuth2 23020, payments 23030, Postgres 23040, gateway 23050).
+
+| Command | What it does |
+| --- | --- |
+| `make kind-up` | Creates or reuses the cluster, builds and loads the three `:ms-local` images, installs `local-infra`, `capacity`, `funding`, seeds capacity's database, installs Envoy Gateway (`eg`, pinned) and the `gateway` release, then waits for the `Gateway` to be `Programmed` and the proxy Deployment to be available |
+| `make kind-smoke` | `helm test` for capacity, funding (one completed and one compensated request, capacity's `reserved` checked before and after) and the gateway |
+| `make kind-token TENANT=bank-a` | Prints a JWT whose issuer is the cluster issuer (needs `make kind-forward`) |
+| `make kind-down` | Deletes cluster `finverity-ms` and `.kind/`; nothing else |
+
+Where to look when it fails:
+
+- **Everything through the gateway answers `fetch failed` or a connection error.** The proxy Pod is
+  not ready yet. The proxy Service is `gateway-edge` in namespace **`envoy-gateway-system`**, not in
+  `finverity-ms`: `kubectl --kubeconfig .kind/kubeconfig -n envoy-gateway-system get pods,svc`.
+  `make kind-up` waits for it; a smoke started from another shell right after an upgrade may not.
+- **`make kind-forward` and the gateway.** The gateway port-forward uses
+  `--namespace envoy-gateway-system`; the other forwards use `finverity-ms`.
+- **Funding answers `401` to a valid-looking token, or a token has the wrong `aud`.** The mock
+  OAuth2 server reads its mapping only at start. The `local-infra` chart restarts its Pod when the
+  config changes, but JWKS caches (gateway 30 s) need a moment: wait about 35 s after
+  `make kind-up` before running the smoke by hand. A token minted at `http://oauth:8080` (the short
+  Service name) has the wrong issuer; use `make kind-token` or the issuer constant
+  `KIND_OAUTH_ISSUER`.
+- **A wrong-audience token gets `403` through the gateway but `401` straight from the service.**
+  Both are right; see [docs/api.md](api.md#through-the-gateway-kind-only).
+- **`helm upgrade --install funding --wait` times out.** The Pods are ready only behind their ops
+  port (`/health/ready` on 9464): look at `kubectl -n finverity-ms logs deploy/funding-api` and
+  `deploy/funding-worker`, then at the `funding-migrate` Job.
+- **Logs and events for a bug report:** `kubectl --kubeconfig .kind/kubeconfig --context
+  kind-finverity-ms get pods,svc,events -A -o wide`, and `logs --all-containers` per Pod in
+  `finverity-ms` and `envoy-gateway-system` (the CI job uploads exactly that on failure).
+
+Checked on 2026-10-31: the node image `kindest/node:v1.35.8` and its digest in
+`deploy/kind/cluster.yaml` are the ones listed in the kind v0.33.0 release notes, and Envoy Gateway
+`v1.9.3` is the latest stable release (v1.10.0 is a release candidate).
+
 ## Deploys and shutdown
 
 The service handles SIGTERM: readiness turns false at once so the load balancer drains, in-flight

@@ -391,6 +391,25 @@ CORS, a per-tenant rate limit) and the services still verify the token themselve
 port is not routed ([ADR 029](adr/029-api-gateway.md), [ADR 026](adr/026-helm-and-kind.md)).
 Compose has no gateway.
 
+Facts about the kind deployment that are easy to get wrong (all seen in the live run):
+
+- **Where things live.** The workloads, the mock OAuth2 server and the `gateway` policies are in
+  namespace `finverity-ms`. Envoy Gateway runs in `envoy-gateway-system`, and so does the proxy
+  Service `gateway-edge` it creates for the `Gateway`; a Pod addresses it as
+  `gateway-edge.envoy-gateway-system.svc.cluster.local`.
+- **One issuer.** Capacity, funding and the gateway all use the in-cluster address of the mock
+  OAuth2 Service as the issuer (`KIND_OAUTH_ISSUER` in the Makefile), and funding mints its tokens
+  for capacity at the same address; a token minted at the short Service name carries a foreign `iss`.
+- **Order of readiness.** `make kind-up` waits for the `Gateway` to be `Programmed` and for the
+  proxy Deployment to be available before it returns, because the Helm release wait does not cover
+  the proxy Pod that Envoy Gateway creates afterwards.
+- **A changed token mapping needs a new OAuth2 Pod.** The mock reads its config at start, so the
+  `local-infra` chart puts a checksum of the config on the Pod template and Helm restarts it.
+- **Two refusals for a bad token.** The edge answers `401` for a missing, malformed, expired or
+  foreign-issuer token and `403` for a token of another audience; both bodies are Envoy's, not
+  `application/problem+json`. The services answer their own `401` problem
+  ([docs/api.md](api.md#through-the-gateway-kind-only)).
+
 ### Components of funding-service
 
 The same hexagonal rules as capacity, applied to `services/funding/src/funding/` and enforced by

@@ -403,11 +403,22 @@ request.
 
 In the kind cluster an Envoy gateway fronts both public APIs: `/v1/programs…` goes to capacity
 and `/v1/funding-requests…` to funding. The gateway checks the token (signature, issuer,
-audience), applies CORS and a per-tenant request limit, and answers `401`, `404` or `429` itself,
-in a body that is **not** `application/problem+json`; that is how a test tells a gateway answer
-from a service answer. The services still verify the token themselves, so a call that bypasses
-the gateway is refused too. The gRPC port is never routed
+audience), applies CORS and a per-tenant request limit, and answers `401`, `403`, `404` or `429`
+itself, in a body that is **not** `application/problem+json`; that is how a test tells a gateway
+answer from a service answer. The services still verify the token themselves, so a call that
+bypasses the gateway is refused too. The gRPC port is never routed
 ([ADR 029](adr/029-api-gateway.md)).
+
+Which layer refused a token, as a client sees it:
+
+| Token | Through the gateway | Directly to the service |
+| --- | --- | --- |
+| Missing, bad signature, expired, foreign issuer | `401`, `WWW-Authenticate: Bearer`, Envoy body | `401` `application/problem+json` |
+| Valid, but for the other API (wrong `aud`) | `403`, Envoy body (`Audiences in Jwt are not allowed`) | `401` `application/problem+json` |
+| Valid, right audience, missing scope | the service's `403` problem | the service's `403` problem |
+| More requests per minute than the tenant's limit on a route | `429`, Envoy body | not limited |
+
+A request the gateway refuses with `401` or `403` does not use up the tenant's rate limit.
 
 ## gRPC (branch `microservices`, ADR 024)
 
