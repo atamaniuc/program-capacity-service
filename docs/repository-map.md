@@ -17,11 +17,33 @@ first.
 Two more rules: one adapter never imports another, and one use-case slice never imports
 another. Shared application code lives in `application/shared/`.
 
+## At a glance
+
+| Path | What is there |
+| --- | --- |
+| `src/capacity/domain/` | Pure business rules: `Program`, `Reservation`, `Money`, FX conversion, release split. No framework, no I/O |
+| `src/capacity/application/` | Use cases (`reserve-capacity`, `release-reservation`, `apply-treasury-event`, `reconcile-program`, `ingest-fx-rate`, queries) and the ports they need |
+| `src/capacity/adapters/in/` | Entry points: HTTP controllers, Kafka consumer, scheduled jobs; on the branch also `grpc/` and the shared `boundary/` of both transports (ADR 024) |
+| `src/capacity/adapters/out/` | PostgreSQL repositories and migrations, Kafka outbox relay |
+| `src/platform/` | Config, logging, health, telemetry, start-up per role |
+| `services/funding/`, `services/payments-mock/` | Branch `microservices`: the funding service (domain, saga driver, REST adapter, PostgreSQL adapters and migrations, ops server) and the mock payment rail. Each has its own `package.json`, tests and Dockerfile |
+| `packages/contracts/` | Branch `microservices`: the `.proto` of capacity's gRPC API, the generated stubs, and the JSON Schemas of `capacity.events.v1` and `funding.events.v1` |
+| `test/` | Integration, end-to-end, Kafka, fault, property and architecture tests (unit tests sit next to the code) |
+| `contracts/` | Generated from the zod schemas: OpenAPI (REST), AsyncAPI (Kafka in and out); on the branch the JSON Schema per Kafka message is in `packages/contracts/json-schema/` |
+| `deploy/` | Docker Compose stack, mock OAuth2 config, Prometheus/Grafana, Kubernetes manifests; on the branch also `helm/` (capacity, funding, local-infra, gateway) and `kind/` |
+| `tools/` | Token CLI, treasury simulator, demo, DLQ replay, k6 load script, contract generator |
+| `db/seeds/` | Deterministic seed data |
+| `docs/` | Everything to read; start at [docs/README.md](README.md) |
+| `.harness/`, `specs/`, `AGENTS.md`, `CLAUDE.md`, `.claude/` | The AI-assisted build process; not needed to understand the service ([development-process.md](development-process.md)) |
+
+The sections below go one level deeper for capacity. The branch's own paths are in
+[Branch `microservices`](#branch-microservices) at the end.
+
 ## Root
 
 | File | Purpose |
 | --- | --- |
-| `README.md` | Start page: the problem, what was built, quick start |
+| `README.md` | Start page: what the service is, why the branch exists, how to try it, where to read next |
 | `Makefile` | The commands you type; `make` alone prints them all (`help`, coloured on a terminal, `NO_COLOR` respected). `install` (everything from a fresh clone), `doctor`, `up`, `seed`, `token`, `demo`, `qa`, `docs`, `verify`, `test`, `load`, `dlq-replay`, `status` |
 | `.nvmrc` | Node.js major version (24) for `nvm use` |
 | `package.json`, `package-lock.json` | Dependencies (exact versions) and npm scripts behind the Makefile |
@@ -181,7 +203,7 @@ requirement it proves (`AC-…`, `FR-…`, `NFR-…`, `SK-…`).
 | --- | --- |
 | `openapi.yaml` | REST contract, **generated** from the zod schemas (`make contracts`); `make verify` fails if it is stale |
 | `asyncapi.yaml` | Kafka contract, **generated** (AsyncAPI 3.1): treasury topics, their DLQs and `capacity.events.v1`, with keys, headers, consumer group and examples; served at `/docs/asyncapi` |
-| `json-schema/*.schema.json` | **Generated** JSON Schema (draft-07) of each Kafka message: four treasury messages in, four events out; `asyncapi.yaml` references them, the simulator and tests validate against them |
+| `json-schema/*.schema.json` (on the branch: `packages/contracts/json-schema/`) | **Generated** JSON Schema (draft-07) of each Kafka message: four treasury messages in, four events out; `asyncapi.yaml` references them, the simulator and tests validate against them |
 
 ## `deploy/` — running it
 
@@ -236,3 +258,28 @@ Index and reading order: [docs/README.md](README.md). Decision records: `docs/ad
 
 The last four are explained in [development-process.md](development-process.md); none of them
 is needed to run or understand the service.
+
+## Branch `microservices`
+
+What the branch adds on top of the paths above ([ADR 027](adr/027-repository-layout-and-side-by-side-isolation.md)).
+Capacity stays at the root; the new deployables are npm workspaces with one `package-lock.json`.
+
+| Path | Purpose |
+| --- | --- |
+| `src/capacity/adapters/in/grpc/` | Capacity's internal gRPC server: `Reserve`, `Release`, `GetAvailability` over the same use cases as REST (ADR 024) |
+| `src/capacity/adapters/in/boundary/` | What both transports share: request schemas, money parsing, JWT and principal, one table from problem type to HTTP status and gRPC code |
+| `services/funding/src/funding/domain/` | The saga as pure code: states and transitions, outcome classes, step keys, deadlines, the risk policy |
+| `services/funding/src/funding/application/` | The REST use case with idempotency and the saga driver (claim, call outside the transaction, record) |
+| `services/funding/src/funding/adapters/` | `in/http` (REST), `out/postgres` (saga store, migrations), `out/grpc` (capacity client), `out/http` (payment rail), `out/oauth` (one token per tenant) |
+| `services/funding/src/ops/`, `worker.ts`, `worker-config.ts` | Ops server and metrics; the worker entry point and its start-up checks |
+| `services/funding/contracts/openapi.yaml` | Funding REST contract, generated from zod |
+| `services/funding/test/` | `unit`, `property` (saga properties S1–S6), `integration`, `e2e`, `system` (the real capacity image behind Toxiproxy) |
+| `services/payments-mock/` | The in-memory payment rail with fault markers in the invoice id |
+| `packages/contracts/` | `@finverity/contracts`: `proto/`, generated stubs in `src/generated/`, `json-schema/` of `capacity.events.v1` and `funding.events.v1`, schema compatibility tools |
+| `deploy/postgres/init-databases.sh` | Creates the `capacity` and `funding` databases and roles on one local server |
+| `deploy/helm/{capacity,funding,local-infra,gateway}/` | Helm charts; `local-infra` (PostgreSQL, Kafka, mock OAuth2, payments mock) is for local clusters only |
+| `deploy/kind/cluster.yaml` | The kind cluster `finverity-ms`: one node, no host port mappings |
+| `tools/helm-check.sh`, `tools/isolation-live.sh` | `make helm-check`; `make isolation-live` (both stacks up and healthy at once) |
+| `tools/worktree.sh` | One git worktree per parallel task stream while the branch was built |
+| `test/architecture/{isolation,workspaces,proto,gateway,ci}.test.ts` | Static checks: no port or name shared with `main`, no import across services, proto rules, gateway resources, the CI jobs |
+| `specs/0006-funding-saga/` | The branch's lane: spec with acceptance criteria, tasks, handoff |

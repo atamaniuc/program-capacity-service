@@ -44,6 +44,22 @@ you came to read the code, skip this page and the folders it describes.
    `.harness/4-state/DECISIONS.md`; full review notes are in
    `.harness/4-state/architect-review-*.md`.
 
+In short: AI coding agents under a written process, requirements first, five milestone lanes,
+a test per acceptance criterion, and an independent review of every change touching money or
+concurrency. <!-- proof: .harness/4-state/BUDGET.md -->
+
+## Branch `microservices`
+
+The branch was built the same way, as a sixth lane,
+[specs/0006-funding-saga](../specs/0006-funding-saga/spec.md): acceptance criteria first, one
+ADR per decision (023 to 029), tests named by criterion id, and an architect review of every
+diff touching the saga, idempotency, the gRPC boundary or money. For speed, the owner
+allowed independent task streams in parallel git worktrees (`tools/worktree.sh`), each with its
+own implementer, merged back into the branch, and one batched review per stream instead of a stop
+after each task. The reviews and their rulings are in `.harness/4-state/DECISIONS.md` (from
+2026-10-29); what each task proved and what it did not is in the lane's
+`handoff.md`.
+
 ## What is in `.harness/`
 
 | File | Purpose |

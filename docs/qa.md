@@ -269,4 +269,4 @@ These need a broken environment or concurrency, so they live in the automated su
 - PostgreSQL killed mid-transaction → rollback, `503`, key free (fault tests).
 - Kafka down → the API keeps serving, the outbox grows and drains on recovery.
 - Graceful shutdown: in-flight requests finish, the consumer commits, no message is lost.
-- Load: `make load` (k6), latency numbers in the [README](../README.md).
+- Load: `make load` (k6), latency numbers in [testing.md](testing.md#load-test).

@@ -3,9 +3,19 @@
 ## Run
 
 ```bash
-make verify   # lint, types, layer rules, contract drift, unit + property tests (~20 s, no Docker)
-make test     # everything, including real PostgreSQL and Kafka via Testcontainers (~4 min, needs Docker)
+make verify    # lint, types, layer rules, OpenAPI/AsyncAPI drift, unit and property tests (~20 s);
+               # on the branch also proto lint/breaking and the same checks in every workspace
+make test      # all tests with real PostgreSQL and Kafka via Testcontainers (~4 min, needs Docker)
+make qa        # 103 QA checks on the running stack: endpoints, Kafka input, DB and events (qa.md)
+make compat    # no breaking contract change (oasdiff + message schemas; Docker);
+               # what counts as breaking and why: api.md §8
+make load      # k6 load test against the running stack
 ```
+
+<!-- proof: make verify --> <!-- proof: make test --> <!-- proof: make compat -->
+On the branch the cluster has its own checks: `make helm-check` (no cluster) and
+`make kind-up && make kind-smoke` ([local-stack.md](local-stack.md#kubernetes-branch-microservices));
+CI runs both ([branch-technical-overview.md](branch-technical-overview.md#kubernetes-in-ci)).
 
 One file or one test:
 
@@ -87,5 +97,21 @@ is why the integration suite takes a few minutes. [ADR 016](adr/016-testing-stra
 
 ## Load test
 
-`make load` runs k6 (in Docker) against the running compose stack; see the README for the
-numbers and what they mean.
+`make load` runs [k6](https://k6.io) in Docker against the compose stack on a laptop (macOS,
+Apple silicon): a 20 s warm-up that is not measured, then two 30 s phases at 100 requests/s
+(80% capacity reads, 20% reserve-then-release pairs, each write with an `Idempotency-Key`). The
+run **fails** when the spread phase misses NFR-03 (read p95 < 20 ms, reserve and release p95 <
+50 ms). Two consecutive runs (measured on `main`, before the funding services existed):
+
+| Phase | Read p95 | Reserve p95 | Release p95 |
+| --- | --- | --- | --- |
+| Spread over 6 programs (the normal case) | 3.5–4.3 ms | 18.6–25.2 ms | 21.6–25.4 ms |
+| Every request on one program (worst case, 20 writes/s on one row) | 4.4–9.8 ms | 27.5–57.8 ms | 29.4–61.8 ms |
+
+At this rate one program absorbs the writes; its p95 is about twice the spread case, because
+the writes queue on the program's row lock. The ceiling of one program was not measured. When
+it matters, the scale path is to split one limit into several "capacity buckets"
+([PRD §8](PRD.md#8-system-design), not built). Without the warm-up, whichever phase runs
+first pays the cold start (JIT, connection pools) and misses the target by a wide margin.
+These are laptop runs, useful for comparison, not a benchmark.
+<!-- proof: make load -->

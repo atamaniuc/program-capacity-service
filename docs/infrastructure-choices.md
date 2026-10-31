@@ -12,7 +12,7 @@ Short version:
 | PgBouncer / RDS Proxy | Not in the local stack; the code is already compatible; use RDS Proxy in production | `replicas × pool size` gets close to the database's `max_connections` |
 | Debezium (CDC) | No; the polling outbox relay is enough | Outbox lag breaks its target at peak, or the platform already runs Kafka Connect |
 | Floci / LocalStack | No; the service calls no AWS API | The code starts using an AWS SDK (S3, SQS, Secrets Manager) or we test IaC in CI |
-| gRPC | No ([ADR 022](adr/022-no-grpc-adapter.md)) | A real caller needs something REST and Kafka events do not give |
+| gRPC | No on `main` ([ADR 022](adr/022-no-grpc-adapter.md)); built on branch `microservices` ([ADR 024](adr/024-grpc-driving-adapter.md)) | A real caller needs something REST and Kafka events do not give |
 | Redis | No ([ADR 002](adr/002-postgres-source-of-truth.md)) | Measured read load on the primary that a read replica cannot absorb |
 
 ## PgBouncer (connection pooling)
@@ -114,6 +114,10 @@ Not built. No client needs it, and a second transport would duplicate validation
 authentication, error mapping and idempotency handling at the boundary of a money service.
 Full reasoning and the triggers for adding it: [ADR 022](adr/022-no-grpc-adapter.md).
 
+On branch `microservices` one trigger fired: `funding-service` needs a synchronous `Reserve`
+before it pays a supplier, so capacity has an internal gRPC adapter there, with one boundary
+shared by both transports ([ADR 024](adr/024-grpc-driving-adapter.md)). `main` keeps ADR 022.
+
 ## Redis and other caches
 
 Not used. Reads are primary-key lookups that take milliseconds, and a cache in front of a
@@ -125,3 +129,16 @@ hard part. The first step for read load is a PostgreSQL read replica. [ADR 002](
 GraphQL, event sourcing, sagas or Temporal, a separate read store, an API gateway in this
 repository and Pact: see [ADR 017](adr/017-out-of-scope.md), one line each with the trigger
 that would change the answer.
+
+## Running in production (not built here)
+
+| Locally | On AWS |
+| --- | --- |
+| PostgreSQL in Compose | RDS or Aurora PostgreSQL behind RDS Proxy; on the branch one instance per service ([ADR 023](adr/023-t3-funding-context-database-per-service.md)) |
+| Kafka in Compose | Amazon MSK with IAM auth over TLS |
+| `api` and `worker` containers | ECS Fargate or EKS; manifests in `deploy/k8s/` are a starting point, on the branch the Helm charts in `deploy/helm/` |
+| mock OAuth2 server | The bank's identity provider or Cognito |
+| Environment variables | Secrets Manager / Parameter Store, injected at start |
+| Prometheus, Grafana, Jaeger | ADOT collector → CloudWatch and X-Ray |
+
+Operating notes (alerts, dashboards, what to do when the DLQ grows): [runbook.md](runbook.md).

@@ -165,7 +165,7 @@ AsyncAPI 3.1 document rendered in the browser: every topic, message, header and 
 an example of each message. It is served from the ops port with no network access, like Swagger
 UI, and `/docs/asyncapi.json` is the raw document. The committed files are
 [`contracts/asyncapi.yaml`](../contracts/asyncapi.yaml) and one JSON Schema (draft-07) per
-message in [`contracts/json-schema/`](../contracts/json-schema/). All of it is generated from the
+message in [`packages/contracts/json-schema/`](../packages/contracts/json-schema/) (on the branch; `contracts/json-schema/` on `main`). All of it is generated from the
 zod schemas the code uses (`src/capacity/application/shared/capacity-events.ts` and
 `treasury-messages.ts`), so `make verify` fails when code and contract disagree.
 

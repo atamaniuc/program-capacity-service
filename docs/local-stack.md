@@ -10,6 +10,97 @@ in the file, the tools have no login.
 > stacks can run side by side ([ADR 027](adr/027-repository-layout-and-side-by-side-isolation.md),
 > `make isolation-live`). The Kubernetes version of this stack is at the end of this page.
 
+## Quick start
+
+### Requirements
+
+| What | Version | Why |
+| --- | --- | --- |
+| Docker Desktop (macOS, Windows) or Docker Engine (Linux) | any recent; **≥ 4 GB memory** for Docker | PostgreSQL, Kafka, the OAuth2 server and the services run in containers; the tests start their own through Testcontainers |
+| Docker Compose v2 plugin (`docker compose`, not `docker-compose`) | ≥ 2.20 | `make up` uses `up --wait` |
+| Node.js and npm | Node 24 (`nvm install 24`) | The CLI tools (seed, token, simulator, demo) and the tests run on your machine |
+| `make`, `curl` | any (macOS ships GNU Make 3.81, that is enough) | Every command is a make target; the API tour uses curl |
+| `jq` | any; optional | Only `make qa` needs it |
+| `kind`, `helm`, `kubectl` | optional | Only the cluster targets (`make kind-up` and the rest) need them |
+
+Free ports: 13000 (API), 60051 (gRPC), 15432 (PostgreSQL), 18081 (OAuth2), 19464 (api ops + Swagger UI + AsyncAPI),
+19465 (worker ops), 39092 (Kafka), and for the funding services 13100, 13200, 19466 and 19467. `make up-all` also needs
+13001, 14318, 18080, 19090 and 26686. `make doctor` checks the capacity ports and says how to fix what is missing; it does not
+check the four funding ports.
+
+### Install and run
+
+```bash
+make install           # one command: check the machine, npm ci, start the stack, seed it (~2–3 min)
+```
+
+It runs `make doctor`, `npm ci`, `make up` (build the image, start everything, wait until
+healthy) and `make seed` (3 banks, 6 programs in USD/EUR/AED/KWD, FX rates, ~200 invoices).
+`make` on its own lists every command with a one-line description; `make completion` shows how
+to turn on tab completion for targets and `TENANT=`/`TOPIC=` values in bash or zsh.
+
+> **FX rates from `make seed` are valid for 24 hours.** On the day of a demo run `make seed`
+> again (it is safe to repeat), or a reservation in a foreign currency (EUR invoice on a USD
+> program) is refused with `422 fx-rate-unavailable`. Same-currency reservations are unaffected.
+
+Try capacity:
+
+```bash
+TOKEN=$(make -s token TENANT=bank-a)
+
+curl -s localhost:13000/v1/programs/prg_grand_usd/capacity -H "authorization: Bearer $TOKEN"
+
+curl -s -X POST localhost:13000/v1/programs/prg_grand_usd/reservations \
+  -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+  -H "idempotency-key: $(uuidgen)" \
+  -d '{"invoiceId":"INV-HELLO-1","amount":{"value":"125000.00","currency":"EUR"}}'
+```
+
+More in the [API tour](api.md). The funding saga by hand and `make demo-funding`:
+[branch-technical-overview.md](branch-technical-overview.md#run-it-and-the-funding-demo). Then:
+
+```bash
+make demo              # plays every scenario (limit cut, repayments, late snapshot, duplicate
+                       # and out-of-order messages, poison message, stale FX) and checks the results
+make qa                # 103 QA checks: every endpoint and treasury message, plus DB, Kafka and
+                       # metric side effects (test cases in qa.md)
+make up-all            # the same stack plus Kafka UI, Prometheus, Grafana and Jaeger, tracing on
+make down              # stop and delete everything (the tools too)
+```
+
+| URL | What |
+| --- | --- |
+| <http://localhost:13000/v1/…> | Business API (needs a token) |
+| <http://localhost:13100/v1/funding-requests> | Branch only: the funding API (needs a token with a `funding:` scope; no Swagger UI, the contract is `services/funding/contracts/openapi.yaml`) |
+| <http://localhost:19466/health/ready>, <http://localhost:19467/health/ready> | Branch only: readiness and `/metrics` of the funding `api` and `worker` |
+| <http://localhost:19464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
+| <http://localhost:19464/docs/asyncapi> | AsyncAPI: every Kafka topic the service reads and writes, with headers, keys and an example per message (`make events` tails `capacity.events.v1` live) |
+| <http://localhost:18080> | Kafka UI, after `make up-all` (`make kafka-ui` opens it): topics, every record with key and headers, consumer lag, DLQs; can produce a treasury message ([how to check with it](qa.md#kafka-in-the-browser-kafka-ui)) |
+| <http://localhost:19464/health/ready>, `/metrics` | Readiness and Prometheus metrics of `api` (`worker`: port 19465) |
+| <http://localhost:13001>, <http://localhost:26686>, <http://localhost:19090> | Grafana (capacity dashboard), Jaeger (traces of api and worker), Prometheus, after `make up-all` |
+
+## Running next to `main`
+
+The branch lives in its own worktree and is built to run while `main`'s stack is up:
+
+```bash
+git worktree add ../finverity-microservices microservices
+cd ../finverity-microservices
+```
+
+| | `main` | this branch |
+| --- | --- | --- |
+| Compose project | `program-capacity` | `program-capacity-ms` |
+| PostgreSQL, Kafka, OAuth2 | 5432, 29092, 8081 | 15432, 39092, 18081 |
+| Capacity API, api ops, worker ops | 3000, 9464, 9465 | 13000, 19464, 19465 |
+| Capacity gRPC (internal, JWT on every call, `127.0.0.1` only) | none | 60051 |
+| Funding API, funding api ops, funding worker ops | none | 13100, 19466, 19467 |
+| Payments mock (the payment rail) | none | 13200 |
+| Prometheus, Grafana, Jaeger, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |
+| Kubernetes | none | kind cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` (never `~/.kube/config`); port-forwards on 23000-23099 |
+
+`make isolation-live` starts both and checks that both are healthy at the same time (MS-02).
+
 ## Profiles
 
 | Command | Profile | Services | Use it for |
@@ -265,7 +356,7 @@ demo-funding: all scenarios passed
 
 then restores the worker. Exit code 0 means every scenario ended as expected. The six scenarios
 (completed, risk-declined, insufficient-capacity, payment-declined, rail-unavailable,
-lost-payment-answer) are in the [README](../README.md#what-this-branch-adds-and-how-to-run-it).
+lost-payment-answer) are in [branch-technical-overview.md](branch-technical-overview.md#run-it-and-the-funding-demo).
 It needs capacity's `api`, the Kafka `worker`, the funding services and `payments` all healthy.
 
 ## Observability profile

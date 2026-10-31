@@ -6,12 +6,12 @@ Read in this order. Each step says what you should know after it.
 
 | # | Time | Read | You will know |
 | --- | --- | --- | --- |
-| 1 | 5 min | [Backend-Developer-Test-Assignment.md](Backend-Developer-Test-Assignment.md) and the [project README](../README.md) | What was asked, what was built, how to start it |
+| 1 | 5 min | [Backend-Developer-Test-Assignment.md](Backend-Developer-Test-Assignment.md) and the [project README](../README.md) | What was asked, why the branch exists, how to start it |
 | 2 | 10 min | [how-it-works.md](how-it-works.md) | The business: programs, reservations, releases, FX, reconciliation, the rules that must hold |
 | 3 | 15 min | [architecture.md](architecture.md) | C4 diagrams, the four main flows, the data model, where each piece of code lives |
-| 4 | 10 min | `make install`, then [api.md](api.md) | The API by hand: reserve, retry, release, errors |
+| 4 | 10 min | `make install` ([quick start](local-stack.md#quick-start)), then [api.md](api.md) | The API by hand: reserve, retry, release, errors |
 | 5 | 10 min | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) and [infrastructure-choices.md](infrastructure-choices.md) | Why it is built this way, and what was left out on purpose |
-| 5a | 10 min | Branch `microservices` only: the README section "What this branch adds", the [architecture](architecture.md#branch-microservices-funding-the-payment-rail-and-the-grpc-hop) section on funding, then [position-fit.md](position-fit.md) | The second service and the saga, and how the whole maps to the job description, with the gaps |
+| 5a | 10 min | Branch `microservices` only: [branch-technical-overview.md](branch-technical-overview.md), the [architecture](architecture.md#branch-microservices-funding-the-payment-rail-and-the-grpc-hop) section on funding, then [position-fit.md](position-fit.md) | The second service and the saga, how to run and demo them, and how the whole maps to the job description, with the gaps |
 | 6 | 10 min | Code: `src/capacity/domain/` → `application/use-cases/reserve-capacity/` → `adapters/in/http/capacity.controller.ts` → `adapters/out/postgres/unit-of-work.ts`; then [testing.md](testing.md) | One request from the controller down to the SQL, and how it is tested |
 
 Optional, when you need them: [repository-map.md](repository-map.md) (what every file is for), [runbook.md](runbook.md) (operating the service, alerts),
@@ -22,14 +22,15 @@ Optional, when you need them: [repository-map.md](repository-map.md) (what every
 | Document | Contents |
 | --- | --- |
 | [how-it-works.md](how-it-works.md) | The domain in plain words, with a worked example |
+| [branch-technical-overview.md](branch-technical-overview.md) | Branch only: what each new part is, the funding demo, the cluster and CI, and a summary of the capacity service |
 | [architecture.md](architecture.md) | C4 context, containers and components; sequence diagrams; data model |
 | [repository-map.md](repository-map.md) | Every folder and file: purpose and layer |
 | [api.md](api.md) | API tour: Swagger UI and curl, error catalogue, the events on Kafka and their AsyncAPI page, and the rules for changing a contract |
-| [testing.md](testing.md) | Test levels, how to run them, requirement-to-test mapping |
+| [testing.md](testing.md) | Test levels, how to run them, requirement-to-test mapping, the load test and its numbers |
 | [qa.md](qa.md) | QA test cases on the live stack: every endpoint and Kafka message, with DB, Kafka and metric checks (`make qa`) |
 | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) | Every assumption and trade-off, with links to ADRs; known limits |
-| [infrastructure-choices.md](infrastructure-choices.md) | PgBouncer, Debezium/CDC, Floci/LocalStack, gRPC, Redis: why not now, when |
-| [local-stack.md](local-stack.md) | The compose stack: profiles (`make up`, `make up-all`), every service, ports, how to check each one |
+| [infrastructure-choices.md](infrastructure-choices.md) | PgBouncer, Debezium/CDC, Floci/LocalStack, gRPC, Redis: why not now, when; the production mapping to AWS |
+| [local-stack.md](local-stack.md) | Quick start and requirements, running next to `main`; the compose stack: profiles (`make up`, `make up-all`), every service, ports, how to check each one |
 | [runbook.md](runbook.md) | Alerts, dashboards, what to do when something breaks |
 | [glossary.md](glossary.md) | The words used in code, API and docs |
 | [PRD.md](PRD.md) | Requirements: FR, NFR, acceptance criteria, invariants, stack |

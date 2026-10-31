@@ -117,8 +117,8 @@ and ADRs 023 to 029.
 
 Planned and not built yet ([tasks](../specs/0006-funding-saga/tasks.md)): Pact consumer and
 provider tests (T19, T20), the relay that publishes the funding outbox to `funding.events.v1`
-(T21), the operator command that resolves a `NEEDS_ATTENTION` request (T22), a kind job in CI
-(T23), funding consuming `capacity.events.v1` (T24).
+(T21), the operator command that resolves a `NEEDS_ATTENTION` request (T22), funding consuming
+`capacity.events.v1` (T24). The kind job in CI (T23) is built.
 
 ### Known limits
 
