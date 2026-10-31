@@ -480,6 +480,28 @@ the very end), so the `kind` job's first real run may still need fixes (runner r
 `kind-seed`, image pulls, Envoy Gateway OCI install from `docker.io`, the 30-minute budget).
 `actionlint` is not installed here and was not run; the YAML parses and the static test reads it.
 
+### T17 closed: kind and gateway facts in the docs (agent `k8s`, 2026-10-31, after merging `7bda740`)
+
+Added: `docs/architecture.md` (where the proxy Service lives, one issuer, readiness order, the OAuth2
+Pod restart, the two refusals), `docs/runbook.md` (a "Kind cluster" section: commands, ports, a
+failure checklist), `docs/api.md` (which layer refuses which token, edge `403` for a wrong `aud`
+next to the service's `401`), `README.md` ("Kubernetes in CI": the jobs exist, none has run on
+GitHub; T23 removed from the open list). T17 ticked (`docs/architecture.md`).
+
+T17 scope check: C4 context and container views for the branch (architecture), funding endpoints and
+the gRPC status table (api), README sections beyond "Why this branch exists", the PRD branch note
+and the Russian owner docs (`micro-srv-guide.ru.md`, `micro-srv-deffend.ru.md`, local only, in the
+`finverity-microservices` worktree) are present. Dated facts re-checked 2026-10-31: kind node image
+digest matches the kind v0.33.0 release notes; Envoy Gateway v1.9.3 is the latest stable (v1.10.0
+is an RC); `ts-proto` 2.18.3 and `@bufbuild/buf` 1.75.0 are current; **`@grpc/grpc-js` is 1.14.7
+upstream, the repo pins 1.14.6 (not bumped: a dependency change is for the lead)**; Pact is not
+used yet (T19).
+
+Not covered: the Russian owner docs were not touched (local, another worktree) and do not mention
+the proxy Service `gateway-edge` in `envoy-gateway-system`, the edge `403` for a wrong audience or
+the OAuth2 Pod checksum restart; no check validates links or claims in prose, so the facts above
+rest on the live run of 2026-10-30, not on a test.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.
