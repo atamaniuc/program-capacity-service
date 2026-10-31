@@ -9,6 +9,9 @@ oauth:
   audience: funding-service
   jwksUrl: http://oauth:8080/default/jwks
   tokenUrl: http://oauth:8080/default/token
+  # The worker's client secret for minting capacity tokens. Local default for kind only (the mock
+  # accepts any secret); production sets it from a secret manager.
+  clientSecret: funding-service
 corsOrigins: ''
 
 # gRPC target of capacity's api Service (ADR 024) and the payment rail (ADR 025).

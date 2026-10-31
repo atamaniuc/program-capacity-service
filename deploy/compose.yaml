@@ -238,6 +238,8 @@ services:
       <<: *funding-env
       CAPACITY_GRPC_TARGET: api:50051
       OAUTH_TOKEN_URL: http://oauth:8080/default/token
+      # The mock OAuth2 server accepts any secret; the worker has no default for it.
+      OAUTH_CLIENT_SECRET: funding-service
       # mock-oauth2-server derives `iss` from the request host: send the host the services trust.
       OAUTH_ISSUER_HOST: localhost:${HOST_PORT_OAUTH:-18081}
       PAYMENTS_BASE_URL: http://payments:3200

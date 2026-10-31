@@ -21,17 +21,31 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       enableServiceLinks: false
+      securityContext:
+        {{- include "funding.podSecurityContext" . | nindent 8 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: worker
           image: {{ include "funding.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "funding.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           command: ['node', 'src/worker.js']
           envFrom:
             {{- include "funding.envFrom" . | nindent 12 }}
           env:
             - name: APP_ROLE
               value: worker
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: funding-oauth-client
+                  key: OAUTH_CLIENT_SECRET
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           ports:

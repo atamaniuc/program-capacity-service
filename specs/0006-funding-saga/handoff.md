@@ -502,6 +502,26 @@ the proxy Service `gateway-edge` in `envoy-gateway-system`, the edge `403` for a
 the OAuth2 Pod checksum restart; no check validates links or claims in prose, so the facts above
 rest on the live run of 2026-10-30, not on a test.
 
+### Acceptance items 3 and 4 (agent `k8s`, 2026-10-31, after merging `88ba888`)
+
+Item 3: `OAUTH_CLIENT_SECRET` has no default in `services/funding/src/worker-config.ts` (unit test
+`FS-09`: missing or empty stops the boot); compose sets it on `funding-worker`; the funding chart
+renders `oauth.clientSecret` into the Secret `funding-oauth-client` (`templates/secret.yaml`) and
+only the worker reads it with `secretKeyRef`; the chart refuses to render without it. The local
+value `funding-service` is a kind/compose default (the mock accepts any secret), not a secret.
+Item 4: capacity and funding `api` and `worker`, and `payments-mock`: pod `runAsNonRoot: true`,
+`runAsUser: 1000` (the images run as `USER node`, a name the kubelet cannot verify as non-root),
+`seccompProfile: RuntimeDefault`; container `allowPrivilegeEscalation: false`, `capabilities.drop:
+[ALL]`, `readOnlyRootFilesystem: true`, plus an `emptyDir` on `/tmp` for capacity and funding.
+`readOnlyRootFilesystem` broke no Pod; no field was dropped. Static proof:
+`test/architecture/hardening.test.ts` (K8-05, K8-06).
+
+Live proof: `make kind-up` exit 0 (all Pods Running, 0 restarts; live Pods show `uid=1000`,
+`nonroot=true`, `ro=true`), `make kind-smoke` `SMOKE_EXIT=0`, gateway `13 passed, 0 failed, 0
+skipped`, `OK saga`. Not hardened: migrate Jobs and `helm test` Pods, Postgres, Kafka, the mock
+OAuth2 server and the gateway proxy (third-party images or short-lived hooks); the ConfigMap holds
+no secret.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.
