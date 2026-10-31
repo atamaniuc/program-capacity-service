@@ -1,0 +1,5 @@
+# False positives of rule generic-api-key: OAUTH_JWKS_URL holds the public JWKS endpoint of the
+# local mock OAuth2 server (http://oauth:8080/default/jwks), not a credential. Exact fingerprints
+# only, so any new finding still fails the job.
+08760a51a0fd9c91368b01e1b4d8543814d9f6a5:deploy/compose.yaml:generic-api-key:212
+d3dcd9bb16b98abd5a772ed7600fcd1e8a64b602:services/funding/test/support/system-stack.ts:generic-api-key:146
