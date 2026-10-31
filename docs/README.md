@@ -72,7 +72,7 @@ Branch `microservices` only (the evolution demo; `main` keeps ADRs 001 to 022 as
 
 | ADR | Decision |
 | --- | --- |
-| [023](adr/023-t3-funding-context-database-per-service.md) | Trigger T3 fired: funding as a new service, one database per service |
+| [023](adr/023-funding-context-database-per-service.md) | The new-business-domain trigger of ADR 021 fired: funding as a new service, one database per service |
 | [024](adr/024-grpc-driving-adapter.md) | Internal gRPC driving adapter for capacity (supersedes 022 here) |
 | [025](adr/025-funding-saga-orchestration.md) | Funding saga: a hand-rolled orchestrator persisted in PostgreSQL |
 | [026](adr/026-helm-and-kind.md) | Helm charts and a local kind cluster |

@@ -6,7 +6,7 @@
 ## Context
 
 Capacity is money exposure. Reserve and release must be atomic with their ledger entry, their
-idempotency record, their inbox mark and their outbox event, and the invariants (I1 to I8) must
+idempotency record, their inbox mark and their outbox event, and the invariants (I1 to I8 in PRD §6) must
 hold under concurrency and a crash between any two steps.
 
 ## Decision

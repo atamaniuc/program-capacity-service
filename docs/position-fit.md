@@ -7,7 +7,9 @@ This page lines up two documents with what the repository shows:
 
 Every row says **Yes**, **Partly** or **No**, names a proof you can open or run (a file, a test
 id, a `make` target), and says in plain words what is missing. A test id is the prefix of a test
-name: `grep -rn "AC-01" test src` finds it. Nothing here is a claim without a proof, and a "No"
+name: `grep -rn "AC-01" test src` finds it. AC ids are the acceptance criteria of the
+[PRD](PRD.md); ids starting with FS, GR, GW or CT are the branch's acceptance criteria in
+[specs/0006-funding-saga/spec.md](../specs/0006-funding-saga/spec.md). Nothing here is a claim without a proof, and a "No"
 means no.
 
 Two layers exist, so the page tags them:

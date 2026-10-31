@@ -1,6 +1,6 @@
-# 021. Evolution path: split triggers T1 to T4 and the order of the split
+# 021. Evolution path: four split triggers and the order of the split
 
-- Status: accepted; on branch `microservices` trigger T3 has fired ([ADR 023](023-t3-funding-context-database-per-service.md))
+- Status: accepted; on branch `microservices` the new-business-domain trigger has fired ([ADR 023](023-funding-context-database-per-service.md))
 - Date: 2026-10-28
 
 ## Context
@@ -12,14 +12,15 @@ transaction and force sagas to protect a risk that today costs one row lock.
 
 ## Decision
 
-Stay one service until a trigger fires, and write each firing down as its own ADR.
+Stay one service until a trigger fires, and write each firing down as its own ADR. A trigger is
+a condition that justifies splitting the service; there are four, named in the first column.
 
 | Trigger | What happens | Split |
 | --- | --- | --- |
-| T1. Team boundary | A separate team owns the treasury integration and needs its own release cycle | Deploy `worker` (ingest, outbox relay, jobs) alone; it is already a separate process. The shared database is a documented transitional state |
-| T2. Tenant isolation | A bank requires its own database or instance, for example for data residency | Cells: the same image, a database per bank, routing by tenant. This partitions the deployment; it is not a new service |
-| T3. New bounded context | Funding decisions, reporting or FX become domains of their own | A new service that consumes `capacity.events.v1`; the reservation transaction stays whole |
-| T4. Load | Contention on a hot program row | No split: capacity buckets, a read replica, table partitioning |
+| Team-boundary trigger | A separate team owns the treasury integration and needs its own release cycle | Deploy `worker` (ingest, outbox relay, jobs) alone; it is already a separate process. The shared database is a documented transitional state |
+| Tenant-isolation trigger | A bank requires its own database or instance, for example for data residency | Cells: the same image, a database per bank, routing by tenant. This partitions the deployment; it is not a new service |
+| New-business-domain trigger | Funding decisions, reporting or FX become business domains of their own (bounded contexts, in domain-driven design terms) | A new service that consumes `capacity.events.v1`; the reservation transaction stays whole |
+| Load trigger | Contention on a hot program row | No split: capacity buckets, a read replica, table partitioning |
 
 Order when a trigger fires:
 
@@ -52,4 +53,4 @@ Starting as microservices (distributed transactions for a one-row lock); a Nest 
 
 | Trigger | Where | ADR |
 | --- | --- | --- |
-| T3. New bounded context (funding decisions) | Branch `microservices` only | [ADR 023](023-t3-funding-context-database-per-service.md); layout in [ADR 027](027-repository-layout-and-side-by-side-isolation.md) |
+| New-business-domain trigger (funding decisions) | Branch `microservices` only | [ADR 023](023-funding-context-database-per-service.md); layout in [ADR 027](027-repository-layout-and-side-by-side-isolation.md) |

@@ -273,7 +273,7 @@ Capacity stays at the root; the new deployables are npm workspaces with one `pac
 | `services/funding/src/funding/adapters/` | `in/http` (REST), `out/postgres` (saga store, migrations), `out/grpc` (capacity client), `out/http` (payment rail), `out/oauth` (one token per tenant) |
 | `services/funding/src/ops/`, `worker.ts`, `worker-config.ts` | Ops server and metrics; the worker entry point and its start-up checks |
 | `services/funding/contracts/openapi.yaml` | Funding REST contract, generated from zod |
-| `services/funding/test/` | `unit`, `property` (saga properties S1–S6), `integration`, `e2e`, `system` (the real capacity image behind Toxiproxy) |
+| `services/funding/test/` | `unit`, `property` (saga properties S1–S6 of ADR 025), `integration`, `e2e`, `system` (the real capacity image behind Toxiproxy) |
 | `services/payments-mock/` | The in-memory payment rail with fault markers in the invoice id |
 | `packages/contracts/` | `@finverity/contracts`: `proto/`, generated stubs in `src/generated/`, `json-schema/` of `capacity.events.v1` and `funding.events.v1`, schema compatibility tools |
 | `deploy/postgres/init-databases.sh` | Creates the `capacity` and `funding` databases and roles on one local server |

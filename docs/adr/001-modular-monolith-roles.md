@@ -22,7 +22,7 @@ share the domain core, the ports and the PostgreSQL adapters, and expose the ops
 
 - A Kafka outage cannot stop the REST API (NFR-06); a slow consumer cannot starve request
   threads; each role scales on its own signal.
-- The split into deployables already exists, which is the seam of trigger T1 in ADR 021.
+- The split into deployables already exists, which is the seam of the team-boundary trigger in ADR 021.
 - Both roles share one database schema. That is a documented transitional state if the `worker`
   is ever deployed by another team.
 

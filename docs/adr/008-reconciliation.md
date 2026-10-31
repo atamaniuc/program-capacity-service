@@ -8,7 +8,7 @@
 A `ProgramReconciled` snapshot carries the limit, every open reservation with outstanding
 amounts in invoice and program currency, and a contiguous `platformWatermark`. Applying it
 must follow the PRD §8 case table without holding the program lock for the length of the
-snapshot (AC-08, AC-14, AC-15).
+snapshot (acceptance criteria AC-08, AC-14, AC-15 of the PRD).
 
 ## Decision
 

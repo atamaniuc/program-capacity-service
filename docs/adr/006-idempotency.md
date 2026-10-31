@@ -5,7 +5,8 @@
 
 ## Context
 
-A platform retry must have exactly one effect, even while the first request runs (AC-02).
+A platform retry must have exactly one effect, even while the first request runs (acceptance
+criterion AC-02 of the PRD).
 
 ## Decision
 

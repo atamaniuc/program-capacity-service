@@ -74,14 +74,14 @@ Honest list of what this version does not do, or does only partly.
 
 Everything above still holds for the capacity service. The branch adds `funding-service`, which
 pays a supplier early after reserving capacity, and the pieces between the two services. The
-reasoning is in ADRs [023](adr/023-t3-funding-context-database-per-service.md) to
+reasoning is in ADRs [023](adr/023-funding-context-database-per-service.md) to
 [029](adr/029-api-gateway.md); this section is the short version.
 
 ### Assumptions
 
 | # | Assumption | Why | If wrong |
 | --- | --- | --- | --- |
-| F1 | Funding decisions are a bounded context of their own, and capacity is not split | The question, the lifecycle and the consistency needs differ; one invariant still spans reserve, release and reconcile | Triggers T1, T2 and T4 of [ADR 021](adr/021-evolution-path.md) did not fire and nothing else is cut |
+| F1 | Funding decisions are a bounded context of their own, and capacity is not split | The question, the lifecycle and the consistency needs differ; one invariant still spans reserve, release and reconcile | The team-boundary, tenant-isolation and load triggers of [ADR 021](adr/021-evolution-path.md) did not fire and nothing else is cut |
 | F2 | The payment rail accepts an idempotency key and can be asked for a payment by that key | The saga's safety on an unknown payment outcome depends on both | A rail with neither cannot be driven safely by this saga; it would need a reconciliation step against the rail's own records first. The mock has both |
 | F3 | The amount paid equals the invoice amount | No pricing or discount in scope | A pricing step is a new saga step with its own state |
 | F4 | One funding request per tenant, program and invoice | Same rule as one reservation per invoice (A7) | See "Known limits": a refused request cannot be restarted for the same invoice |
@@ -101,7 +101,7 @@ reasoning is in ADRs [023](adr/023-t3-funding-context-database-per-service.md) t
 | **Reserve retries end inside capacity's 24 h key memory**: 2 minutes on the normal path, 12 hours to resolve, validated at start-up | The exactly-once argument stays true; the service refuses to start with settings that break it | A reserve not resolved within the limit goes to `NEEDS_ATTENTION` | [runbook](runbook.md#funding-the-reserve-retry-window-branch-microservices) |
 | **A stale FX rate rejects the funding request**, it is not retried | The deterministic reserve key would only replay capacity's stored `422` for 24 h | The platform has to ask again with a new request (see the limit below) | [ADR 025](adr/025-funding-saga-orchestration.md) |
 | **A request finishes eventually**; the client polls `GET` | The `POST` is fast and never waits for another system | No push of the final state until the funding events reach Kafka (planned) | [ADR 025](adr/025-funding-saga-orchestration.md) |
-| **Database per service**, both on one PostgreSQL server locally | No cross-service joins or shared tables; a test proves each role is refused by the other's database | Two sets of migrations to run and monitor; in production they would be separate instances | [ADR 023](adr/023-t3-funding-context-database-per-service.md) |
+| **Database per service**, both on one PostgreSQL server locally | No cross-service joins or shared tables; a test proves each role is refused by the other's database | Two sets of migrations to run and monitor; in production they would be separate instances | [ADR 023](adr/023-funding-context-database-per-service.md) |
 | **Internal gRPC between the services**, plaintext HTTP/2 with a JWT on every call; REST stays the public API | A typed contract checked by `buf breaking`, deadlines and status codes to branch on | A second contract and a second port to protect. TLS or mesh mTLS is not built | [ADR 024](adr/024-grpc-driving-adapter.md) |
 | **Gateway only in kind**, a per-tenant limit local to each Envoy replica, no Redis | Common policy for two public APIs; the services still verify the token | With N replicas the effective limit is N times higher. It protects against one tenant crowding out others; it is not a quota | [ADR 029](adr/029-api-gateway.md) |
 | **Contract compatibility checked at build time**, no schema registry | One repository and one CI run make a runtime registry unnecessary; breaking changes fail `make verify` | A topic read from another repository, or an Avro payload, would need a registry | [ADR 028](adr/028-contracts-package-and-consumer-contracts.md) |
@@ -116,9 +116,10 @@ funding (capacity converts), a Pact Broker. The records are [ADR 017](adr/017-ou
 and ADRs 023 to 029.
 
 Planned and not built yet ([tasks](../specs/0006-funding-saga/tasks.md)): Pact consumer and
-provider tests (T19, T20), the relay that publishes the funding outbox to `funding.events.v1`
-(T21), the operator command that resolves a `NEEDS_ATTENTION` request (T22), funding consuming
-`capacity.events.v1` (T24). The kind job in CI (T23) is built.
+provider tests (tasks T19, T20), the relay that publishes the funding outbox to
+`funding.events.v1` (task T21), the operator command that resolves a `NEEDS_ATTENTION` request
+(task T22), funding consuming `capacity.events.v1` (task T24). The kind job in CI (task T23) is
+built.
 
 ### Known limits
 
@@ -138,5 +139,6 @@ provider tests (T19, T20), the relay that publishes the funding outbox to `fundi
   explains the choice; capacity stays on NestJS.
 - **The payments mock is in memory and has no authentication**; restarting it forgets every
   payment.
-- **Several funding workers are tested through the claim and the version check** (FS-12), not run
+- **Several funding workers are tested through the claim and the version check** (the test of
+  acceptance criterion FS-12 in `services/funding/test/integration/driver.int.test.ts`), not run
   together under load.

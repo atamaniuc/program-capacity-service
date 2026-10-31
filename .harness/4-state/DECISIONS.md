@@ -30,7 +30,7 @@ decisions about how the work is run.
 | 020 | Ubiquitous language and naming rules | [020-ubiquitous-language](../../docs/adr/020-ubiquitous-language.md) |
 | 021 | Evolution path: split triggers T1–T4 and the order of the split | [021-evolution-path](../../docs/adr/021-evolution-path.md) |
 | 022 | No gRPC adapter: FR-16 declined, revisit triggers (superseded on branch `microservices` by 024) | [022-no-grpc-adapter](../../docs/adr/022-no-grpc-adapter.md) |
-| 023 | Branch `microservices`: trigger T3 fired, `funding-service` as a new bounded context; database per service; capacity not cut | [023-t3-funding-context-database-per-service](../../docs/adr/023-t3-funding-context-database-per-service.md) |
+| 023 | Branch `microservices`: trigger T3 fired, `funding-service` as a new bounded context; database per service; capacity not cut | [023-funding-context-database-per-service](../../docs/adr/023-funding-context-database-per-service.md) |
 | 024 | Branch `microservices`: internal gRPC driving adapter over the same use cases, one boundary for validation, auth and the problem mapping; supersedes 022 there | [024-grpc-driving-adapter](../../docs/adr/024-grpc-driving-adapter.md) |
 | 025 | Branch `microservices`: hand-rolled orchestrated funding saga in PostgreSQL; compensation, unknown outcomes, exactly-once effect across the gRPC hop | [025-funding-saga-orchestration](../../docs/adr/025-funding-saga-orchestration.md) |
 | 026 | Branch `microservices`: Helm charts and a local kind cluster `finverity-ms` (amends 017) | [026-helm-and-kind](../../docs/adr/026-helm-and-kind.md) |

@@ -16,8 +16,9 @@ Kafka would prove nothing about it.
 - Integration and e2e tests start real PostgreSQL 18 (and Kafka) through Testcontainers.
 - fast-check properties cover the money maths; coverage gate of 90% lines on domain and
   application.
-- Every acceptance criterion maps to a test whose name starts with its id (`AC-08 ...`,
-  `SK-03 ...`); a ticked task carries a proof marker that resolves to that test.
+- Every acceptance criterion maps to a test whose name starts with its id (`AC-08 ...` for
+  a PRD acceptance criterion, `SK-03 ...` for a lane check in `specs/`); a ticked task carries a
+  proof marker that resolves to that test.
 - **Every money or concurrency guard has a test that fails when the guard is removed.** A
   green suite proves nothing about a line that no test can reach. The architect checks this
   with a mutation probe: delete the line, run the tests, expect red, `git checkout`. Lane 0002

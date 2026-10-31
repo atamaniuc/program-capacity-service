@@ -2,7 +2,7 @@
 
 > **Branch `microservices`.** This PRD describes `main`, the submitted service. On branch
 > `microservices` (an evolution demo) ADRs 023–028 supersede FR-16 and the "won't build" items
-> Saga, Helm and Pact of §10 and §11 for that branch only; the requirements, invariants I1–I8
+> Saga, Helm and Pact of §10 and §11 for that branch only; the requirements, invariants I1–I8 (§6)
 > and acceptance criteria of the capacity service are unchanged. See
 > [specs/0006-funding-saga/spec.md](../specs/0006-funding-saga/spec.md).
 
@@ -76,7 +76,7 @@ Three machine clients and one human role use the service. Five critical paths ca
 
 ## 4. Functional requirements
 
-Sixteen requirements cover the assignment; twelve are P0 and form the critical path. Acceptance criteria below are written as Given/When/Then so that agents can turn each row into a named test.
+Sixteen requirements cover the assignment; twelve are P0 (priority 0, must have) and form the critical path. Acceptance criteria below are written as Given/When/Then so that agents can turn each row into a named test.
 
 | ID | Requirement | Priority |
 | --- | --- | --- |

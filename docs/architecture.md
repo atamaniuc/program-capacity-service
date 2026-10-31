@@ -297,7 +297,7 @@ invariant job recomputes it every 5 minutes to prove it (FR-15).
 
 The capacity service above is unchanged on the branch: its reservation transaction, its
 invariants and its REST API stay as they are. What the branch adds is a second bounded context
-and the plumbing between them. Why now: [ADR 023](adr/023-t3-funding-context-database-per-service.md)
+and the plumbing between them. Why now: [ADR 023](adr/023-funding-context-database-per-service.md)
 (the trigger "a new bounded context" fired), [ADR 024](adr/024-grpc-driving-adapter.md) (gRPC),
 [ADR 025](adr/025-funding-saga-orchestration.md) (the saga).
 
@@ -382,7 +382,8 @@ flowchart TB
 
 Both databases live on one PostgreSQL server locally. They are separate databases with separate
 login roles and no grants across, and a test proves each role is refused by the other's database
-(`services/funding/test/integration/database.int.test.ts`, FS-14). In production they would be
+(`services/funding/test/integration/database.int.test.ts`, acceptance criterion FS-14 of
+[the funding-saga spec](../specs/0006-funding-saga/spec.md)). In production they would be
 separate instances. Data crosses the boundary only through the gRPC contract
 (`packages/contracts/proto/`).
 

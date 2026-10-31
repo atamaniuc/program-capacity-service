@@ -174,7 +174,7 @@ be moved with its `HOST_PORT_*` variable (see `.env.example`).
 PostgreSQL 18, the single source of truth of each service (ADR 002): for capacity the programs,
 reservations, ledger, inbox, outbox and idempotency rows; for funding (branch) the funding
 requests, the attempt log, the outbox and the idempotency rows. One server, two databases, one
-login role each ([ADR 023](adr/023-t3-funding-context-database-per-service.md)): the entrypoint
+login role each ([ADR 023](adr/023-funding-context-database-per-service.md)): the entrypoint
 runs [`deploy/postgres/init-databases.sh`](../deploy/postgres/init-databases.sh) once, on an
 empty data directory, as the bootstrap role `postgres`, and creates `capacity` and `funding`
 (user, password and database all the same name). Neither role may connect to the other's

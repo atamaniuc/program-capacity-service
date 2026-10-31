@@ -134,7 +134,7 @@ that would change the answer.
 
 | Locally | On AWS |
 | --- | --- |
-| PostgreSQL in Compose | RDS or Aurora PostgreSQL behind RDS Proxy; on the branch one instance per service ([ADR 023](adr/023-t3-funding-context-database-per-service.md)) |
+| PostgreSQL in Compose | RDS or Aurora PostgreSQL behind RDS Proxy; on the branch one instance per service ([ADR 023](adr/023-funding-context-database-per-service.md)) |
 | Kafka in Compose | Amazon MSK with IAM auth over TLS |
 | `api` and `worker` containers | ECS Fargate or EKS; manifests in `deploy/k8s/` are a starting point, on the branch the Helm charts in `deploy/helm/` |
 | mock OAuth2 server | The bank's identity provider or Cognito |

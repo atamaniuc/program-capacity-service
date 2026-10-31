@@ -161,7 +161,8 @@ On call:
 - A request in `NEEDS_ATTENTION` after the reserve step may or may not hold a reservation in
   capacity. Do not re-drive it by hand under the same key once 24 hours have passed since its
   first reserve attempt: the key is gone and the answer would be `EXISTING`. The operator
-  resolution procedure arrives with lane 0006 T22.
+  resolution procedure arrives with task T22 of the funding-saga work plan
+  ([specs/0006-funding-saga/tasks.md](../specs/0006-funding-saga/tasks.md)).
 - Do not raise `FUNDING_RESERVE_RESOLUTION_LIMIT`: funding refuses to start with a value above
   12 h. Capacity's retention can only go up (24 h floor), which only widens the margin.
 - `Release` (the compensation) has no such limit. `release_ref` is a permanent natural key in

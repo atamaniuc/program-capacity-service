@@ -10,7 +10,7 @@
 ADR 017 declined a gateway because "the platform owns routing; the service validates the JWT
 itself", and named the condition that changes the answer: **a second public service needing
 shared policies**. On this branch that condition is true. `funding-service` exposes
-`POST /v1/funding-requests` and `GET /v1/funding-requests/{id}` (lane 0006 T9) next to
+`POST /v1/funding-requests` and `GET /v1/funding-requests/{id}` (task T9 of the funding-saga work plan) next to
 capacity's `/v1/programs…`. Both are public REST APIs with the same issuer, the same CORS
 origins and the same need for a per-tenant request limit. Without a gateway each service
 repeats those policies and a client needs two base URLs. In kind this branch plays the platform
@@ -58,7 +58,8 @@ Three constraints shape the design:
 - **gRPC is never exposed.** No `GRPCRoute`, `TCPRoute` or `TLSRoute`; every `backendRef`
   names the HTTP port, never capacity's gRPC port 50051 or an ops port. A gRPC path
   (`/finverity.capacity.v1.CapacityService/…`) matches no route. A static test over the rendered
-  chart enforces this (GW-05).
+  chart enforces this (acceptance criterion GW-05 in the [funding-saga spec](../../specs/0006-funding-saga/spec.md); the GW-01 to
+  GW-05 criteria below are listed there).
 
 ### Authentication at the edge, and again in the service
 
@@ -91,7 +92,7 @@ Three constraints shape the design:
 
 There is exactly **one issuer string per deployment**, and in kind it is the in-cluster FQDN of
 the mock OAuth2 Service: `http://<oauth-service>.finverity-ms.svc.cluster.local:<port>/default`
-(the Service name and port are fixed when `local-infra` is written, T15).
+(the Service name and port are fixed when `local-infra` is written, task T15).
 
 - It is one Makefile constant, `KIND_OAUTH_ISSUER`, passed with `--set` to the `capacity`,
   `funding` and `gateway` releases. Services get it as `OAUTH_ISSUER`; the gateway as each
@@ -142,7 +143,7 @@ The gateway's `SecurityPolicy` holds the allowed origins in kind; the service ch
   matrix lists for v1.9: Envoy Proxy 1.39, Gateway API v1.6.1, Kubernetes 1.33–1.36, end of
   life 2027-02-14. v1.8 reaches end of life on 2026-11-08, so it is not used.
 - The version is a Makefile constant `ENVOY_GATEWAY_VERSION`, re-checked with the other dated
-  facts at T17. The chart ships the Gateway API and Envoy Gateway CRDs; nothing else installs
+  facts at task T17 (the docs). The chart ships the Gateway API and Envoy Gateway CRDs; nothing else installs
   CRDs. No Bitnami or other third-party chart (ADR 026).
 - `make kind-up` installs, after `local-infra`, `capacity` and `funding`: release `eg` in
   namespace `envoy-gateway-system` (`--wait`), then release `gateway` from
@@ -173,7 +174,7 @@ out (ADR 026).
 - Two JWT checks per request through the gateway. Both are local signature checks against a
   cached JWKS; the cost is small and buys the bypass protection.
 - The gateway's own answers (401, 404, 429) are Envoy bodies, not RFC 9457 problems. `docs/api.md`
-  lists them (T17). Replacing them with problem bodies through a response override is possible
+  lists them (task T17). Replacing them with problem bodies through a response override is possible
   later.
 - A JWKS outage answers 401 at the gateway, while the services answer 503 with `Retry-After`
   (ADR 011). In kind the JWKS lives next to the gateway; with a real IdP this divergence matters

@@ -106,7 +106,7 @@ it is 200 (a natural-key replay: the invoice already had a reservation with the 
 made by another request). The funding saga must tell the two apart (ADR 025).
 
 A response field means the same thing in every RPC that carries it. `ReleaseResponse` carries the
-REST `Release` body as its own message (review of T5, 2026-10-30), because the REST release view
+REST `Release` body as its own message (review of task T5, the gRPC server adapter, 2026-10-30), because the REST release view
 is release-level: its `invoiceAmount` is the repaid amount and its `releasedAmount` is what this
 release freed, while `Reservation.invoice_amount` and `Reservation.released_amount` are the
 invoice amount and the cumulative release. Additive within `v1`:
@@ -138,7 +138,8 @@ view is `GetAvailability`.
 - `authorization: Bearer <jwt>` metadata, verified by the same verifier as REST: issuer, `aud`
   = `capacity-service`, RS256 or ES256, `exp`, `tenant_id`, `scope`. A server interceptor runs
   it before the request message is parsed, so no RPC answers anything but `UNAUTHENTICATED`
-  without a valid token (S6). A JWKS outage is `UNAVAILABLE`, not `UNAUTHENTICATED` (ADR 011).
+  without a valid token (PRD success criterion S6: no business endpoint answers without a
+  valid token). A JWKS outage is `UNAVAILABLE`, not `UNAUTHENTICATED` (ADR 011).
 - Scopes per method: `capacity:write` for `Reserve` and `Release`, `capacity:read` for
   `GetAvailability`. A method missing from the scope table is denied (default-deny).
 - The tenant comes from the token only. `funding-service` uses OAuth2 client credentials with
@@ -152,7 +153,7 @@ view is `GetAvailability`.
 - `idempotency-key` metadata, validated by the same schema as the header. The fingerprint is
   computed by the use case from the route template and the body (ADR 006), not by the
   transport, so a key first used over REST and repeated over gRPC with the same request replays
-  the stored answer (GR-06). `x-request-id` metadata as on REST.
+  the stored answer (acceptance criterion GR-06 in the [funding-saga spec](../../specs/0006-funding-saga/spec.md)). `x-request-id` metadata as on REST.
 - Every client call carries a deadline. The server checks the remaining time before it opens
   the transaction and answers `DEADLINE_EXCEEDED` without doing any work when it has already
   run out. Once open, the transaction is bounded by its own `lock_timeout` and
@@ -175,7 +176,7 @@ view is `GetAvailability`.
 ## Consequences
 
 - Two transports, one boundary: validation, auth and the problem mapping exist once, and the
-  acceptance cases run over both transports (GR-03).
+  acceptance cases run over both transports (acceptance criterion GR-03).
 - `.proto` is a second contract to version next to OpenAPI. `buf breaking` checks it, and the
   consumer contract test checks what the consumer relies on (ADR 028).
 - One more port to protect: internal only, JWT on every call, negative tests for missing,

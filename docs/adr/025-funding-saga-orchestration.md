@@ -45,7 +45,7 @@ Every call outcome is classified before any transition:
 | --- | --- | --- | --- |
 | Definite success | OK with `result = CREATED` | `PAID` | OK; or `release-exceeds-remaining` on a final release, which can only mean the remainder is already zero |
 | Definite failure | `FAILED_PRECONDITION`, `NOT_FOUND`, `ALREADY_EXISTS`, `INVALID_ARGUMENT`; or OK with `result = EXISTING` (not ours, see below) | `DECLINED` (the rail states that no money moved) | `NOT_FOUND`, `release-ref-mismatch`, a persistent `PERMISSION_DENIED`: unexpected, never retried blindly |
-| Unknown | `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`, `ABORTED`, `RESOURCE_EXHAUSTED`, connection loss; `UNAUTHENTICATED` after one token refresh; `PERMISSION_DENIED` (a refused token or scope says nothing about whether an earlier attempt landed, so the saga keeps resolving and, past the limit, parks the request instead of ending `FAILED` on it; architect review of T11-T13, M2) | timeout, connection loss, 5xx, an unparseable answer | as for Reserve |
+| Unknown | `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`, `ABORTED`, `RESOURCE_EXHAUSTED`, connection loss; `UNAUTHENTICATED` after one token refresh; `PERMISSION_DENIED` (a refused token or scope says nothing about whether an earlier attempt landed, so the saga keeps resolving and, past the limit, parks the request instead of ending `FAILED` on it; finding M2 of the architect review of tasks T11 to T13) | timeout, connection loss, 5xx, an unparseable answer | as for Reserve |
 
 **`EXISTING` is not ours.** Under the saga's own key, an earlier attempt that created the
 reservation is replayed as `CREATED`. `EXISTING` therefore means the invoice already had a
@@ -53,13 +53,13 @@ reservation with the same terms, made by someone else (for example a REST client
 ends `REJECTED` (`invoice-already-reserved`) and never releases that reservation.
 
 **A stale FX rate rejects the funding request; it is not retried** (architect ruling,
-2026-10-30, T4 review). `fx-rate-unavailable` is transient in the world (treasury publishes a
+2026-10-30, in the review of task T4, the shared driving-adapter boundary). `fx-rate-unavailable` is transient in the world (treasury publishes a
 fresh rate later), but capacity stores it under the `Idempotency-Key` like any business
 rejection (ADR 005, ADR 006) and ADR 024 maps it to `FAILED_PRECONDITION`. The saga's reserve
 key is deterministic, so a retry would only replay the stored 422 for 24 h. The saga therefore
-ends `REJECTED` with reason `fx-rate-unavailable`; no capacity is held (S5), no money moved, and
+ends `REJECTED` with reason `fx-rate-unavailable`; no capacity is held (saga property S5 below), no money moved, and
 the platform submits a new funding request once the rate is fresh. Rejected: mapping it to
-`UNAVAILABLE` and not storing it (changes `main`'s REST semantics and AC-12/AC-17 behaviour);
+`UNAVAILABLE` and not storing it (changes `main`'s REST semantics and the behaviour of acceptance criteria AC-12 (FX conversion) and AC-17 (stored rejections));
 per-attempt reserve keys (breaks "every retry of a step is the same request"). Revisit when
 FX rejections become an operational burden: then the fix is a funding-side pre-check of rate
 freshness or a capacity-side change on `main` first, never a new key per attempt.
@@ -92,7 +92,8 @@ with other terms. The saga ends `REJECTED` (reason `reservation-conflict`) and r
 `COMPLETED`, `REJECTED` and `FAILED` are terminal: no transition leaves them. `NEEDS_ATTENTION`
 is left only by an operator command (after the MVP cut: `COMPLETED` when the payment is
 confirmed, `COMPENSATING` when it is confirmed not made). Properties checked by a fast-check
-test over random outcome sequences (FS-01):
+test over random outcome sequences (acceptance criterion FS-01 in the [funding-saga spec](../../specs/0006-funding-saga/spec.md)).
+They are numbered S1 to S6 here; these are saga properties, not the PRD's success criteria:
 
 - S1. A terminal state never changes.
 - S2. `COMPLETED` implies a reservation created under the saga's key and a `PAID` disbursement.
@@ -148,7 +149,7 @@ its `Idempotency-Key`. Case by case for `Reserve`:
 | --- | --- |
 | The call never reached capacity | Capacity does the work now: one reservation |
 | Capacity committed; the answer was lost or the client deadline expired | The stored `CREATED` answer, same `reservationId`, no second ledger entry |
-| The repeat arrives while the first is still in its transaction | It waits at the key's unique index, then replays the committed answer (the AC-02 path) |
+| The repeat arrives while the first is still in its transaction | It waits at the key's unique index, then replays the committed answer (the path acceptance criterion AC-02 tests: a retry during the first request) |
 | Funding crashed after the call, before recording the result | The driver runs the step again from the persisted state: a replay |
 | A stale executor (lease expired) records a late result | Its transition updates no row (version check); its call was a duplicate |
 
@@ -210,7 +211,7 @@ call in headers; each step attempt is a span linked to the request's trace.
 - The orchestrator is a transition table, tested as pure code, plus a driver loop. Adding a
   step means a new state, a new key and new rows in the table.
 - Whether capacity answers `release-exceeds-remaining` (and not a zero-amount success) to a
-  final release of a fully released reservation is a fact to prove, not assume: FS-11 tests it
+  final release of a fully released reservation is a fact to prove, not assume: the system test of acceptance criterion FS-11 tests it
   against the real capacity image.
 
 ## Alternatives rejected

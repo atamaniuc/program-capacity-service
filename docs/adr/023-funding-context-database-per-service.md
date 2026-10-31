@@ -1,8 +1,8 @@
-# 023. Trigger T3 fired: funding decisions as a new service, one database per service
+# 023. The new-business-domain trigger fired: funding decisions as a new service, one database per service
 
 - Status: accepted (branch `microservices` only; `main` keeps ADR 001 and ADR 021 as written)
 - Date: 2026-10-29
-- Amends: ADR 021 (records the T3 firing it asks for)
+- Amends: ADR 021 (records the firing of its new-business-domain trigger, as ADR 021 asks)
 
 ## Context
 
@@ -12,8 +12,9 @@ documented evolution demo for the parts of the job description that `main` decli
 microservices, gRPC, Saga/workflow orchestration and Kubernetes.
 
 ADR 021 says the service stays whole until a trigger fires, and that each firing is written
-down as its own ADR. This is that ADR. The trigger is **T3, a new bounded context**: *funding
-decisions*. The split is not driven by load (T4), a team boundary (T1) or tenant isolation (T2),
+down as its own ADR. This is that ADR. The trigger is **the new-business-domain trigger** (a new
+bounded context): *funding decisions*. The split is not driven by the load, team-boundary or
+tenant-isolation triggers,
 and it does not cut the capacity service.
 
 Funding is a context of its own, not a feature of capacity:
@@ -32,7 +33,7 @@ Funding is a context of its own, not a feature of capacity:
    a disbursement (ADR 025). It calls capacity's `Reserve`, `Release` and `GetAvailability`
    over gRPC (ADR 024) as single atomic commands.
 2. **The capacity service is not cut.** The reservation transaction stays whole inside it;
-   invariants I1–I8, the lock order (ADR 003) and the idempotency rules (ADR 006) are unchanged.
+   the invariants I1–I8 of PRD §6, the lock order (ADR 003) and the idempotency rules (ADR 006) are unchanged.
    Capacity learns nothing about funding: no funding columns, no funding tables. The only traces
    of a funding request in capacity are the actor (`sub` of the funding-service token), the
    `Idempotency-Key` and the `releaseRef` of a compensation.
@@ -42,9 +43,10 @@ Funding is a context of its own, not a feature of capacity:
    contract (and, after the cut, `capacity.events.v1`).
    - Locally (compose and kind) both databases live on one PostgreSQL server. That is a
      deployment economy, not a coupling: separate databases, separate roles, no grants across,
-     and a test (FS-14) proves each role is refused by the other database.
+     and a test (`database.int.test.ts`, acceptance criterion FS-14 of the funding-saga spec) proves each role is refused by the other database.
    - In production they are separate instances (RDS or Aurora per service).
-4. **Nothing else splits.** T1 (worker alone), T2 (cells) and T4 (load) did not fire. The
+4. **Nothing else splits.** The team-boundary trigger (worker alone), the tenant-isolation
+   trigger (cells) and the load trigger did not fire. The
    capacity REST API and `capacity.events.v1` change only additively (none planned).
 
 ### ADR 021 preconditions on this branch
@@ -52,9 +54,9 @@ Funding is a context of its own, not a feature of capacity:
 | Precondition (ADR 021) | State |
 | --- | --- |
 | The trigger is written down as an ADR | This ADR |
-| Contracts live in their own package | **Deferred past the MVP cut** (lane 0006 T18, ADR 028). Until then the single source is `contracts/proto`, guarded by `buf lint` and `buf breaking`. Accepted gap, named here so it is not forgotten |
+| Contracts live in their own package | **Deferred past the MVP cut** (task T18 of the funding-saga work plan, ADR 028). Until then the single source is `contracts/proto`, guarded by `buf lint` and `buf breaking`. Accepted gap, named here so it is not forgotten |
 | The inbox and outbox already guard the boundary being cut | The boundary is synchronous. It is guarded by capacity's `Idempotency-Key` and `release_ref` (ADR 006) on one side and the saga's persisted state with deterministic step keys on the other (ADR 025) |
-| The acceptance suite runs against both sides of the split | The capacity acceptance cases run over HTTP and gRPC (lane 0006 GR-03); the saga cases run against the real capacity image (FS-03, FS-06, FS-07, FS-11) |
+| The acceptance suite runs against both sides of the split | The capacity acceptance cases run over HTTP and gRPC (acceptance criterion GR-03 in [the funding-saga spec](../../specs/0006-funding-saga/spec.md)); the saga cases (completion, a declined payment, a lost reserve answer, a compensation while capacity is down: FS-03, FS-06, FS-07, FS-11) run against the real capacity image |
 | Pact arrives with the first split | After the MVP cut (ADR 028) |
 
 ## Consequences
@@ -74,7 +76,7 @@ Funding is a context of its own, not a feature of capacity:
 - **One shared database, a schema per service.** It couples migrations and invites
   cross-schema joins that nobody reviews. It stays the fallback if a platform allows only one
   server per environment, with the same rule: no grants across schemas.
-- **Funding as a plain consumer of `capacity.events.v1`** (the default shape T3 describes).
+- **Funding as a plain consumer of `capacity.events.v1`** (the default shape ADR 021 gives the new-business-domain trigger).
   A funding decision has to hold capacity *before* money moves; an event consumer only learns
   about a reservation after the fact, so it would need a reservation command anyway.
 - **Splitting capacity by operation** (reserve, release, reconcile). ADR 021 forbids it while

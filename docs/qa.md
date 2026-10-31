@@ -234,7 +234,7 @@ watermark covers R1 and R2 but not R3.
 | --- | --- | --- | --- | --- |
 | QA-100 | Limit | `creditLimit` 1500.00 | Capacity `limit` 1500.00 | `ledger_entry` `LIMIT_SET` |
 | QA-101 | Within tolerance | R1 at 100.01 | Ours kept (100.00) | Difference ≤ `RECON_TOLERANCE_MINOR` (1 cent) is logged as tolerated, not changed |
-| QA-102 | Only treasury knows it | T1 50.00 | Adopted | `reservation` `origin=TREASURY`, `ACTIVE`, 5000 |
+| QA-102 | Only treasury knows it | T1 50.00 (a reservation only treasury has) | Adopted | `reservation` `origin=TREASURY`, `ACTIVE`, 5000 |
 | QA-103 | Ours missing, covered by the watermark | R2 absent | Kept (`HOLD`) | Drift `HELD` in the event; in `RELEASE` mode it would be released |
 | QA-104 | Ours newer than the watermark | R3 absent | Kept, no drift | Treasury simply has not seen it yet |
 | QA-105 | Drift event | — | Outbox `ReconciliationDriftDetected` with `mode`, `drifts[]` (`ADOPTED`, `HELD`), `driftCount`, `truncated` | At most 100 drifts in one event; `driftCount` is the full number |
@@ -255,7 +255,7 @@ watermark covers R1 and R2 but not R3.
 
 | ID | Case | Steps | Expected | Check also |
 | --- | --- | --- | --- | --- |
-| QA-80 | Reserved adds up (I1, I5) | Compare `program.reserved_minor`, the sum of open reservations, and the sum of `ledger_entry.delta_reserved_minor` | All three equal | Query in [tools/qa/run.sh](../tools/qa/run.sh), section I |
+| QA-80 | Reserved adds up (invariants I1, I5 of the PRD) | Compare `program.reserved_minor`, the sum of open reservations, and the sum of `ledger_entry.delta_reserved_minor` | All three equal | Query in [tools/qa/run.sh](../tools/qa/run.sh), section I |
 | QA-81 | Ledger is append-only | `update ledger_entry set actor='x' where …` | `ERROR: ledger_entry is append-only` | A database trigger, not application code, refuses it |
 | QA-82 | Invariant job | Worker metric | `invariant_mismatch_programs 0` | The job re-checks every program on a schedule |
 

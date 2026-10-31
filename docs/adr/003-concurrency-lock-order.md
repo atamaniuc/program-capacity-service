@@ -5,8 +5,9 @@
 
 ## Context
 
-Many writers change one hot `program` row. Invariants I1 and I2 must hold at commit time and
-writers must not deadlock. Two items of review (D3) asked whether the idempotency row needs a
+Many writers change one hot `program` row. Invariants I1 (reserved equals the sum of open reservations) and
+I2 (a reservation commits only within the limit) of PRD §6 must hold at commit time and
+writers must not deadlock. Two items of review (review finding D3) asked whether the idempotency row needs a
 `SELECT … FOR UPDATE`.
 
 ## Decision
@@ -15,7 +16,7 @@ READ COMMITTED, one transaction per use case, and one lock order for every write
 (idempotency key, `release_ref`, later inbox row), then the `program` row (`FOR UPDATE`), then
 reservation rows. The idempotency claim is `INSERT … ON CONFLICT DO NOTHING RETURNING`: a
 duplicate waits at the unique index for an in-flight winner (verified on PostgreSQL 16 and in the
-AC-02 test on 18), then reads the committed row in a new statement. `lock_timeout` and
+test of acceptance criterion AC-02 on 18), then reads the committed row in a new statement. `lock_timeout` and
 `statement_timeout` are set with `set_config(…, true)` inside the transaction (NFR-15).
 The `UPDATE program … WHERE status = 'ACTIVE' AND credit_limit_minor - reserved_minor >= :amount`
 and `CHECK (reserved_minor >= 0)` back up the application check.
@@ -31,11 +32,11 @@ moment the child row is inserted. The `release_ref` row is the release's dedup r
 inserted **before** the program lock. An immediate `reservation_release.reservation_id` key
 therefore locked the reservation first, which reversed the lock order:
 
-1. T1 and T2 release the same reservation R with different `release_ref`s. Both insert their
+1. Transactions A and B release the same reservation R with different `release_ref`s. Both insert their
    `release_ref` row; each takes `FOR KEY SHARE` on R (shared locks, no conflict yet).
-2. T1 takes the program lock, then asks for R `FOR UPDATE`. That conflicts with T2's
-   `KEY SHARE`, so T1 waits for T2.
-3. T2 asks for the program lock, held by T1, and waits for T1. Cycle: PostgreSQL aborts one
+2. A takes the program lock, then asks for R `FOR UPDATE`. That conflicts with B's
+   `KEY SHARE`, so A waits for B.
+3. B asks for the program lock, held by A, and waits for A. Cycle: PostgreSQL aborts one
    transaction with `deadlock detected` (40P01), and the client sees a 503.
 
 The key is `DEFERRABLE INITIALLY DEFERRED`, so the check runs at `COMMIT`. By then the
@@ -64,7 +65,7 @@ because each fires after the transaction already holds the stronger lock on the 
 `checkReserve` under the program lock is the primary check. The `WHERE` clause of the
 `UPDATE` is the backup: if a future change drops the lock, the update matches no row, and the
 use case fails with an error rather than overbooking. The backup is tested on its own in
-`test/integration/program-guard.int.test.ts` (tests I2…). The test calls the repository
+`test/integration/program-guard.int.test.ts` (test names start with I2, the invariant they prove). The test calls the repository
 directly, because under the lock the application check always answers first, and no
 end-to-end test can reach the guard. The review showed why this is needed: with the guard
 line deleted, all 26 reserve/release/idempotency tests still passed.

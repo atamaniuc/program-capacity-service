@@ -2,7 +2,7 @@
 
 - Status: accepted on `main`; superseded on branch `microservices` by [ADR 024](024-grpc-driving-adapter.md) (the gRPC half of the third revisit trigger fired)
 - Date: 2026-10-28
-- Supersedes: FR-16 "gRPC adapter (P2)" in the PRD
+- Supersedes: requirement FR-16 "gRPC adapter (P2)" in the PRD, priority P2 meaning "could have"
 
 ## Context
 

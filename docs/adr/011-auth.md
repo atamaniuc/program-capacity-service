@@ -24,7 +24,7 @@ are unique per tenant, the key is `(tenant_id, id)`.
 
 In Nest, Express middleware (including the JSON body parser) runs before guards. With the
 token checked only in a guard, the review saw these answers to calls without a token:
-malformed JSON → 400, a 200 KB body → 413, an unknown route → 404. That breaks S6 ("no business
+malformed JSON → 400, a 200 KB body → 413, an unknown route → 404. That breaks success criterion S6 of the PRD ("no business
 endpoint answers without a valid token"). It also shows an anonymous caller which paths exist
 and how the parser behaves. Mounting the verifier on `/v1` before the parser makes 401 the
 first answer to anything without a valid token. The guard is left with the per-handler job

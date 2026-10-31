@@ -7,7 +7,8 @@
 
 Treasury messages arrive through Kafka and may be duplicated, reordered or late (FR-09).
 A capacity change and its ledger, inbox, outbox and idempotency rows must commit in one
-transaction, and a redelivered message must have no second effect (AC-10, I6).
+transaction, and a redelivered message must have no second effect (acceptance criterion AC-10, invariant I6 of
+the PRD).
 
 ## Decision
 
@@ -25,8 +26,8 @@ For every record the order is:
 2. For capacity messages, check that the Kafka key equals `tenantId:programId` of the body;
    a key that names another tenant or program is refused (`tenant-mismatch`). This is the
    only tenant check on the limit path. A program is the pair `(tenantId, programId)`
-   (PRD A12, AC-16), so a `ProgramLimitSet` never looks at other tenants' programs: two banks
-   may both have a `prg`. A cross-tenant lookup was briefly added after the lane 0003 review
+   (PRD assumption A12, acceptance criterion AC-16), so a `ProgramLimitSet` never looks at other tenants' programs: two banks
+   may both have a `prg`. A cross-tenant lookup was briefly added after the review of work lane 0003 (treasury ingest)
    and removed after the 0003–0005 review: with two banks sharing an id it sent every limit
    change of the second bank to the DLQ, leaving that bank on its old, possibly higher,
    limit. Which tenant may write which topic is enforced by Kafka ACLs on the treasury

@@ -459,5 +459,5 @@ would only replay the stored answer.
 Every call carries a deadline. The server does no work for a call whose deadline has already
 passed. A transaction that has started is not abandoned: it commits or rolls back as a whole, so
 a commit after the client gave up is an unknown outcome for the client, resolved by repeating the
-call with the same key. The acceptance cases AC-01 to AC-06, AC-13, AC-16, AC-17 and FR-01 run
+call with the same key. The acceptance cases AC-01 to AC-06, AC-13, AC-16, AC-17 and requirement FR-01 ([PRD](PRD.md) §4) run
 over both transports with the same outcome (`test/e2e/transports.e2e.test.ts`).

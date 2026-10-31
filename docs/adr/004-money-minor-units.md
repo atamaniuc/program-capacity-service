@@ -6,7 +6,7 @@
 ## Context
 
 Binary floating point cannot represent cents; funding more than approved is the product's main
-risk (I8).
+risk (invariant I8 of the PRD: money is integer minor units).
 
 ## Decision
 

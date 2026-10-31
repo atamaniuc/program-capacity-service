@@ -32,7 +32,7 @@ flowchart LR
 
 - **`funding-service`** (`services/funding/`): `POST` and `GET /v1/funding-requests`, JWT with
   audience `funding-service`, `Idempotency-Key`, RFC 9457 problems, OpenAPI generated from zod.
-  It owns its own PostgreSQL database and role ([ADR 023](adr/023-t3-funding-context-database-per-service.md)).
+  It owns its own PostgreSQL database and role ([ADR 023](adr/023-funding-context-database-per-service.md)).
 - **A saga** in the funding worker ([ADR 025](adr/025-funding-saga-orchestration.md)): risk
   check, then `Reserve` on capacity over gRPC, then `Disburse` on the rail, and on a definite
   payment failure a compensating `Release`. State is in PostgreSQL; every step has a
@@ -58,8 +58,8 @@ The funding service and the payments mock use plain `node:http` and zod, not Nes
 
 ## Status by task
 
-The minimum viable cut of lane 0006 is built: side-by-side isolation, npm workspaces, the
-internal gRPC adapter (T1 to T6); `funding-service` with its saga, ops ports, metrics, alerts,
+The minimum viable cut of the funding-saga work plan (`specs/0006-funding-saga/`, tasks T1 to
+T24) is built: side-by-side isolation, npm workspaces, the internal gRPC adapter (T1 to T6); `funding-service` with its saga, ops ports, metrics, alerts,
 the runbook entries and `make demo-funding` (T7 to T14); Helm, kind and the Envoy gateway (T15 to
 T16a); the docs (T17); the contracts package (T18); the kind job in CI (T23). Open: Pact tests
 (T19, T20), the funding event relay (T21), the operator command for a request that needs
@@ -126,7 +126,7 @@ make kind-down         # deletes cluster finverity-ms and nothing else
 payments-mock images in the `image` job, and a `kind` job that installs kind and runs
 `make kind-up` and `make kind-smoke`, the same targets as above, for pushes to `microservices`
 and pull requests into it (30 minutes at most; kubectl state is uploaded as an artifact when it
-fails). The static test `test/architecture/ci.test.ts` (T23) pins those targets and conditions.
+fails). The static test `test/architecture/ci.test.ts` (task T23) pins those targets and conditions.
 <!-- proof: test/architecture/ci.test.ts#T23 kind job runs exactly make ki -->
 All of them are green on GitHub since the first push of the branch (2026-10-31, run
 41170207130: `kind-up` and `kind-smoke` on a fresh runner, saga and gateway smoke included).

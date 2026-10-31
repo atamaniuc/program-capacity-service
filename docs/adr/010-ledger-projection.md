@@ -5,7 +5,7 @@
 
 ## Context
 
-Every number must be explainable (FR-11, I5), but event sourcing is a settled non-goal.
+Every number must be explainable (requirement FR-11, invariant I5 of the PRD), but event sourcing is a settled non-goal.
 
 ## Decision
 

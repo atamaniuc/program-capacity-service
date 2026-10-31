@@ -34,7 +34,7 @@ condition that would change the answer. Funding makes those conditions true:
 
 | Condition written on `main` | What makes it true here | Decision on the branch |
 | --- | --- | --- |
-| ADR 021, trigger 3 of 4: a new business domain (bounded context) appears | Funding has its own aggregate, language and lifecycle | [ADR 023](docs/adr/023-t3-funding-context-database-per-service.md): `funding-service` with its own database |
+| ADR 021, trigger 3 of 4: a new business domain (bounded context) appears | Funding has its own aggregate, language and lifecycle | [ADR 023](docs/adr/023-funding-context-database-per-service.md): `funding-service` with its own database |
 | ADR 017: a multi-step flow across services | Risk check, reserve, pay and compensate span two services and a payment rail | [ADR 025](docs/adr/025-funding-saga-orchestration.md): an orchestrated saga, state in PostgreSQL |
 | ADR 022: gRPC as the standard between services | Funding needs a typed, synchronous `Reserve` before it pays | [ADR 024](docs/adr/024-grpc-driving-adapter.md): internal gRPC next to REST |
 | ADR 015 and 021: a contracts package and Pact with the first split | Funding is a real consumer of capacity's contract | [ADR 028](docs/adr/028-contracts-package-and-consumer-contracts.md): the package is built, Pact is not yet |
@@ -44,9 +44,9 @@ condition that would change the answer. Funding makes those conditions true:
 [ADR 027](docs/adr/027-repository-layout-and-side-by-side-isolation.md) sets the repository
 layout and the rules that let the branch run beside `main`.
 
-What did not change. The capacity service is not cut: its reservation transaction, invariants
-I1–I8, lock order and REST API are as on `main`, and it stores nothing about funding
-([ADR 023](docs/adr/023-t3-funding-context-database-per-service.md)). The other triggers of
+What did not change. The capacity service is not cut: its reservation transaction, the eight
+invariants of [PRD §6](docs/PRD.md#6-domain-model-money-rules-and-invariants) (I1–I8), lock order and REST API are as on `main`, and it stores nothing about funding
+([ADR 023](docs/adr/023-funding-context-database-per-service.md)). The other triggers of
 ADR 021 (a team boundary, tenant isolation, load) did not fire, so nothing else is split. Redis,
 event sourcing, GraphQL and Temporal are still out. ADR 023 also says plainly that for one team a
 funding module inside the monolith would still be the right answer; the branch shows the split
@@ -77,9 +77,10 @@ done correctly once the context is real.
 
 ## Limits
 
-- Not built yet ([tasks](specs/0006-funding-saga/tasks.md)): Pact tests (T19, T20), the funding
-  event relay to Kafka (T21), an operator command for `NEEDS_ATTENTION` (T22; until then the
-  runbook gives the SQL), and funding reading capacity events (T24).
+- Not built yet ([tasks](specs/0006-funding-saga/tasks.md)): Pact contract tests between the services
+  (tasks T19, T20), the funding event relay to Kafka (task T21), an operator command for
+  `NEEDS_ATTENTION` (task T22; until then the runbook gives the SQL), and funding reading capacity
+  events (task T24).
 - gRPC between the services is plaintext HTTP/2 with a JWT on every call; no TLS or mTLS.
 - The payment rail is a mock with fault markers in the invoice id; no real payment system.
 - The kind smoke does not drive the timeout and 5xx faults, a capacity-side compensation or the
