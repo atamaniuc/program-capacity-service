@@ -237,7 +237,7 @@ the answer would be `EXISTING`.
 The compose PostgreSQL now starts as the bootstrap role `postgres`, and `init-databases.sh`
 creates the `capacity` and `funding` roles and databases once, on an empty data directory. A
 volume from before that change has a superuser `capacity` and no `funding` database, and the
-init script never runs on it. Run `make down -v` once, then `make up`.
+init script never runs on it. Run `make down` once (it already deletes the stack's volumes; `make down -v` would be read by `make` as its own option), then `make up`.
 
 ## Deploys and shutdown
 

@@ -48,17 +48,122 @@ cd ../finverity-microservices
 | Compose project | `program-capacity` | `program-capacity-ms` |
 | PostgreSQL, Kafka, OAuth2 | 5432, 29092, 8081 | 15432, 39092, 18081 |
 | Capacity API, api ops, worker ops | 3000, 9464, 9465 | 13000, 19464, 19465 |
-| Capacity gRPC (internal, JWT on every call) | none | 60051 |
-| Capacity gRPC, funding API, payments mock | none | 60051, 13100, 13200 |
+| Capacity gRPC (internal, JWT on every call, `127.0.0.1` only) | none | 60051 |
+| Funding API, funding api ops, funding worker ops | none | 13100, 19466, 19467 |
+| Payments mock (the payment rail) | none | 13200 |
 | Prometheus, Grafana, Jaeger, OTLP | 9090, 3001, 16686, 4318 | 19090, 13001, 26686, 14318 |
-| Kubernetes | none | kind cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` (never `~/.kube/config`) |
+| Kubernetes | none | kind cluster `finverity-ms`, kubeconfig in `.kind/kubeconfig` (never `~/.kube/config`); port-forwards on 23000-23099 |
 
-**Status: in progress.** Side-by-side isolation (lane 0006 task T1) is in place: every host
-port comes from a `HOST_PORT_*` variable with the default above, `make up` and `make down`
-touch only the project `program-capacity-ms`, and `make isolation-live` checks that both stacks
-are healthy together. The Funding, gRPC and kind rows are filled in by later tasks (the kind
-targets arrive with T16). The rest of this README still describes `main` and is updated as
-features land.
+**Status.** The minimum viable cut of the branch is built: side-by-side isolation, npm
+workspaces, the internal gRPC adapter (lane 0006 tasks T1 to T6); `funding-service` with its
+saga, ops ports, metrics, alerts, the runbook entries and `make demo-funding` (T7 to T14); Helm,
+kind and the Envoy gateway (T15 to T16a); the contracts package (T18). Open after the cut:
+Pact tests (T19, T20), the funding event relay (T21), the operator command for a request that
+needs attention (T22), a kind job in CI (T23) and funding consuming capacity events (T24). The
+list is in [specs/0006-funding-saga/tasks.md](specs/0006-funding-saga/tasks.md). The sections
+below "The problem in one minute" still describe the capacity service as submitted on `main`,
+which this branch does not change.
+
+How the branch maps to the job description and the assignment, with proofs and with what is not
+covered: [docs/position-fit.md](docs/position-fit.md).
+
+## What this branch adds and how to run it
+
+Capacity is unchanged. Next to it runs a second service that decides whether to pay a supplier
+early and has to touch two systems that share no transaction: capacity and a payment rail.
+
+```mermaid
+flowchart LR
+  platform["Platform / UI"] -- "POST /v1/funding-requests<br/>REST + JWT, Idempotency-Key" --> fapi
+  subgraph funding["funding-service (database funding)"]
+    fapi["api"]
+    fworker["worker<br/>saga driver"]
+  end
+  fapi --> fdb[("PostgreSQL<br/>funding")]
+  fworker --> fdb
+  fworker -- "Reserve / Release<br/>gRPC, JWT per tenant" --> capapi
+  fworker -- "POST /v1/payments<br/>Idempotency-Key" --> rail["payments mock<br/>(payment rail)"]
+  subgraph capacity["Program Capacity Service (unchanged)"]
+    capapi["api<br/>REST + gRPC"]
+    capworker["worker<br/>Kafka, outbox"]
+  end
+  capapi --> cdb[("PostgreSQL<br/>capacity")]
+  capworker --> cdb
+```
+
+- **`funding-service`** (`services/funding/`): `POST` and `GET /v1/funding-requests`, JWT with
+  audience `funding-service`, `Idempotency-Key`, RFC 9457 problems, OpenAPI generated from zod.
+  It owns its own PostgreSQL database and role ([ADR 023](docs/adr/023-t3-funding-context-database-per-service.md)).
+- **A saga** in the funding worker ([ADR 025](docs/adr/025-funding-saga-orchestration.md)): risk
+  check, then `Reserve` on capacity over gRPC, then `Disburse` on the rail, and on a definite
+  payment failure a compensating `Release`. State is in PostgreSQL; every step has a
+  deterministic idempotency key (`funding:<id>:reserve`, `:disburse`, `:release`), so a retry is
+  the same request to the receiver. An unknown outcome of the payment is never compensated: the
+  request is parked as `NEEDS_ATTENTION` with the capacity still held, and an alert fires.
+- **Internal gRPC on capacity** ([ADR 024](docs/adr/024-grpc-driving-adapter.md)): the same use
+  cases as REST behind one boundary module; the same acceptance cases pass over both transports.
+- **`payments-mock`** (`services/payments-mock/`): an in-memory payment rail with idempotency
+  keys and fault markers in the invoice id (`FAULT-DECLINE`, `FAULT-TIMEOUT`, `FAULT-5XX-<n>`).
+- **Helm, kind and an Envoy gateway** ([ADR 026](docs/adr/026-helm-and-kind.md),
+  [ADR 029](docs/adr/029-api-gateway.md)): `make kind-up` builds three images and installs five
+  Helm releases (local infrastructure, capacity, funding, Envoy Gateway, the gateway policies)
+  into a local cluster.
+- **Operations**: funding ops ports with `/health/live`, `/health/ready` and `/metrics`, three
+  Prometheus alerts (`FundingNeedsAttention`, `FundingCompensationStuck`,
+  `FundingReserveUnresolved`) and a runbook entry for each ([docs/runbook.md](docs/runbook.md)).
+
+Run it (Docker, Node 24, `make`; see "Quick start" below for the requirements):
+
+```bash
+make down              # once, if you ran an older version of this branch: the database volume
+                       # from before the funding database existed is deleted
+make up                # PostgreSQL, Kafka, OAuth2, capacity api and worker, payments mock,
+                       # funding migrate, api and worker; returns when all are healthy
+make seed              # banks, programs, FX rates (valid 24 h: run again on the day of a demo)
+make demo-funding      # six funding scenarios against the live stack
+```
+
+`make demo-funding` restarts the funding worker with a 15 second disbursement deadline (the
+default is 15 minutes) so the needs-attention path does not take 15 minutes, runs the
+scenarios (each may take up to two minutes), prints capacity's `reserved` before and after each one, and restores the worker. It
+exits with 1 if any scenario does not end as expected.
+
+| Scenario | How it is triggered | Expected end state | Capacity |
+| --- | --- | --- | --- |
+| `completed` | a normal invoice | `COMPLETED` | amount held |
+| `risk-declined` | amount above the risk limit | `REJECTED` (`risk-declined`) | untouched, never called |
+| `insufficient-capacity` | amount above what is available | `REJECTED` (`insufficient-capacity`) | untouched |
+| `payment-declined` | invoice id `FAULT-DECLINE…` | `FAILED`, compensated | reserved, then released |
+| `rail-unavailable` | invoice id `FAULT-5XX-999…` | `NEEDS_ATTENTION` (`disbursement-unknown`) | held, never released |
+| `lost-payment-answer` | invoice id `FAULT-TIMEOUT…` | `COMPLETED` | held; the payment is found again by its key |
+
+By hand, after `make up` and `make seed`:
+
+```bash
+FTOKEN=$(make -s token TENANT=bank-a SCOPES="funding:write funding:read")
+curl -si -X POST localhost:13100/v1/funding-requests \
+  -H "authorization: Bearer $FTOKEN" -H "content-type: application/json" \
+  -H "idempotency-key: $(uuidgen)" \
+  -d '{"programId":"prg_grand_usd","invoiceId":"INV-FUND-1","amount":{"value":"1000.00","currency":"USD"}}'
+# 202 Accepted, Location: /v1/funding-requests/<id>; poll that URL until "state" is COMPLETED
+```
+
+The funding API, its errors and the gRPC contract: [docs/api.md](docs/api.md#funding-api-branch-microservices).
+The containers and the saga as diagrams: [docs/architecture.md](docs/architecture.md#branch-microservices-funding-the-payment-rail-and-the-grpc-hop).
+Ports and services: [docs/local-stack.md](docs/local-stack.md). On a cluster (needs `kind`,
+`helm` and `kubectl`):
+
+```bash
+make helm-check        # lint, template and validate every chart (no cluster needed)
+make kind-up           # cluster finverity-ms, three images, five Helm releases incl. the gateway
+make kind-smoke        # in-cluster tests: capacity, funding saga, gateway
+make kind-forward      # port-forwards on 23000-23099 for manual calls
+make kind-down         # deletes cluster finverity-ms and nothing else
+```
+
+Not built on this branch: Redis, GraphQL, CQRS, a real cloud, TLS or mTLS between services,
+Pact tests and the funding event relay (planned, see the status above). The funding service and
+the payments mock use plain `node:http` and zod, not NestJS.
 
 ## The problem in one minute
 
@@ -98,9 +203,10 @@ keep every bank's data separate. A worked example is in [docs/how-it-works.md](d
 | `make`, `curl` | any (macOS ships GNU Make 3.81, that is enough) | Every command is a make target; the API tour uses curl |
 | `jq` | any; optional | Only `make qa` needs it |
 
-Free ports: 13000 (API), 15432 (PostgreSQL), 18081 (OAuth2), 19464 (api ops + Swagger UI + AsyncAPI),
-19465 (worker ops), 39092 (Kafka). `make up-all` also needs 13001, 14318, 18080, 19090 and 26686. `make doctor` checks all of the above and says how to fix
-what is missing.
+Free ports: 13000 (API), 60051 (gRPC), 15432 (PostgreSQL), 18081 (OAuth2), 19464 (api ops + Swagger UI + AsyncAPI),
+19465 (worker ops), 39092 (Kafka), and for the funding services 13100, 13200, 19466 and 19467. `make up-all` also needs
+13001, 14318, 18080, 19090 and 26686. `make doctor` checks the capacity ports and says how to fix what is missing; it does not
+check the four funding ports.
 
 ### Install and run
 
@@ -144,6 +250,8 @@ make down              # stop and delete everything (the tools too)
 | URL | What |
 | --- | --- |
 | <http://localhost:13000/v1/…> | Business API (needs a token). Every container, port and profile: [docs/local-stack.md](docs/local-stack.md) |
+| <http://localhost:13100/v1/funding-requests> | Branch only: the funding API (needs a token with a `funding:` scope; no Swagger UI, the contract is `services/funding/contracts/openapi.yaml`) |
+| <http://localhost:19466/health/ready>, <http://localhost:19467/health/ready> | Branch only: readiness and `/metrics` of the funding `api` and `worker` |
 | <http://localhost:19464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
 | <http://localhost:19464/docs/asyncapi> | AsyncAPI: every Kafka topic the service reads and writes, with headers, keys and an example per message (`make events` tails `capacity.events.v1` live) |
 | <http://localhost:18080> | Kafka UI, after `make up-all` (`make kafka-ui` opens it): topics, every record with key and headers, consumer lag, DLQs; can produce a treasury message ([how to check with it](docs/qa.md#kafka-in-the-browser-kafka-ui)) |
@@ -180,6 +288,8 @@ flowchart LR
   ([ADR 018](docs/adr/018-hexagonal-architecture.md)).
 
 C4 diagrams, the flows step by step and the data model: [docs/architecture.md](docs/architecture.md).
+This section describes the capacity service. On branch `microservices` it is one of three
+deployables; the others are shown in [What this branch adds](#what-this-branch-adds-and-how-to-run-it).
 
 ## Repository map
 
@@ -190,9 +300,11 @@ C4 diagrams, the flows step by step and the data model: [docs/architecture.md](d
 | `src/capacity/adapters/in/` | Entry points: HTTP controllers, Kafka consumer, scheduled jobs |
 | `src/capacity/adapters/out/` | PostgreSQL repositories and migrations, Kafka outbox relay |
 | `src/platform/` | Config, logging, health, telemetry, start-up per role |
+| `services/funding/`, `services/payments-mock/` | Branch `microservices`: the funding service (domain, saga driver, REST adapter, PostgreSQL adapters and migrations, ops server) and the mock payment rail. Each has its own `package.json`, tests and Dockerfile |
+| `packages/contracts/` | Branch `microservices`: the `.proto` of capacity's gRPC API, the generated stubs, and the JSON Schemas of `capacity.events.v1` and `funding.events.v1` |
 | `test/` | Integration, end-to-end, Kafka, fault, property and architecture tests (unit tests sit next to the code) |
 | `contracts/` | Generated from the zod schemas: OpenAPI (REST), AsyncAPI (Kafka in and out), a JSON Schema per Kafka message |
-| `deploy/` | Docker Compose stack, mock OAuth2 config, Prometheus/Grafana, Kubernetes manifests |
+| `deploy/` | Docker Compose stack, mock OAuth2 config, Prometheus/Grafana, Kubernetes manifests; on the branch also `helm/` (capacity, funding, local-infra, gateway) and `kind/` |
 | `tools/` | Token CLI, treasury simulator, demo, DLQ replay, k6 load script, contract generator |
 | `db/seeds/` | Deterministic seed data |
 | `docs/` | Everything to read; start at [docs/README.md](docs/README.md) |
@@ -203,7 +315,8 @@ Every file, its purpose and its layer: [docs/repository-map.md](docs/repository-
 ## Checks
 
 ```bash
-make verify    # lint, types, layer rules, OpenAPI/AsyncAPI drift, unit and property tests (~20 s)
+make verify    # lint, types, layer rules, OpenAPI/AsyncAPI drift, unit and property tests (~20 s);
+               # on the branch also proto lint/breaking and the same checks in every workspace
 make test      # all tests with real PostgreSQL and Kafka via Testcontainers (~4 min, needs Docker)
 make qa        # 103 QA checks on the running stack: endpoints, Kafka input, DB and events (docs/qa.md)
 make compat    # no breaking contract change against origin/main (oasdiff + message schemas; Docker);
@@ -251,9 +364,10 @@ The full list with reasons is in [docs/assumptions-and-trade-offs.md](docs/assum
   and raises an alert** rather than releasing capacity on a guess (configurable).
 - **Health and metrics are not behind a JWT.** They are on a separate internal port, because
   orchestrators and Prometheus cannot send tokens. Every business endpoint is authenticated.
-- **Deliberately not used:** gRPC ([why](docs/adr/022-no-grpc-adapter.md)), Redis, PgBouncer,
-  Debezium, AWS emulators ([why each](docs/infrastructure-choices.md)), event sourcing,
-  sagas, GraphQL ([ADR 017](docs/adr/017-out-of-scope.md)).
+- **Deliberately not used (on `main`):** gRPC ([why](docs/adr/022-no-grpc-adapter.md)), Redis,
+  PgBouncer, Debezium, AWS emulators ([why each](docs/infrastructure-choices.md)), event
+  sourcing, sagas, GraphQL ([ADR 017](docs/adr/017-out-of-scope.md)). On branch `microservices`
+  gRPC and a saga are built (ADR 024, ADR 025); Redis, event sourcing and GraphQL still are not.
 
 ## Running in production (not built here)
 

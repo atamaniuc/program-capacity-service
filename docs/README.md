@@ -11,6 +11,7 @@ Read in this order. Each step says what you should know after it.
 | 3 | 15 min | [architecture.md](architecture.md) | C4 diagrams, the four main flows, the data model, where each piece of code lives |
 | 4 | 10 min | `make install`, then [api.md](api.md) | The API by hand: reserve, retry, release, errors |
 | 5 | 10 min | [assumptions-and-trade-offs.md](assumptions-and-trade-offs.md) and [infrastructure-choices.md](infrastructure-choices.md) | Why it is built this way, and what was left out on purpose |
+| 5a | 10 min | Branch `microservices` only: the README section "What this branch adds", the [architecture](architecture.md#branch-microservices-funding-the-payment-rail-and-the-grpc-hop) section on funding, then [position-fit.md](position-fit.md) | The second service and the saga, and how the whole maps to the job description, with the gaps |
 | 6 | 10 min | Code: `src/capacity/domain/` → `application/use-cases/reserve-capacity/` → `adapters/in/http/capacity.controller.ts` → `adapters/out/postgres/unit-of-work.ts`; then [testing.md](testing.md) | One request from the controller down to the SQL, and how it is tested |
 
 Optional, when you need them: [repository-map.md](repository-map.md) (what every file is for), [runbook.md](runbook.md) (operating the service, alerts),
@@ -34,6 +35,8 @@ Optional, when you need them: [repository-map.md](repository-map.md) (what every
 | [PRD.md](PRD.md) | Requirements: FR, NFR, acceptance criteria, invariants, stack |
 | [development-process.md](development-process.md) | How the repository was built with AI agents; what `.harness/` and `specs/` are |
 | [Backend-Developer-Test-Assignment.md](Backend-Developer-Test-Assignment.md) | The original assignment |
+| [senior-node-js-engineer.md](senior-node-js-engineer.md) | The job description the work is measured against |
+| [position-fit.md](position-fit.md) | The assignment and the job description point by point: what the repository shows, the proof, and what is not covered |
 
 ## Decision records
 
@@ -63,3 +66,15 @@ Each ADR is one page: context, decision, consequences, rejected alternatives.
 | [020](adr/020-ubiquitous-language.md) | Naming rules |
 | [021](adr/021-evolution-path.md) | When and how to split into more services |
 | [022](adr/022-no-grpc-adapter.md) | No gRPC adapter |
+
+Branch `microservices` only (the evolution demo; `main` keeps ADRs 001 to 022 as written):
+
+| ADR | Decision |
+| --- | --- |
+| [023](adr/023-t3-funding-context-database-per-service.md) | Trigger T3 fired: funding as a new service, one database per service |
+| [024](adr/024-grpc-driving-adapter.md) | Internal gRPC driving adapter for capacity (supersedes 022 here) |
+| [025](adr/025-funding-saga-orchestration.md) | Funding saga: a hand-rolled orchestrator persisted in PostgreSQL |
+| [026](adr/026-helm-and-kind.md) | Helm charts and a local kind cluster |
+| [027](adr/027-repository-layout-and-side-by-side-isolation.md) | npm workspaces with capacity at the root; side by side with `main` |
+| [028](adr/028-contracts-package-and-consumer-contracts.md) | Contracts package and consumer-driven contracts (Pact); no schema registry |
+| [029](adr/029-api-gateway.md) | API gateway: Envoy Gateway on the Gateway API, in kind only |

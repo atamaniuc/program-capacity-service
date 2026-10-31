@@ -8,6 +8,12 @@ zod schemas in `src/capacity/adapters/in/http/`. The Kafka side (treasury input,
 events the service publishes) is [`contracts/asyncapi.yaml`](../contracts/asyncapi.yaml); see
 [section 7](#7-events-on-kafka).
 
+On branch `microservices` there are two more contracts: the funding service's REST API
+([`services/funding/contracts/openapi.yaml`](../services/funding/contracts/openapi.yaml), toured
+in [Funding API](#funding-api-branch-microservices)) and capacity's internal gRPC API
+([`packages/contracts/proto/`](../packages/contracts/proto/), described in [gRPC](#grpc-branch-microservices-adr-024)).
+Everything else on this page is the capacity REST API.
+
 ## Easiest: Swagger UI
 
 Open <http://localhost:19464/docs> (ops port, local only). Click **Authorize**, choose
@@ -280,12 +286,167 @@ optional; or, if the change really is breaking, version it as above. `make compa
 BASE=<ref>` compares with another commit. The check compares only files that exist at the base,
 so a brand-new message is free to change until it is merged.
 
+## Funding API (branch `microservices`)
+
+`funding-service` takes a request to pay one approved invoice early, and carries it out in the
+background: it reserves capacity, pays through a payment rail, and undoes the reservation if the
+payment definitely fails ([ADR 025](adr/025-funding-saga-orchestration.md)). It listens on host
+port 13100 in the compose stack. The contract is
+[`services/funding/contracts/openapi.yaml`](../services/funding/contracts/openapi.yaml), generated
+from zod like capacity's and checked for drift by `make verify`. There is no Swagger UI for it.
+
+| Method and path | Scope | What it does |
+| --- | --- | --- |
+| `POST /v1/funding-requests` | `funding:write` | Record a request to pay one invoice. Answers `202` and does the work later |
+| `GET /v1/funding-requests/{id}` | `funding:read` | The request and its state |
+
+The token has audience `funding-service`, not `capacity-service`, so a capacity token is refused
+here and the other way round. The tenant comes from the token. In the local OAuth2 server a
+scope containing `funding:` selects the funding audience:
+
+```bash
+FTOKEN=$(make -s token TENANT=bank-a SCOPES="funding:write funding:read")
+```
+
+### Submit and poll
+
+```bash
+curl -si -X POST localhost:13100/v1/funding-requests \
+  -H "authorization: Bearer $FTOKEN" -H "content-type: application/json" \
+  -H "idempotency-key: $(uuidgen)" \
+  -d '{"programId":"prg_grand_usd","invoiceId":"INV-FUND-1","amount":{"value":"1000.00","currency":"USD"}}'
+```
+
+```text
+HTTP/1.1 202 Accepted
+Location: /v1/funding-requests/0193…
+```
+
+```json
+{
+  "id": "0193…",
+  "programId": "prg_grand_usd",
+  "invoiceId": "INV-FUND-1",
+  "amount": { "value": "1000.00", "currency": "USD" },
+  "state": "RECEIVED",
+  "reason": null,
+  "reservationId": null,
+  "paymentId": null,
+  "createdAt": "…"
+}
+```
+
+The money is not moved yet. Poll `GET /v1/funding-requests/{id}` until `state` is final. A
+request normally finishes within seconds; the states are:
+
+| `state` | Meaning | Final? |
+| --- | --- | --- |
+| `RECEIVED` | Recorded, not started | no |
+| `RESERVING` | Risk check passed; capacity is being reserved | no |
+| `DISBURSING` | Capacity is held (`reservationId` set); the payment is being made | no |
+| `COMPENSATING` | The payment definitely failed (or a reservation must be undone); the reservation is being released | no |
+| `COMPLETED` | Paid. `reservationId` and `paymentId` are set | yes |
+| `REJECTED` | Refused before any money moved; `reason` says why: `risk-declined`, `insufficient-capacity`, `fx-rate-unavailable` or another problem type from capacity, `invoice-already-reserved`. Capacity holds nothing | yes |
+| `FAILED` | The payment failed or the reservation could not be used, and the saga released what it held. Capacity holds nothing | yes |
+| `NEEDS_ATTENTION` | The saga cannot finish on its own. `reason`: `disbursement-unknown` (the payment rail never answered; the money may have left, so the reservation is kept), `reserve-unresolved`, or `release-failed:<problem>`. An operator resolves it ([runbook](runbook.md#funding-a-request-needs-attention-fundingneedsattention)) | parked |
+
+`reason` is `null` in the happy path and carries the cause otherwise. A request that ends
+`REJECTED` or `FAILED` is final for that invoice: see "Idempotency" below.
+
+### Idempotency
+
+Same idea as capacity ([section 4](#4-retry-safely-with-idempotency-key), ADR 006), with these
+points:
+
+- `Idempotency-Key` is optional and recommended. The first outcome is stored per tenant and key
+  and replayed, including a business rejection such as the `409` below. Validation and
+  authentication errors are not stored.
+- The same key with a different request (another program, invoice or amount) is
+  `422 idempotency-key-mismatch`.
+- Without a key, the natural key still protects: one funding request per tenant, program and
+  invoice. A second `POST` for the same invoice with the same amount and currency answers
+  `200` with the **existing** request, in whatever state it is; with another amount or currency
+  it answers `409 funding-request-conflict`. Twenty concurrent identical calls create one row.
+- Consequently a request that ended `REJECTED` or `FAILED` cannot be started again for the same
+  invoice and program: the `POST` returns the existing request. There is no resubmission
+  endpoint yet.
+- The stored answers are kept; funding has no retention job yet (capacity's is 24 hours).
+
+Inside, the service uses a different, derived key for each call it makes to capacity and to the
+rail (`funding:<id>:reserve`, `:disburse`, `:release`), so its own retries are safe too. That is
+not something a client sets.
+
+### Errors
+
+Every error is `application/problem+json` (RFC 9457), as in capacity, with
+`type` = `https://errors.funding.example/<problem>`; branch on `type`, not on the status.
+
+| Status | `type` (suffix) | When |
+| --- | --- | --- |
+| 400 | `validation-error` | The body is not JSON, fails the schema, the amount is not a decimal string at the currency's scale, is not above zero or names an unsupported currency, or the `Idempotency-Key` is malformed |
+| 401 | `unauthorized` | Missing, malformed, expired or wrong-audience token. `WWW-Authenticate: Bearer` is set |
+| 403 | `forbidden` | The token lacks `funding:write` (for `POST`) or `funding:read` (for `GET`) |
+| 404 | `not-found` | No such request **for this tenant**, a malformed id, or an unknown path. Another tenant's request is a `404`, never a `403` |
+| 405 | `method-not-allowed` | Wrong method on a known path; `Allow` names the right one |
+| 409 | `funding-request-conflict` | A request for this invoice and program exists with another amount or currency |
+| 413 | `payload-too-large` | Body over 64 KiB |
+| 422 | `idempotency-key-mismatch` | The key was used with a different request |
+| 500 | `internal-error` | Unexpected failure; the detail carries no internals |
+| 503 | `service-unavailable` | The identity provider's keys cannot be fetched. `Retry-After: 1`; safe to retry with the same key |
+
+Authentication runs before routing, so an anonymous caller cannot learn which paths exist.
+Business outcomes of the saga (a refused reservation, a declined payment) are **not** HTTP
+errors: the `POST` already answered `202`, and the outcome is the `state` and `reason` of the
+request.
+
+### Through the gateway (kind only)
+
+In the kind cluster an Envoy gateway fronts both public APIs: `/v1/programs…` goes to capacity
+and `/v1/funding-requests…` to funding. The gateway checks the token (signature, issuer,
+audience), applies CORS and a per-tenant request limit, and answers `401`, `404` or `429` itself,
+in a body that is **not** `application/problem+json`; that is how a test tells a gateway answer
+from a service answer. The services still verify the token themselves, so a call that bypasses
+the gateway is refused too. The gRPC port is never routed
+([ADR 029](adr/029-api-gateway.md)).
+
 ## gRPC (branch `microservices`, ADR 024)
 
 `finverity.capacity.v1.CapacityService` (`Reserve`, `Release`, `GetAvailability`) runs in the
-`api` role on `GRPC_PORT` (container 50051, host 60051). It is internal: plaintext HTTP/2, and
-every call needs `authorization: Bearer <jwt>` metadata (same issuer, audience and scopes as REST).
+`api` role on `GRPC_PORT` (container 50051, host 60051 on `127.0.0.1`). It is internal: plaintext
+HTTP/2, and every call needs `authorization: Bearer <jwt>` metadata (same issuer, audience and
+scopes as REST: `capacity:write` for `Reserve` and `Release`, `capacity:read` for
+`GetAvailability`; a method missing from the scope table is denied).
 `idempotency-key` and `x-request-id` are metadata; a key first used over REST replays over gRPC.
 Money is `{ value: "1250.50", currency_code: "USD" }`. Errors carry `google.rpc.Status` in
 `grpc-status-details-bin` with an `ErrorInfo` (`reason` = the REST problem `type`, `domain` =
-`capacity.finverity`, `metadata.detail`). Contract: `contracts/proto/`.
+`capacity.finverity`, `metadata.detail`). Contract: `packages/contracts/proto/` (checked by
+`buf lint` and `buf breaking` in `make verify`, stubs checked for drift). The caller of this API
+is `funding-service`; it is not exposed to clients and not routed by the gateway.
+
+`ReserveResponse.result` is `CREATED` when the stored outcome is a `201` (this call, or an
+earlier call with the same key, created the reservation) and `EXISTING` when it is a `200` (the
+invoice already had a reservation with the same terms, made by another request). The saga
+treats `EXISTING` as "not mine" and never releases it.
+
+Problem type to status, with the one rule behind it: **anything stored under an
+`Idempotency-Key` maps to a code that clients do not retry**, because a retry with the same key
+would only replay the stored answer.
+
+| Problem type | HTTP | gRPC code |
+| --- | --- | --- |
+| `validation-error` | 400 | `INVALID_ARGUMENT` |
+| `unauthorized` | 401 | `UNAUTHENTICATED` |
+| `forbidden` | 403 | `PERMISSION_DENIED` |
+| `not-found` | 404 | `NOT_FOUND` |
+| `reservation-conflict` | 409 | `ALREADY_EXISTS` |
+| `insufficient-capacity`, `program-over-limit`, `program-suspended`, `fx-rate-unavailable` | 422 | `FAILED_PRECONDITION` |
+| `idempotency-key-mismatch`, `release-ref-mismatch`, `release-exceeds-remaining` | 422 | `FAILED_PRECONDITION` |
+| `payload-too-large` | 413 | `RESOURCE_EXHAUSTED` |
+| `service-unavailable` (database down, identity provider keys unavailable, lock or statement timeout) | 503 | `UNAVAILABLE` |
+| `internal-error` | 500 | `INTERNAL` |
+
+Every call carries a deadline. The server does no work for a call whose deadline has already
+passed. A transaction that has started is not abandoned: it commits or rolls back as a whole, so
+a commit after the client gave up is an unknown outcome for the client, resolved by repeating the
+call with the same key. The acceptance cases AC-01 to AC-06, AC-13, AC-16, AC-17 and FR-01 run
+over both transports with the same outcome (`test/e2e/transports.e2e.test.ts`).
