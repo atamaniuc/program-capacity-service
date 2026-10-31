@@ -83,3 +83,11 @@ Harness friction to avoid: gates run only at commit and merge, not after every e
 of rules mid-task; no `/model` or `/effort` in a running agent (launch with
 `-- --model sonnet --effort high`); at most 4 panes per herdr tab; the coordinator does herdr routine
 itself and never asks the owner about routine.
+
+## CI for k8s and the push (owner ruling 2026-10-30 22:00)
+
+T23 (CI: `make helm-check`, funding and payments-mock image builds, a `kind` job with
+`helm/kind-action` running `make kind-up kind-smoke` on push to `microservices`) moves into the
+current batch, done by `k8s` after the live kind run. Branch `microservices` is pushed to
+`origin` once, at the end, after T17 (no force push); the coordinator then watches CI and fixes red
+until it is green.
