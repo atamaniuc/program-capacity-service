@@ -439,6 +439,47 @@ Open before the live run (K8-03, M2(c)); not exercised, nothing was installed in
 - `deploy/compose.yaml`, the payments host port 13200 -> 3200 and ops 9466, alerts and the demo
   are the funding agent's T14 part; the `test.saga` flag of `helm test funding` is still off.
 
+### Live kind run with funding (agent `k8s`, 2026-10-30, after merging T11–T14 `08760a5`)
+
+`make kind-up`: exit 0, funding api/worker Ready (ops 9464 probes match T14), payments-mock up,
+gateway Programmed. `make kind-smoke`: `SMOKE_EXIT=0`, `✔ kind smoke passed`:
+`OK capacity: 401 without token, 404 with token, gRPC port open`;
+`OK funding: ready, 401 without token`;
+`OK saga: completed (+100.00), declined request compensated (reserved back)` (K8-03);
+`helm test gateway`: `13 passed, 0 failed, 0 skipped`, including the funding half (M2 c): GW-01 POST
+202 + `Location`, GW-02 bad signature and foreign `iss` on the funding route, GW-03 funding with no
+token and with a foreign `iss`.
+
+Found live and fixed (chart, not funding code): the mock OAuth2 Deployment had no config checksum,
+so after the mapping change the old Pod kept issuing `aud=capacity-service` for `funding:` scopes
+and funding answered the saga submit 401; `checksum/config` on the Pod template now restarts it
+(static test K8-01). The cluster `finverity-ms` is left up.
+
+Still NOT exercised (do not read the green run as covering these):
+- `make kind-forward` / `make kind-token` from the host through the gateway (`Host: localhost:…`):
+  the one attempt was blocked by the tool permission layer (a broad process kill) and not retried.
+- GW-02 with an expired token and the CORS preflight at the edge; GW-05 live "capacity records no
+  gRPC call".
+- K8-03 runs the saga directly against the funding Service, not through the gateway; compensation
+  after a capacity-side failure and the `FAULT-TIMEOUT` / `FAULT-5XX` markers are not driven in kind.
+- `make test` was not re-run in this worktree after the merge; `make kind-down` was not run.
+
+### T23 CI (agent `k8s`, 2026-10-31)
+
+`.github/workflows/ci.yml`: job `charts` (`azure/setup-helm@v5.0.1`, helm `v3.22.1`, which passes
+`make helm-check` locally; `make helm-check` downloads kubeconform at its pinned version and checks
+the archive's SHA-256); `image` builds `services/funding` and `services/payments-mock`; job `kind`
+(`helm/kind-action@v1.15.1` with `install_only: true`, kind `v0.33.0`, kubectl `v1.35.8`,
+`actions/upload-artifact@v7.0.2`; `timeout-minutes: 30`) runs `make kind-up` and `make kind-smoke`
+only. Versions checked with `gh api` on 2026-10-31. Static proof: `test/architecture/ci.test.ts`
+(T23): exact make targets, microservices-only condition, no cluster/kubeconfig/port inputs on the
+action, artifact on failure; each assertion was mutation-checked.
+
+NOT verified: the workflow has never run on GitHub (the branch is pushed by the coordinator only at
+the very end), so the `kind` job's first real run may still need fixes (runner resources, `nc` for
+`kind-seed`, image pulls, Envoy Gateway OCI install from `docker.io`, the 30-minute budget).
+`actionlint` is not installed here and was not run; the YAML parses and the static test reads it.
+
 ## Decisions taken
 
 - The split is T3 only; capacity is not cut; I1–I8, lock order and ADR 006 rules unchanged.

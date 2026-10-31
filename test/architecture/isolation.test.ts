@@ -278,6 +278,12 @@ describe('mock OAuth2 config copies (ADR 026)', () => {
     expect(read(chart)).toBe(read(compose));
   });
 
+  it('K8-01 the mock OAuth2 Pod restarts when its config changes (checksum annotation)', () => {
+    expect(read('deploy/helm/local-infra/templates/oauth.yaml')).toMatch(
+      /checksum\/config: \{\{ \.Files\.Get "files\/oauth-config\.json" \| sha256sum \}\}/,
+    );
+  });
+
   it('K8-01 the config maps a funding: scope to the funding audience and keeps the capacity default', () => {
     const config = JSON.parse(read(chart)) as {
       tokenCallbacks: {

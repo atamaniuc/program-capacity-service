@@ -40,6 +40,9 @@ spec:
       labels:
         app.kubernetes.io/name: oauth
         app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        # A changed token mapping restarts the Pod: the server reads its config only at start.
+        checksum/config: {{ .Files.Get "files/oauth-config.json" | sha256sum }}
     spec:
       enableServiceLinks: false
       containers:
