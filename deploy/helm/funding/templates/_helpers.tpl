@@ -39,3 +39,19 @@ livenessProbe:
   timeoutSeconds: 3
   failureThreshold: 5
 {{- end }}
+
+{{/* The images run as USER node; a numeric uid lets the kubelet verify runAsNonRoot. */}}
+{{- define "funding.podSecurityContext" -}}
+runAsNonRoot: true
+runAsUser: 1000
+runAsGroup: 1000
+seccompProfile:
+  type: RuntimeDefault
+{{- end }}
+
+{{- define "funding.containerSecurityContext" -}}
+allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
+capabilities:
+  drop: [ALL]
+{{- end }}

@@ -55,7 +55,8 @@ const Schema = z.object({
   OAUTH_TOKEN_URL: z.string().min(1),
   /** The issuer's `Host` when the token URL is not the issuer's own address. */
   OAUTH_ISSUER_HOST: z.string().min(1).optional(),
-  OAUTH_CLIENT_SECRET: z.string().min(1).default('funding-service'),
+  /** No default: the secret comes from the environment's Secret (compose env, Helm Secret). */
+  OAUTH_CLIENT_SECRET: z.string().min(1),
   PAYMENTS_BASE_URL: z.string().min(1),
   FUNDING_GRPC_DEADLINE_MS: positiveInt(21_000),
   FUNDING_PAYMENT_TIMEOUT_MS: positiveInt(5_000),

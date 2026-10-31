@@ -5,6 +5,7 @@ const BASE = {
   DATABASE_URL: 'postgres://funding:funding@localhost/funding',
   CAPACITY_GRPC_TARGET: 'localhost:50051',
   OAUTH_TOKEN_URL: 'http://localhost:8080/default/token',
+  OAUTH_CLIENT_SECRET: 'test-secret',
   PAYMENTS_BASE_URL: 'http://localhost:3200',
 };
 
@@ -19,6 +20,16 @@ describe('worker config (boot validation, ADR 025)', () => {
     expect(config.grpcDeadlineMs).toBe(21_000);
     expect(config.leaseMs).toBe(60_000);
     expect(config.tokenTimeoutMs).toBe(5_000);
+  });
+
+  it('FS-09 the client secret is required: there is no default', () => {
+    const withoutSecret: Record<string, string> = { ...BASE };
+    delete withoutSecret['OAUTH_CLIENT_SECRET'];
+    expect(() => loadWorkerConfig(withoutSecret)).toThrow(/OAUTH_CLIENT_SECRET/);
+    expect(() => loadWorkerConfig({ ...BASE, OAUTH_CLIENT_SECRET: '' })).toThrow(
+      /OAUTH_CLIENT_SECRET/,
+    );
+    expect(loadWorkerConfig(BASE).clientSecret).toBe('test-secret');
   });
 
   it('FS-09 a resolution limit that reaches the 24 h key retention stops the boot', () => {

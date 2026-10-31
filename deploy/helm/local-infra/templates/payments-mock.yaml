@@ -33,10 +33,22 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # The image runs as USER node; a numeric uid lets the kubelet verify runAsNonRoot.
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: payments-mock
           image: {{ .Values.paymentsMock.image }}
           imagePullPolicy: {{ .Values.paymentsMock.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           env:
             - { name: PAYMENTS_PORT, value: {{ .Values.paymentsMock.port | quote }} }
           ports:
