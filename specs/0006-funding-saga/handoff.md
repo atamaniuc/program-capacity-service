@@ -840,3 +840,11 @@ CHECK test — so migration 0003 applies and holds on real PostgreSQL —, datab
 `beforeAll`, twice). The system suite passed in full before these fixes (FS-03, FS-06, FS-07, FS-11
 and the token checks); the new system `FS-09` has not run yet. **Owed:** one serial `make test` on a
 quiet Docker host.
+
+### Final serial `make test` on the merged branch (coordinator, 2026-10-31, HEAD 7bda740 + 352503b)
+
+Leaked Testcontainers removed first; only the main stack and kind ran beside it.
+`MAKE_TEST_EXIT=0`, `✔ all tests passed`: capacity unit 32 files / 167, funding unit 12 / 61,
+payments-mock 2 / 8, contracts 1 / 9, capacity int+e2e 27 / 140, funding int+e2e+system 6 / 58
+(system suite on the real capacity image behind Toxiproxy). This closes the "serial make test on a
+quiet host" owed by 062bc13.
