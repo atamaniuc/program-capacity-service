@@ -3,9 +3,9 @@
 .githooks
 .harness
 .claude
-.omc
+**/.omc
 .kind
-.codegraph
+**/.codegraph
 node_modules
 dist
 **/node_modules

@@ -59,8 +59,8 @@ workspaces, the internal gRPC adapter (lane 0006 tasks T1 to T6); `funding-servi
 saga, ops ports, metrics, alerts, the runbook entries and `make demo-funding` (T7 to T14); Helm,
 kind and the Envoy gateway (T15 to T16a); the contracts package (T18). Open after the cut:
 Pact tests (T19, T20), the funding event relay (T21), the operator command for a request that
-needs attention (T22) and funding consuming capacity events (T24). The kind job in CI (T23) is
-written but has not run yet (see "Kubernetes in CI" below). The
+needs attention (T22) and funding consuming capacity events (T24). The kind job in CI (T23) runs on every
+push and is green (see "Kubernetes in CI" below). The
 list is in [specs/0006-funding-saga/tasks.md](specs/0006-funding-saga/tasks.md). The sections
 below "The problem in one minute" still describe the capacity service as submitted on `main`,
 which this branch does not change.
@@ -166,8 +166,8 @@ make kind-down         # deletes cluster finverity-ms and nothing else
 funding and payments-mock images in the `image` job, and a `kind` job that installs kind and runs
 `make kind-up` and `make kind-smoke`, the same targets as above, for pushes to `microservices` and
 pull requests into it (30 minutes at most; kubectl state is uploaded as an artifact when it fails).
-The branch is pushed only at the end of the work, so **none of these jobs has run on GitHub yet**;
-the first real run of the `kind` job may still need fixes. What the cluster run covers and what it
+All of them are green on GitHub since the first push of the branch (2026-10-31, run
+41170207130: `kind-up` and `kind-smoke` on a fresh runner, saga and gateway smoke included). What the cluster run covers and what it
 does not: [specs/0006-funding-saga/handoff.md](specs/0006-funding-saga/handoff.md).
 
 Not built on this branch: Redis, GraphQL, CQRS, a real cloud, TLS or mTLS between services,

@@ -14,4 +14,4 @@ The shape of a line, kept in a fence so it is an example rather than a track:
 - **Retrieval quality (spec 0004)** — [handoff](specs/0004-retrieval/handoff.md) — active, next: T3 recall@5 eval on the held-out set
 ```
 
-- **Funding saga, branch `microservices` (spec 0006)** — [handoff](specs/0006-funding-saga/handoff.md) — active, 2026-10-29, next: T1 side-by-side isolation from main (shifted ports, compose project `program-capacity-ms`)
+- **Funding saga, branch `microservices` (spec 0006)** — [handoff](specs/0006-funding-saga/handoff.md) — active, 2026-10-31, P0 and T18, T23 done and green in CI, next: T19 Pact consumer tests (P1)
