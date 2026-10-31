@@ -220,6 +220,27 @@ describe('saga driver: unknown reserve, compensation (ADR 025)', () => {
     ]);
   });
 
+  it('FS-09 a repeated Reserve answered PERMISSION_DENIED never ends FAILED: still unknown past the resolution limit, NEEDS_ATTENTION, alert, no release (review M2)', async () => {
+    const reserves = world.capacity.reserves.length;
+    const releases = world.capacity.releases.length;
+    world.capacity.onReserve = (_call, index) =>
+      index === reserves ? { error: status.UNAVAILABLE } : { error: status.PERMISSION_DENIED };
+    const alerts: string[] = [];
+    const id = await world.submit({ invoiceId: 'inv-denied' });
+    await world.drain(
+      world.driver({
+        saga: { reserveDeadlineMs: 1, reserveResolutionLimitMs: 1 },
+        hooks: { ...pastTheDeadline, onAlert: (claim) => alerts.push(claim.request.id) },
+      }),
+    );
+
+    const row = await world.row(id);
+    expect(row['state']).toBe('NEEDS_ATTENTION');
+    expect(row['reason']).toBe('reserve-unresolved');
+    expect(alerts).toEqual([id]);
+    expect(world.capacity.releases.length).toBe(releases);
+  });
+
   it('FS-10 an unknown disbursement is retried (lookup first), never released; the rail answering later completes it', async () => {
     world.capacity.onReserve = () => created('res-slow-rail');
     const releases = world.capacity.releases.length;
@@ -397,7 +418,7 @@ describe('saga driver: a lost result is a replay (ADR 025 exactly-once effect)',
     expect(new Set(mine.map((c) => c.metadata['idempotency-key']))).toEqual(
       new Set([`funding:${id}:reserve`]),
     );
-    expect(effects.size).toBeGreaterThanOrEqual(1);
+    expect(effects.size).toBe(1);
     const attempts = await world.attempts(id);
     expect(attempts.filter((a) => a.step === 'reserve')).toHaveLength(1);
     expect(attempts.filter((a) => a.step === 'disburse')).toHaveLength(1);

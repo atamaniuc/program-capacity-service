@@ -51,12 +51,21 @@ export type ReleaseAnswer =
   | { readonly status: 'OK' }
   | { readonly status: 'ERROR'; readonly code: GrpcCodeName; readonly reason?: string };
 
-/** Codes that state, without doubt, that the call changed nothing (ADR 025 outcome table). */
-const DEFINITE_FAILURE_CODES: ReadonlySet<GrpcCodeName> = new Set([
+/**
+ * Codes that state, without doubt, that a Reserve changed nothing (ADR 025 outcome table).
+ * `PERMISSION_DENIED` is not among them: a token or scope problem says nothing about whether an
+ * earlier attempt landed, so the saga must keep resolving instead of ending FAILED on it.
+ */
+const RESERVE_DEFINITE_FAILURE_CODES: ReadonlySet<GrpcCodeName> = new Set([
   'FAILED_PRECONDITION',
   'NOT_FOUND',
   'ALREADY_EXISTS',
   'INVALID_ARGUMENT',
+]);
+
+/** A Release that is refused outright is unexpected and parked for an operator, not retried. */
+const RELEASE_DEFINITE_FAILURE_CODES: ReadonlySet<GrpcCodeName> = new Set([
+  ...RESERVE_DEFINITE_FAILURE_CODES,
   'PERMISSION_DENIED',
 ]);
 
@@ -70,7 +79,7 @@ export function classifyReserve(answer: ReserveAnswer): ReserveOutcome {
       ? { kind: 'created', reservationId: answer.reservationId }
       : { kind: 'existing' };
   }
-  return DEFINITE_FAILURE_CODES.has(answer.code)
+  return RESERVE_DEFINITE_FAILURE_CODES.has(answer.code)
     ? { kind: 'failure', problem: problemOf(answer.code, answer.reason) }
     : { kind: 'unknown' };
 }
@@ -82,7 +91,7 @@ export function classifyReserve(answer: ReserveAnswer): ReserveOutcome {
 export function classifyRelease(answer: ReleaseAnswer): ReleaseOutcome {
   if (answer.status === 'OK') return { kind: 'released' };
   if (answer.reason === 'release-exceeds-remaining') return { kind: 'released' };
-  return DEFINITE_FAILURE_CODES.has(answer.code)
+  return RELEASE_DEFINITE_FAILURE_CODES.has(answer.code)
     ? { kind: 'failure', problem: problemOf(answer.code, answer.reason) }
     : { kind: 'unknown' };
 }

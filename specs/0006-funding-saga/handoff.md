@@ -518,7 +518,7 @@ fixes, T8, T9). Fix in the `funding` lane before T11:
 2. m1 `services/funding/src/funding/adapters/in/http/server.ts`: authenticate every `/v1/`
    request before routing; 405 gets type `method-not-allowed`.
 3. m2 `deploy/compose.yaml`: postgres healthcheck `pg_isready -h 127.0.0.1 -U funding -d funding`;
-   runbook: `make down -v` once for volumes created before 9b89069.
+   runbook: `make down` once (it deletes the volumes) for volumes created before 9b89069.
 4. m3 `services/funding/test/e2e/api.e2e.test.ts`: FS-02 cases for a 409 stored and replayed
    under a key, and JWKS outage → 503 with `Retry-After`.
 5. m4 (T11): the capacity-client token request sends `tenant_id`; a test asserts the claim.
@@ -549,7 +549,7 @@ M1: `deploy/oauth/config.json` matches are `funding-service\\..+` and `.*funding
 over the committed file and asserts `aud`. The live check (mint from the real mock container)
 is not written yet: it needs Docker. m1: every `/v1/` request is authenticated before routing;
 405 is `method-not-allowed` with `Allow`. m2: compose healthcheck `pg_isready -h 127.0.0.1 -U
-funding -d funding`, runbook entry "first boot after the database split" (`make down -v` once).
+funding -d funding`, runbook entry "first boot after the database split" (`make down` once).
 m3: three new FS-02 e2e cases (409 stored and replayed under a key; JWKS outage -> 503 with
 `Retry-After`; auth before routing). m4 is for T11.
 `make verify`: `✔ verify passed` (funding unit 7 files / 30 tests). **The three new e2e cases in
@@ -699,38 +699,38 @@ Land these with T14 (the `funding` agent commits this section and the DECISIONS 
 Reviewer ran `make verify` (`✔ verify passed`; funding unit 59/59 on the tree with T14 WIP) and
 `npx harnessimo check` (all pass); no Docker-backed run.
 
-- [ ] **M1 — key-retention bound.** `services/funding/src/funding/domain/config.ts:40` checks only
+- [x] **M1 — key-retention bound.** `services/funding/src/funding/domain/config.ts:40` checks only
   `reserveResolutionLimitMs < CAPACITY_KEY_RETENTION_MS`. Add error
   `reserve-window-reaches-key-retention` when `reserveDeadlineMs + reserveResolutionLimitMs +
   60 * 60 * 1000 >= CAPACITY_KEY_RETENTION_MS` (the hour covers the backoff cap and a lease).
   Unit test (FS-09 id) with 13 h + 13 h refused and the defaults accepted; `worker-config` test
   that boot stops. ADR 025 timeouts table, `FUNDING_RESERVE_RESOLUTION_LIMIT` row: "reserve
   deadline + resolution limit + 1 h must stay below 24 h".
-- [ ] **M2 — `PERMISSION_DENIED` on Reserve is unknown.** `outcome.ts:55` shares one definite set
+- [x] **M2 — `PERMISSION_DENIED` on Reserve is unknown.** `outcome.ts:55` shares one definite set
   for Reserve and Release. Split it: Reserve definite = `FAILED_PRECONDITION`, `NOT_FOUND`,
   `ALREADY_EXISTS`, `INVALID_ARGUMENT`; Release keeps `PERMISSION_DENIED` definite. Tests:
   classifier unit test; int FS-09 "a repeat answered PERMISSION_DENIED never ends FAILED: still
   unknown past the resolution limit → NEEDS_ATTENTION, alert, no release"; move `PERMISSION_DENIED`
   out of the definite list in `src/funding/domain/outcome.test.ts:28`. Amend ADR 025's outcome
   table (Reserve definite-failure cell; `PERMISSION_DENIED` moves to unknown with the reason).
-- [ ] **m1 — lease bound.** `services/funding/src/worker-config.ts:114` compares the lease with one
+- [x] **m1 — lease bound.** `services/funding/src/worker-config.ts:114` compares the lease with one
   call; a Reserve can take token (5 s) + 21 s + token + 21 s after `UNAUTHENTICATED` = 52 s > the
   30 s default, a lookup-first disburse 2 × 5 s. Safety holds (key + version), but the comment at
   :91–93 claims more. Bound: lease > 2 × (token timeout + gRPC deadline) and > 2 × payment
   timeout; make the token timeout a config value passed to the provider; raise the default lease
   to 60 s (ADR 025 table too).
-- [ ] **m2 — vacuous assertion.** `services/funding/test/integration/saga.int.test.ts:400`
+- [x] **m2 — vacuous assertion.** `services/funding/test/integration/saga.int.test.ts:400`
   `expect(effects.size).toBeGreaterThanOrEqual(1)` → `toBe(1)` (the map is local to the test).
-- [ ] **m3 — FS-12 receiver half.** `driver.int.test.ts:96–99, 146`: the fake's own map makes "one
+- [x] **m3 — FS-12 receiver half.** `driver.int.test.ts:96–99, 146`: the fake's own map makes "one
   effect" true by construction. Reword FS-12 in spec.md to "both calls carry one key; one result
   recorded (version check); the receiver's deduplication of concurrent same-key calls is
   capacity's AC-02" and drop the `effects` assertion, or add a system variant on the real image.
-- [ ] **m4 — FS-09 on the real image.** The only path where the saga releases a reservation it
+- [x] **m4 — FS-09 on the real image.** The only path where the saga releases a reservation it
   learned by replay. Add `saga.system.test.ts#FS-09`: the FS-07 `timeout` toxic plus a driver with
   `reserveDeadlineMs: 1` (and the `beforeRecord` sleep) → COMPENSATING → toxic removed → repeat
   answers `CREATED` with the committed id → `RELEASE`; `reserved` back to its start, ledger
   `RESERVE`, `RELEASE`, state FAILED. Point FS-09's proof marker at it (keep the int cases).
-- [ ] **m5 — schema backs the states.** New migration `0003`: `CHECK (state NOT IN ('DISBURSING',
+- [x] **m5 — schema backs the states.** New migration `0003`: `CHECK (state NOT IN ('DISBURSING',
   'COMPLETED') OR reservation_id IS NOT NULL)` and `CHECK (state <> 'COMPLETED' OR payment_id IS
   NOT NULL)`; an int test (FS-13 id) that a raw `UPDATE` violating each is refused.
 
@@ -765,3 +765,37 @@ Checks: `make verify`: `✔ verify passed`; `npm run test:int -w @finverity/fund
 Docker contention: the compose stack was up next to the tests; the capacity Kafka test
 `AC-10` failed with the stack up and passes alone: `Tests 4 passed (4)`). `FS-12` was made
 deterministic (gate keyed on its own invoice, batch 100).
+
+
+### Review fixes applied (2026-10-31, agent `funding`)
+
+M1 `config.ts`: `reserve-window-reaches-key-retention` when deadline + resolution limit + 1 h >= 24 h
+(unit tests: 13 h + 13 h refused, 11 h + 12 h refused, 10 h + 12 h and the defaults accepted;
+`worker-config` boot test). M2 `outcome.ts`: Reserve's definite set no longer holds
+`PERMISSION_DENIED` (Release keeps it); classifier unit test, int FS-09 "a repeat answered
+PERMISSION_DENIED never ends FAILED"; ADR 025 outcome table amended. m1 `worker-config.ts`: lease
+must exceed 2 x (token timeout + gRPC deadline) and 2 x payment timeout (52 s with the defaults),
+`FUNDING_TOKEN_TIMEOUT_MS` added and handed to the token provider, default lease 60 s (ADR table and
+the Helm `stepLease` too: the old 30 s would now stop the worker at boot). m2 `toBe(1)`. m3 FS-12
+reworded in spec.md and the test-side dedup assertion dropped (both calls carry one key, one result
+recorded; the receiver half is capacity's AC-02 and FS-07 here). m4 `saga.system.test.ts#FS-09`
+(timeout toxic + `reserveDeadlineMs: 1`: COMPENSATING, toxic removed, repeat replays `CREATED`,
+`RELEASE`, reserved back, ledger `RESERVE`,`RELEASE`, FAILED); FS-09's proof markers now name it.
+m5 migration `0003_state_backed_columns.sql` (two CHECKs) with an int test (FS-13 id) that raw
+UPDATEs violating each are refused. FS-12's two-driver test was made deterministic (gate keyed on its
+own invoice, batch 100).
+
+Checks: `make verify`: `✔ verify passed`; funding unit `Test Files 12 passed (12)  Tests 61 passed
+(61)`; `make helm-check`: `✔ helm-check passed`. **`make test` was NOT green in one run** (Docker VM
+6 CPU / 6 GB, kind control plane at ~110 % CPU, other stacks up, six testcontainers leaked by hooks
+that timed out): root unit 159/159, funding unit 61/61, payments-mock 8/8, contracts 9/9; root int
+stopped at four capacity files (`outage.fault`, `shutdown-worker.fault`, `role-all.kafka`,
+`treasury-consumer.kafka`: hook timeouts, "Topic creation errors") — code this commit does not touch;
+the same files passed in earlier serial runs of this lane. `npm run test:int -w @finverity/funding`:
+`Test Files 1 failed | 5 passed (6)  Tests 50 passed | 8 skipped (58)`: the five integration/e2e
+files pass (saga.int incl. the new FS-09 PERMISSION_DENIED case, driver.int incl. FS-12 and the m5
+CHECK test — so migration 0003 applies and holds on real PostgreSQL —, database, api e2e, ops);
+`test/system/saga.system.test.ts` did not start (mock-oauth2 container not reachable within 60 s in
+`beforeAll`, twice). The system suite passed in full before these fixes (FS-03, FS-06, FS-07, FS-11
+and the token checks); the new system `FS-09` has not run yet. **Owed:** one serial `make test` on a
+quiet Docker host.

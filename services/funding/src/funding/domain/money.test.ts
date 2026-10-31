@@ -40,6 +40,32 @@ describe('money, risk policy and settings', () => {
     });
   });
 
+  it('FS-09 boot refuses a reserve window that, with the retry margin, reaches the 24 h key retention', () => {
+    const hours = (n: number): number => n * 60 * 60 * 1000;
+    const refused = validateSagaConfig({
+      reserveDeadlineMs: hours(13),
+      disburseDeadlineMs: hours(1),
+      reserveResolutionLimitMs: hours(13),
+    });
+    expect(refused).toEqual({ ok: false, error: 'reserve-window-reaches-key-retention' });
+    // 12 h + 11 h + the 1 h margin is exactly 24 h: still too much; 12 h + 10 h passes.
+    expect(
+      validateSagaConfig({
+        reserveDeadlineMs: hours(11),
+        disburseDeadlineMs: hours(1),
+        reserveResolutionLimitMs: hours(12),
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateSagaConfig({
+        reserveDeadlineMs: hours(10),
+        disburseDeadlineMs: hours(1),
+        reserveResolutionLimitMs: hours(12),
+      }).ok,
+    ).toBe(true);
+    expect(validateSagaConfig(DEFAULT_SAGA_CONFIG).ok).toBe(true);
+  });
+
   it('FS-09 boot refuses a resolution limit that reaches capacity key retention', () => {
     expect(validateSagaConfig(DEFAULT_SAGA_CONFIG).ok).toBe(true);
     const day = 24 * 60 * 60 * 1000;

@@ -59,7 +59,8 @@ const Schema = z.object({
   PAYMENTS_BASE_URL: z.string().min(1),
   FUNDING_GRPC_DEADLINE_MS: positiveInt(21_000),
   FUNDING_PAYMENT_TIMEOUT_MS: positiveInt(5_000),
-  FUNDING_STEP_LEASE: duration(30_000),
+  FUNDING_TOKEN_TIMEOUT_MS: positiveInt(5_000),
+  FUNDING_STEP_LEASE: duration(60_000),
   FUNDING_POLL_INTERVAL: duration(500),
   FUNDING_BATCH_SIZE: positiveInt(10),
   FUNDING_RESERVE_DEADLINE: duration(DEFAULT_SAGA_CONFIG.reserveDeadlineMs),
@@ -82,6 +83,7 @@ export interface WorkerConfig {
   readonly paymentsBaseUrl: string;
   readonly grpcDeadlineMs: number;
   readonly paymentTimeoutMs: number;
+  readonly tokenTimeoutMs: number;
   readonly leaseMs: number;
   readonly pollIntervalMs: number;
   readonly batchSize: number;
@@ -91,8 +93,9 @@ export interface WorkerConfig {
 
 /**
  * Parses the environment once at boot (ADR 025): a resolution limit that reaches capacity's
- * 24 h key retention, a lease shorter than one call, or a deadline below capacity's own
- * transaction timeouts stops the process instead of risking a double effect.
+ * 24 h key retention (or a reserve window that does, with the retry margin), a lease shorter than
+ * the longest step, or a deadline below capacity's own transaction timeouts stops the process
+ * instead of risking a double effect.
  */
 export function loadWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
   const parsed = Schema.safeParse(env);
@@ -113,8 +116,16 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
       `invalid configuration: FUNDING_GRPC_DEADLINE_MS must exceed capacity's lock plus statement timeout (${CAPACITY_TRANSACTION_BUDGET_MS.toString()} ms)`,
     );
   }
-  if (c.FUNDING_STEP_LEASE <= Math.max(c.FUNDING_GRPC_DEADLINE_MS, c.FUNDING_PAYMENT_TIMEOUT_MS)) {
-    throw new Error('invalid configuration: FUNDING_STEP_LEASE must exceed one call deadline');
+  // One step can fetch a token, call capacity, get UNAUTHENTICATED, fetch a token again and call
+  // once more; a lookup-first disbursement makes two HTTP calls. The lease must outlast both.
+  const longestStep = Math.max(
+    2 * (c.FUNDING_TOKEN_TIMEOUT_MS + c.FUNDING_GRPC_DEADLINE_MS),
+    2 * c.FUNDING_PAYMENT_TIMEOUT_MS,
+  );
+  if (c.FUNDING_STEP_LEASE <= longestStep) {
+    throw new Error(
+      `invalid configuration: FUNDING_STEP_LEASE must exceed the longest step (${longestStep.toString()} ms: two attempts of token fetch plus call)`,
+    );
   }
   return {
     databaseUrl: c.DATABASE_URL,
@@ -126,6 +137,7 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     paymentsBaseUrl: c.PAYMENTS_BASE_URL,
     grpcDeadlineMs: c.FUNDING_GRPC_DEADLINE_MS,
     paymentTimeoutMs: c.FUNDING_PAYMENT_TIMEOUT_MS,
+    tokenTimeoutMs: c.FUNDING_TOKEN_TIMEOUT_MS,
     leaseMs: c.FUNDING_STEP_LEASE,
     pollIntervalMs: c.FUNDING_POLL_INTERVAL,
     batchSize: c.FUNDING_BATCH_SIZE,

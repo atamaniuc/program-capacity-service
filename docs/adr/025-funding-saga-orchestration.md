@@ -44,8 +44,8 @@ Every call outcome is classified before any transition:
 | Class | Reserve (gRPC) | Disburse (HTTP) | Release (gRPC) |
 | --- | --- | --- | --- |
 | Definite success | OK with `result = CREATED` | `PAID` | OK; or `release-exceeds-remaining` on a final release, which can only mean the remainder is already zero |
-| Definite failure | `FAILED_PRECONDITION`, `NOT_FOUND`, `ALREADY_EXISTS`, `INVALID_ARGUMENT`, `PERMISSION_DENIED`; or OK with `result = EXISTING` (not ours, see below) | `DECLINED` (the rail states that no money moved) | `NOT_FOUND`, `release-ref-mismatch`, a persistent `PERMISSION_DENIED`: unexpected, never retried blindly |
-| Unknown | `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`, `ABORTED`, `RESOURCE_EXHAUSTED`, connection loss; `UNAUTHENTICATED` after one token refresh | timeout, connection loss, 5xx, an unparseable answer | as for Reserve |
+| Definite failure | `FAILED_PRECONDITION`, `NOT_FOUND`, `ALREADY_EXISTS`, `INVALID_ARGUMENT`; or OK with `result = EXISTING` (not ours, see below) | `DECLINED` (the rail states that no money moved) | `NOT_FOUND`, `release-ref-mismatch`, a persistent `PERMISSION_DENIED`: unexpected, never retried blindly |
+| Unknown | `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`, `UNKNOWN`, `ABORTED`, `RESOURCE_EXHAUSTED`, connection loss; `UNAUTHENTICATED` after one token refresh; `PERMISSION_DENIED` (a refused token or scope says nothing about whether an earlier attempt landed, so the saga keeps resolving and, past the limit, parks the request instead of ending `FAILED` on it; architect review of T11-T13, M2) | timeout, connection loss, 5xx, an unparseable answer | as for Reserve |
 
 **`EXISTING` is not ours.** Under the saga's own key, an earlier attempt that created the
 reservation is replayed as `CREATED`. `EXISTING` therefore means the invoice already had a
@@ -184,11 +184,12 @@ which the saga would read as "not ours". So every reserve retry ends well inside
 | --- | --- | --- |
 | `FUNDING_GRPC_DEADLINE_MS` | 21000 | Above capacity's `lock_timeout + statement_timeout` (5 s + 15 s, `PostgresUnitOfWork` defaults) |
 | `FUNDING_PAYMENT_TIMEOUT_MS` | 5000 | Per HTTP call |
-| `FUNDING_STEP_LEASE` | 30 s | Above one call's deadline (21 s) |
+| `FUNDING_TOKEN_TIMEOUT_MS` | 5000 | Per token request |
+| `FUNDING_STEP_LEASE` | 60 s | Above the longest step: two attempts of token fetch plus call, 2 × (5 s + 21 s) = 52 s (a Reserve that meets `UNAUTHENTICATED` once), and two payment calls; boot refuses less |
 | Backoff | 0.5 s doubling, cap 60 s, full jitter | Per request |
 | `FUNDING_RESERVE_DEADLINE` | 2 min | Business deadline of the reserve step |
 | `FUNDING_DISBURSE_DEADLINE` | 15 min | Then `NEEDS_ATTENTION`, never compensation |
-| `FUNDING_RESERVE_RESOLUTION_LIMIT` | 12 h | Must stay below capacity's key retention (24 h); boot refuses a larger value |
+| `FUNDING_RESERVE_RESOLUTION_LIMIT` | 12 h | Reserve deadline + resolution limit + 1 h (backoff cap and a lease) must stay below capacity's key retention (24 h); boot refuses otherwise |
 
 ### Events and observability
 

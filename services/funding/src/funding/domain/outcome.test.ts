@@ -25,7 +25,6 @@ describe('outcome classes (ADR 025)', () => {
       'NOT_FOUND',
       'ALREADY_EXISTS',
       'INVALID_ARGUMENT',
-      'PERMISSION_DENIED',
     ];
     for (const code of definite) {
       expect(classifyReserve({ status: 'ERROR', code }).kind).toBe('failure');
@@ -38,6 +37,8 @@ describe('outcome classes (ADR 025)', () => {
       'ABORTED',
       'RESOURCE_EXHAUSTED',
       'UNAUTHENTICATED',
+      // A refusal says nothing about an earlier attempt that may have landed (review M2).
+      'PERMISSION_DENIED',
       'CANCELLED',
       'DATA_LOSS',
     ];
@@ -67,6 +68,10 @@ describe('outcome classes (ADR 025)', () => {
       }),
     ).toEqual({ kind: 'failure', problem: 'release-ref-mismatch' });
     expect(classifyRelease({ status: 'ERROR', code: 'UNAVAILABLE' })).toEqual({ kind: 'unknown' });
+    expect(classifyRelease({ status: 'ERROR', code: 'PERMISSION_DENIED' })).toEqual({
+      kind: 'failure',
+      problem: 'permission-denied',
+    });
   });
 
   it('FS-10 Disburse: only PAID and DECLINED are definite; timeouts, 5xx and unparseable answers are unknown', () => {

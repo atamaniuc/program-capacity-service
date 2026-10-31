@@ -254,6 +254,62 @@ promised, with the invariants intact.
 **Rejected:** rewriting `main`; moving capacity to `services/capacity` (ADR 027); Temporal
 (ADR 025).
 
+## 2026-10-30 — Architect review of lane 0006 T11–T13 (saga driver, compensation, exactly-once): APPROVE WITH FIXES
+
+Reviewed cold at d3dcd9b, 94cee19 and 932e71a (code as committed, not the T14 work in the tree).
+No BLOCKER; no second review. T11–T13 stay ticked; the fixes below land in the `funding` lane with
+T14. `make verify` green on the working tree; `npx harnessimo check` green; `make test` belongs to
+the funding agent (its T13 run is quoted in the handoff).
+
+- **The money path is right as built.** One deterministic key per step (`funding:<id>:<step>`);
+  the Reserve body and the payment body are pure functions of the persisted row (bytes asserted).
+  No path re-enters `DISBURSING`, and no edge leads from an unknown disbursement to
+  `COMPENSATING`: an unknown disbursement is retried with a lookup first, then parked
+  (`NEEDS_ATTENTION` is outside the claim predicate). `Release` is reachable only with a
+  `reservation_id` taken from `CREATED` under the saga's key (S3). Claim, then call outside any
+  transaction, then one record transaction (row `WHERE version = claimed`, attempt row, outbox
+  row); the claim bumps the version, so a version match proves no later claim. No `FOR UPDATE`
+  on any idempotency row; `lock_timeout`/`statement_timeout` per transaction.
+- **Accepted:** `record` checks the version and not `lease_owner` (a late record under an
+  expired but unclaimed lease is a correct record). The worker reads and writes by request id
+  across tenants: it is a system actor; tenant isolation on the effect side is the per-tenant
+  capacity token, and the token cache and its in-flight map are keyed by tenant. The per-call
+  gRPC deadline on `Release` is a transport timeout, not a business deadline (FS-11 proves the
+  compensation outlives 1 ms limits). `release-exceeds-remaining` as compensated is proven on the
+  real image first. Review m4 (T7–T9) is closed: `tenant_id` is sent and asserted in the form and
+  in the minted claim.
+- **M1 — the key-retention bound is not what boot validates.** `validateSagaConfig` bounds only
+  `reserveResolutionLimitMs < 24 h`. The window that must fit inside capacity's key retention
+  runs from the first Reserve to the last resolving Reserve: reserve deadline + resolution limit
+  + one backoff cap + one lease. 13 h + 13 h passes today; at hour ~25 the repeat meets the
+  natural key, capacity answers `EXISTING`, the resolving path ends `FAILED` without a release,
+  and the reservation is held for good with no alert (S5 broken). Ruling: boot refuses
+  `reserveDeadline + resolutionLimit + 1 h margin >= 24 h`; ADR 025's bound column says "the sum".
+- **M2 — `PERMISSION_DENIED` on Reserve is not a statement about earlier attempts.** Capacity
+  refuses 403 before the key is consulted (ADR 006 table), so on a repeat it cannot mean "nothing
+  held". Attempt 1 commits and its answer is lost; the tenant's client loses `capacity:write`
+  (offboarding, an IdP mapping change); the repeat gets `PERMISSION_DENIED` and the saga ends
+  `REJECTED` (or `FAILED` while resolving) with capacity still holding the reservation, silently.
+  Ruling: for Reserve, `PERMISSION_DENIED` is **unknown** (a misconfigured tenant then goes
+  RESERVING → COMPENSATING → `NEEDS_ATTENTION` with an alert, which is the visibility it
+  deserves). Release keeps it definite (it already parks). `INVALID_ARGUMENT` stays definite: it
+  is a function of the identical body. ADR 025's outcome table is amended accordingly.
+- **Minor:** the lease bound ignores the token fetch and the one-refresh retry (m1); FS-08's
+  `effects.size >= 1` asserts nothing (m2); FS-12's "receiver sees one effect" is proven against a
+  fake whose dedup lives in the test (m3); FS-09's "capacity's reserved ends where it started" is
+  not what its fake-backed proof asserts (m4); the schema does not back "DISBURSING/COMPLETED
+  have a reservation, COMPLETED has a payment" (m5). Fix list in the lane handoff.
+
+**Why:** the saga's exactly-once argument rests on two facts: capacity still holds the key, and
+a definite failure really means nothing was held. M1 and M2 are the two places where the code
+lets either fact lapse without an alert; everything else is proven and would turn red if broken
+(the version-check and random-key probes were read and agree with the reported failures).
+
+**Rejected:** a lease-owner check in `record` (redundant with the version bump), a business
+deadline on compensation (ADR 025: `release_ref` never expires), treating every definite Reserve
+failure on a repeat as unknown (`FAILED_PRECONDITION`, `NOT_FOUND`, `ALREADY_EXISTS` are stored
+under the key and replayed, so they are definite on any attempt).
+
 ## 2026-10-30 — Architect review of lane 0006 T7 fixes, T8, T9: APPROVE WITH FIXES
 
 Reviewed cold at 9b89069 and e6da9a8. No BLOCKER; no second review. T7, T8, T9 stay ticked;

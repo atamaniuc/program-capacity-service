@@ -91,13 +91,8 @@ const sleep = (ms: number): Promise<void> =>
   });
 
 describe('two drivers and a lease that expires mid-call (ADR 025)', () => {
-  it('FS-12 the late result of the first driver is dropped by the version check; the receiver sees one effect', async () => {
-    const effects = new Map<string, string>();
-    world.capacity.onReserve = (call) => {
-      const key = call.metadata['idempotency-key'] ?? '';
-      if (!effects.has(key)) effects.set(key, `res-${(effects.size + 1).toString()}-fs12`);
-      return created(effects.get(key) ?? '');
-    };
+  it('FS-12 the late result of the first driver is dropped by the version check; one result is recorded', async () => {
+    world.capacity.onReserve = () => created('res-fs12');
     world.rail.onDisburse = () => ({ kind: 'paid', paymentId: 'pay-fs12' });
     let open: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
@@ -138,13 +133,13 @@ describe('two drivers and a lease that expires mid-call (ADR 025)', () => {
     expect(await world.attempts(id)).toEqual(attemptsBefore);
     expect(attemptsBefore.filter((x) => x.step === 'reserve')).toHaveLength(1);
     expect((await world.row(id))['state']).toBe('COMPLETED');
-    // Two calls reached the receiver under one key; it did one thing.
+    // Both calls carried one key; whether the receiver deduplicates concurrent same-key calls
+    // is capacity's AC-02, proven on the real image there and by FS-07 here.
     expect(
       world.capacity.reserves.filter(
         (c) => c.metadata['idempotency-key'] === `funding:${id}:reserve`,
       ),
     ).toHaveLength(2);
-    expect([...effects.keys()].filter((k) => k === `funding:${id}:reserve`)).toHaveLength(1);
   });
 });
 
@@ -215,4 +210,20 @@ describe('a failed transition rolls back whole (ADR 025)', () => {
       expect(await world.outbox(id)).toEqual(['FundingRequestReceived', 'FundingRequestRejected']);
     },
   );
+});
+
+describe('the schema backs the states (review m5)', () => {
+  it.each([
+    [
+      "state = 'DISBURSING', disburse_deadline_at = now()",
+      /funding_request_disbursing_has_reservation/,
+    ],
+    ["state = 'COMPLETED', reservation_id = 'res-x'", /funding_request_completed_has_payment/],
+  ])('FS-13 a raw UPDATE to %s without its column is refused', async (set, expected) => {
+    const id = await world.submit({ invoiceId: `inv-m5-${set.length.toString()}` });
+    await expect(
+      world.persistence.pool.query(`UPDATE funding_request SET ${set} WHERE id = $1`, [id]),
+    ).rejects.toThrow(expected);
+    expect((await world.row(id))['state']).toBe('RECEIVED');
+  });
 });

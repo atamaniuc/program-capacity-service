@@ -158,7 +158,7 @@ proof: `services/funding/test/integration/saga.int.test.ts#FS-08`
 **FS-09** — GIVEN the reserve outcome stays unknown past `FUNDING_RESERVE_DEADLINE` WHEN the
 deadline passes THEN the saga repeats `Reserve` under the same key, releases what it gets, and
 ends `FAILED`; capacity's `reserved` ends where it started.
-proof: `services/funding/test/integration/saga.int.test.ts#FS-09`
+proof: `services/funding/test/integration/saga.int.test.ts#FS-09`, `services/funding/test/system/saga.system.test.ts#FS-09`
 
 **FS-10** — GIVEN the rail times out on every attempt WHEN `FUNDING_DISBURSE_DEADLINE` passes
 THEN `NEEDS_ATTENTION`, the reservation is still held, no release was sent, and the
@@ -172,7 +172,9 @@ release.
 proof: `services/funding/test/system/saga.system.test.ts#FS-11`
 
 **FS-12** — GIVEN two drivers and a lease that expires mid-call WHEN both run the same step
-THEN one result is recorded (version check) and the receiver sees one effect.
+THEN both calls carry one key and one result is recorded (version check); the receiver's
+deduplication of concurrent same-key calls is capacity's AC-02, and the lost-answer replay on the real
+image is FS-07.
 proof: `services/funding/test/integration/driver.int.test.ts#FS-12`
 
 **FS-13** — GIVEN a transition WHEN the outbox insert or the attempt-log insert fails THEN the

@@ -340,4 +340,75 @@ describe('exactly-once effect across the gRPC hop', () => {
     );
     expect(attempts.map((a) => a['outcome_class'])).toEqual(['unknown', 'success']);
   }, 180_000);
+
+  it('FS-09 a reserve whose answer is lost past the deadline is repeated under the same key, learns the committed id and is released: reserved back, FAILED', async () => {
+    await stack.seedProgram({
+      tenantId: 'bank-a',
+      id: 'prg_unknown',
+      currency: 'USD',
+      limitMinor: 5_000_000_00n,
+    });
+    const before = await reserved('prg_unknown');
+    // A 1 ms reserve deadline: the first unknown outcome already moves to COMPENSATING.
+    const driver = stack.driver({ saga: { reserveDeadlineMs: 1 } });
+    const warm = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_unknown',
+      invoiceId: 'inv-fs09-warm',
+      value: '10.00',
+    });
+    await stack.drain(stack.driver());
+    expect(await stateOf(warm)).toBe('COMPLETED');
+
+    const id = await stack.submit({
+      tenantId: 'bank-a',
+      programId: 'prg_unknown',
+      invoiceId: 'inv-fs09-lost',
+      value: '60.00',
+    });
+    await driver.runOnce(); // risk
+    const toxic = await stack.capacityProxy.instance.addToxic({
+      name: 'lost-answer-fs09',
+      type: 'timeout',
+      stream: 'downstream',
+      toxicity: 1,
+      attributes: { timeout: 0 },
+    });
+    try {
+      await driver.runOnce(); // Reserve committed in capacity, answer lost, deadline passed
+      expect(await stateOf(id)).toBe('COMPENSATING');
+      const [row] = await stack.funding(
+        'SELECT reservation_id FROM funding_request WHERE id = $1',
+        [id],
+      );
+      expect(row?.['reservation_id']).toBeNull(); // the saga does not know it yet
+    } finally {
+      await toxic.remove();
+    }
+    await until(async () => {
+      await driver.runOnce();
+      return (await stateOf(id)) === 'FAILED';
+    }, 'the repeated Reserve to be replayed and released');
+
+    expect(await reserved('prg_unknown')).toBe(String(BigInt(before) + 1000n)); // the warm-up request stays
+    const [reservation] = await stack.capacity(
+      `SELECT id::text, status FROM reservation WHERE invoice_id = 'inv-fs09-lost'`,
+    );
+    expect(reservation?.['status']).toBe('RELEASED');
+    const ledger = await stack.capacity(
+      `SELECT kind FROM ledger_entry WHERE reservation_id = $1::uuid ORDER BY id`,
+      [reservation?.['id']],
+    );
+    expect(ledger.map((l) => l['kind'])).toEqual(['RESERVE', 'RELEASE']);
+    const attempts = await stack.funding(
+      `SELECT step, outcome_class FROM saga_step_attempt WHERE request_id = $1 ORDER BY created_at, id`,
+      [id],
+    );
+    expect(attempts.map((a) => `${String(a['step'])}:${String(a['outcome_class'])}`)).toEqual([
+      'risk:success',
+      'reserve:unknown',
+      'reserve:success',
+      'release:success',
+    ]);
+  }, 180_000);
 });

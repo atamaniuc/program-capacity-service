@@ -22,7 +22,11 @@ export const DEFAULT_SAGA_CONFIG: SagaConfig = {
 export type SagaConfigError =
   | 'deadline-not-positive'
   | 'resolution-limit-reaches-key-retention'
+  | 'reserve-window-reaches-key-retention'
   | 'resolution-before-reserve-deadline';
+
+/** The backoff cap (60 s) and a step lease sit on top of the deadlines; one hour covers both. */
+const RETRY_MARGIN_MS = 60 * 60 * 1000;
 
 function isPositiveInteger(value: number): boolean {
   return value > 0 && value < Infinity && Math.floor(value) === value;
@@ -39,6 +43,14 @@ export function validateSagaConfig(config: SagaConfig): Result<SagaConfig, SagaC
   }
   if (config.reserveResolutionLimitMs >= CAPACITY_KEY_RETENTION_MS) {
     return err('resolution-limit-reaches-key-retention');
+  }
+  // The last repeat of Reserve happens at most deadline + limit + one backoff and lease after the
+  // first attempt; it must still be inside capacity's key retention (ADR 025).
+  if (
+    config.reserveDeadlineMs + config.reserveResolutionLimitMs + RETRY_MARGIN_MS >=
+    CAPACITY_KEY_RETENTION_MS
+  ) {
+    return err('reserve-window-reaches-key-retention');
   }
   if (config.reserveResolutionLimitMs < config.reserveDeadlineMs) {
     return err('resolution-before-reserve-deadline');

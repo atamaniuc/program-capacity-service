@@ -21,6 +21,7 @@ const gateway = new GrpcCapacityGateway({
     clientSecret: config.clientSecret,
     scope: 'capacity:write',
     issuerHost: config.issuerHost,
+    timeoutMs: config.tokenTimeoutMs,
   }),
 });
 const log = (level: string, msg: string, extra: Record<string, unknown> = {}): void => {

@@ -17,7 +17,8 @@ describe('worker config (boot validation, ADR 025)', () => {
       reserveResolutionLimitMs: 43_200_000,
     });
     expect(config.grpcDeadlineMs).toBe(21_000);
-    expect(config.leaseMs).toBe(30_000);
+    expect(config.leaseMs).toBe(60_000);
+    expect(config.tokenTimeoutMs).toBe(5_000);
   });
 
   it('FS-09 a resolution limit that reaches the 24 h key retention stops the boot', () => {
@@ -25,7 +26,7 @@ describe('worker config (boot validation, ADR 025)', () => {
       /resolution-limit-reaches-key-retention/,
     );
     expect(() =>
-      loadWorkerConfig({ ...BASE, FUNDING_RESERVE_RESOLUTION_LIMIT: '23h' }),
+      loadWorkerConfig({ ...BASE, FUNDING_RESERVE_RESOLUTION_LIMIT: '22h' }),
     ).not.toThrow();
   });
 
@@ -37,6 +38,16 @@ describe('worker config (boot validation, ADR 025)', () => {
         FUNDING_RESERVE_RESOLUTION_LIMIT: '5m',
       }),
     ).toThrow(/resolution-before-reserve-deadline/);
+  });
+
+  it('FS-09 a reserve window that reaches the key retention stops the boot', () => {
+    expect(() =>
+      loadWorkerConfig({
+        ...BASE,
+        FUNDING_RESERVE_DEADLINE: '13h',
+        FUNDING_RESERVE_RESOLUTION_LIMIT: '13h',
+      }),
+    ).toThrow(/reserve-window-reaches-key-retention/);
   });
 
   it('FS-12 a lease that does not outlast one call, or a call deadline inside capacity timeouts, stops the boot', () => {

@@ -19,7 +19,7 @@ paymentsUrl: http://payments-mock:8080
 funding:
   grpcDeadlineMs: 21000
   paymentTimeoutMs: 5000
-  stepLease: 30s
+  stepLease: 60s
   reserveDeadline: 2m
   disburseDeadline: 15m
   reserveResolutionLimit: 12h
