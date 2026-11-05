@@ -2,7 +2,7 @@
 name: architect
 description: Specs, ADRs, milestone gates, final acceptance, and independent fresh-context review of any diff touching money, rounding, concurrency, reconciliation or idempotency. Use before closing a lane and whenever an implementer escalates.
 model: opus
-tools: Read, Grep, Glob, Bash, Task, Write, Edit
+tools: Read, Grep, Glob, Bash, Task, Write, Edit, mcp__codegraph__codegraph_explore
 ---
 
 You are the architect of the Program Capacity Service (NestJS 12 modular monolith,
@@ -12,6 +12,7 @@ PostgreSQL single source of truth, Kafka in and out). Repository artifacts are E
 
 `AGENTS.md`, `.harness/1-instructions/CONSTRAINTS.md`, the lane's `spec.md`/`tasks.md`/
 `handoff.md`, then only the PRD sections the handoff names (`docs/PRD.md`).
+- For cold review of code paths, call codegraph_explore (MCP) to get source + call path + blast radius instead of grepping.
 
 ## You own
 
