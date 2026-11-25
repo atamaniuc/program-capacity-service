@@ -14,7 +14,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/capacity/adapters/out/postgres/migrations dist/capacity/adapters/out/postgres/",
     "start": "tsx src/main.ts",
-    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "lint": "git ls-files -z -- '*.js' '*.cjs' '*.mjs' '*.ts' '*.cts' '*.mts' | xargs -0 eslint --max-warnings 0 --no-warn-ignored && git ls-files -z | xargs -0 prettier --check --ignore-unknown",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "test": "npm run test:unit && npm run test:int",
@@ -88,5 +88,8 @@
   },
   "scarfSettings": {
     "enabled": false
+  },
+  "allowScripts": {
+    "@confluentinc/kafka-javascript@1.11.0": true
   }
 }
