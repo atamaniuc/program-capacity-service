@@ -173,7 +173,7 @@ NestJS module that wires ports to adapters for the `api` role.
 | `bootstrap/app.module.ts` | Root Nest module; closes the pool last on shutdown |
 | `bootstrap/shutdown.ts` | The 25 s shutdown deadline |
 | `health/ops-server.ts` | The internal ops port: `/health/live`, `/health/ready`, `/metrics`, documents |
-| `contracts/asyncapi.ts`, `asyncapi-examples.ts` | Builds the AsyncAPI 3.1 document (every topic, in and out) and the message JSON Schemas from the zod schemas, with one example per message |
+| `contracts/asyncapi.ts`, `asyncapi-examples.ts` | Builds the AsyncAPI 3.0 document (every topic, in and out) and the message JSON Schemas from the zod schemas, with one example per message |
 | `health/api-docs.ts` | Swagger UI at `/docs` and the OpenAPI JSON it loads; the AsyncAPI viewer at `/docs/asyncapi` and `/docs/asyncapi.json` |
 | `logging/logger.ts` | pino JSON logger, also used by Nest |
 | `telemetry/register.ts`, `otel.ts`, `trace-context.ts` | OpenTelemetry start-up (when `OTEL_ENABLED=true`) and trace ids in log lines |
@@ -202,7 +202,7 @@ requirement it proves (`AC-…`, `FR-…`, `NFR-…`, `SK-…`).
 | File | Purpose |
 | --- | --- |
 | `openapi.yaml` | REST contract, **generated** from the zod schemas (`make contracts`); `make verify` fails if it is stale |
-| `asyncapi.yaml` | Kafka contract, **generated** (AsyncAPI 3.1): treasury topics, their DLQs and `capacity.events.v1`, with keys, headers, consumer group and examples; served at `/docs/asyncapi` |
+| `asyncapi.yaml` | Kafka contract, **generated** (AsyncAPI 3.0): treasury topics, their DLQs and `capacity.events.v1`, with keys, headers, consumer group and examples; served at `/docs/asyncapi` |
 | `json-schema/*.schema.json` (on the branch: `packages/contracts/json-schema/`) | **Generated** JSON Schema (draft-07) of each Kafka message: four treasury messages in, four events out; `asyncapi.yaml` references them, the simulator and tests validate against them |
 
 ## `deploy/` — running it

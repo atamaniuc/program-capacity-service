@@ -21,7 +21,7 @@ import {
 } from '#src/capacity/application/shared/treasury-messages.js';
 
 /**
- * The Kafka contract (PRD §9, ADR 015) as one AsyncAPI 3.1 document, built from the zod schemas
+ * The Kafka contract (PRD §9, ADR 015) as one AsyncAPI 3.0 document, built from the zod schemas
  * that validate treasury input and type the outbound payloads. `npm run contracts` commits it as
  * `contracts/asyncapi.yaml` with payloads in `contracts/json-schema/`; `/docs/asyncapi` serves
  * the same document with the payloads inlined.
@@ -202,7 +202,7 @@ export function buildAsyncApiDocument(options: {
   };
 
   return {
-    asyncapi: '3.1.0',
+    asyncapi: '3.0.0',
     info: {
       title: 'Program Capacity Service - Kafka',
       version: '1.1.0',

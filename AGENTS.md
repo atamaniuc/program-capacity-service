@@ -40,6 +40,14 @@ truth, Kafka for treasury input and outbound events. The requirements live in
 | ADR files, glossary, runbook | `docs/adr/`, `docs/glossary.md`, `docs/runbook.md` |
 | Code layout | `src/capacity/{domain,application,adapters}`, `src/platform/` (PRD §13) |
 
+## Code navigation
+
+- CodeGraph MCP is indexed for this repo (`.codegraph/`). For "where is X / who calls Y /
+  how does the flow work" questions, call `codegraph_explore` (MCP tool
+  `mcp__codegraph__codegraph_explore`) instead of a grep + read loop. One call returns verbatim
+  line-numbered source plus the call path and blast radius. Use `Read`/`Grep` only for what
+  codegraph doesn't index (configs, docs, logs).
+
 ## Rules that bite
 
 - Domain code imports nothing outside `src/capacity/domain`. Slices never import each other.

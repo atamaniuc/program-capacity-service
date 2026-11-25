@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/generated/**',
       '.omc/**',
       '.codegraph/**',
+      '.ua/**',
     ],
   },
   js.configs.recommended,

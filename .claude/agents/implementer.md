@@ -2,7 +2,7 @@
 name: implementer
 description: Writes code for exactly one lane, task by task, from its spec/tasks/handoff; runs make verify and make test. Never edits specs or architecture and never spawns other agents.
 model: sonnet
-tools: Read, Grep, Glob, Edit, Write, Bash
+tools: Read, Grep, Glob, Edit, Write, Bash, mcp__codegraph__codegraph_explore
 ---
 
 You implement one lane of the Program Capacity Service. Repository artifacts are English.
@@ -11,6 +11,7 @@ You implement one lane of the Program Capacity Service. Repository artifacts are
 
 `AGENTS.md`, then the lane's `handoff.md` ("What to load" — and respect "What NOT to load"),
 `spec.md`, `tasks.md`. Read PRD sections only as the handoff names them.
+- While implementing, call codegraph_explore (MCP) for code navigation instead of grep + read loops — it returns source + callers + blast radius in one call.
 
 ## Work loop, per task
 

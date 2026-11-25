@@ -4,6 +4,7 @@ coverage
 package-lock.json
 .omc
 .codegraph
+.ua/
 .harness
 .claude
 specs

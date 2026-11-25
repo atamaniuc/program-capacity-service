@@ -19,12 +19,12 @@ interface Doc {
 const inline = () => buildAsyncApiDocument({ payloads: 'inline' }) as unknown as Doc;
 
 describe('AsyncAPI contract', () => {
-  it('NFR-14 the served document is valid AsyncAPI 3.1 with no error or warning', async () => {
+  it('NFR-14 the served document is valid AsyncAPI 3.0 with no error or warning', async () => {
     const { document, diagnostics } = await new Parser().parse(JSON.stringify(inline()));
     // Severity 0 is an error and 1 a warning (Spectral); information and hints are fine.
     const blocking = diagnostics.filter((d) => Number(d.severity) <= 1);
     expect(blocking.map((d) => d.message)).toEqual([]);
-    expect(document?.version()).toBe('3.1.0');
+    expect(document?.version()).toBe('3.0.0');
   });
 
   it('FR-13 documents every topic: treasury input, both DLQs and capacity.events.v1 in and out', () => {

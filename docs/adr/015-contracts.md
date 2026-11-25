@@ -21,7 +21,7 @@ the ops port only. No `@nestjs/swagger`, no class-validator.
 union of those types, so a payload with a missing or mistyped field does not compile; an extra
 field is caught by the strict schemas below).
 `src/platform/contracts/asyncapi.ts` (beside the wiring, like `openapi.ts` beside the HTTP
-adapter: it holds servers and page copy, not business rules) builds one AsyncAPI 3.1 document
+adapter: it holds servers and page copy, not business rules) builds one AsyncAPI 3.0 document
 from them: both treasury
 topics, both DLQs and `capacity.events.v1`, with Kafka keys, the event headers, the consumer
 group and an example per message. It is committed as `contracts/asyncapi.yaml` plus one

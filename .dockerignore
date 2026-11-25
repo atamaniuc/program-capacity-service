@@ -6,6 +6,7 @@
 **/.omc
 .kind
 **/.codegraph
+.ua
 node_modules
 dist
 **/node_modules
