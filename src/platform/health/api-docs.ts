@@ -67,6 +67,25 @@ export function renderApiDocs(
 ): Record<string, OpsDocument> {
   const served =
     options.tokenUrl === undefined ? document : withLocalLogin(document, options.tokenUrl);
+  const requestInterceptor =
+    options.tokenUrl === undefined
+      ? ''
+      : `requestInterceptor: (request) => {
+    if (request.url !== ${JSON.stringify(options.tokenUrl).replaceAll('<', '\\u003c')} || request.method !== 'post') return request;
+    const authorization = request.headers.Authorization;
+    if (!authorization?.startsWith('Basic ')) return request;
+    const form = new URLSearchParams(request.body);
+    if (form.get('grant_type') !== 'client_credentials') return request;
+
+    // The local mock issuer maps form credentials to the audience and tenant claims.
+    const credentials = atob(authorization.slice('Basic '.length));
+    const separator = credentials.indexOf(':');
+    form.set('client_id', credentials.slice(0, separator));
+    form.set('client_secret', credentials.slice(separator + 1));
+    request.body = form.toString();
+    delete request.headers.Authorization;
+    return request;
+  },`;
   const login =
     options.tokenUrl === undefined
       ? ''
@@ -90,6 +109,7 @@ const ui = SwaggerUIBundle({
   tryItOutEnabled: true,
   displayRequestDuration: true,
   defaultModelsExpandDepth: 0,
+  ${requestInterceptor}
 });
 ${login}
 </script>

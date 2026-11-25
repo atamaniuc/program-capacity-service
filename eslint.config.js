@@ -12,6 +12,7 @@ export default tseslint.config(
       'test/architecture/fixtures/**',
       '.omc/**',
       '.codegraph/**',
+      '.ua/**',
     ],
   },
   js.configs.recommended,

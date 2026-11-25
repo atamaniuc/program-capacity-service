@@ -105,7 +105,7 @@ describe('contract', () => {
     const html = await (await fetch(`${app.opsUrl}/docs`)).text();
     expect(html).toContain('tryItOutEnabled: true');
     // Served by the service itself, so the page works without network access.
-    expect(html).not.toMatch(/https?:\/\//);
+    expect(html).not.toMatch(/\b(?:src|href)=["']https?:\/\//);
     for (const [asset, type] of [
       ['/docs/swagger-ui-bundle.js', 'text/javascript'],
       ['/docs/swagger-ui.css', 'text/css'],

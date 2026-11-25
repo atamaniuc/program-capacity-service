@@ -5,6 +5,7 @@
 .claude
 .omc
 .codegraph
+.ua
 node_modules
 dist
 coverage
