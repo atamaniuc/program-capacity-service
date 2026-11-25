@@ -138,7 +138,7 @@ Treasury input from a terminal: `npm run simulate -- <scenario> --tenant bank-a 
 | QA-02 | Metrics split by role | `GET :9464/metrics`, `GET :9465/metrics` | api exposes `http_requests_total`; worker exposes `outbox_lag`, `outbox_oldest_unpublished_age_seconds`, `invariant_mismatch_programs`, `programs_over_limit` | `dlq_messages_total` appears on the worker after the first dead letter |
 | QA-03 | Swagger UI is local and ops-only | `GET :9464/docs`, `GET :9464/docs/swagger-ui-bundle.js`, `GET :3000/docs` | `200`, `200`, `404` | Works with the network off: no CDN requests |
 | QA-04 | CORS only for the docs origin | `OPTIONS :3000/v1/…/reservations` with `Origin: http://127.0.0.1:9464`, then with `Origin: http://evil.example` | `204` with `access-control-allow-origin`; the second has no allow-origin header | Origins come from `CORS_ORIGINS` |
-| QA-05 | AsyncAPI page is local and ops-only | `GET :9464/docs/asyncapi`, `GET :9464/docs/asyncapi-ui.js`, `GET :9464/docs/asyncapi.json`, `GET :3000/docs/asyncapi` | `200`, `200`, a 3.1.0 document with the channels `treasury.capacity.v1`, `treasury.fx-rates.v1`, both `.dlq` topics and `capacity.events.v1`, then `404` | The page links to Swagger UI and back; the viewer is served by the service, no CDN |
+| QA-05 | AsyncAPI page is local and ops-only | `GET :9464/docs/asyncapi`, `GET :9464/docs/asyncapi-ui.js`, `GET :9464/docs/asyncapi.json`, `GET :3000/docs/asyncapi` | `200`, `200`, a 3.0.0 document with the channels `treasury.capacity.v1`, `treasury.fx-rates.v1`, both `.dlq` topics and `capacity.events.v1`, then `404` | The page links to Swagger UI and back; the viewer is served by the service, no CDN |
 
 ## B. Authentication and tenants
 

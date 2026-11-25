@@ -55,7 +55,7 @@ check QA-04 "no CORS for other origins" $(echo "$h" | grep -qi '^access-control-
 c=$(curl -s -o /dev/null -w '%{http_code}' $OPS/docs/asyncapi); a=$(curl -s -o /dev/null -w '%{http_code}' $OPS/docs/asyncapi-ui.js)
 check QA-05 "AsyncAPI page and its viewer on ops port" $([ "$c$a" = 200200 ] && echo 0 || echo 1) "page=$c viewer=$a"
 aj=$(curl -s $OPS/docs/asyncapi.json | jq -r '[.asyncapi, ([.channels[].address]|sort|join(","))]|join(" ")')
-check QA-05 "asyncapi.json: 3.1.0, treasury in, DLQs, capacity.events.v1 out" $(is "$aj" "3.1.0 capacity.events.v1,treasury.capacity.v1,treasury.capacity.v1.dlq,treasury.fx-rates.v1,treasury.fx-rates.v1.dlq") "$aj"
+check QA-05 "asyncapi.json: 3.0.0, treasury in, DLQs, capacity.events.v1 out" $(is "$aj" "3.0.0 capacity.events.v1,treasury.capacity.v1,treasury.capacity.v1.dlq,treasury.fx-rates.v1,treasury.fx-rates.v1.dlq") "$aj"
 c=$(curl -s -o /dev/null -w '%{http_code}' $API/docs/asyncapi); check QA-05 "no AsyncAPI on business port" $(is "$c" 404) "$c"
 
 # ---------- B. authentication and authorisation ----------

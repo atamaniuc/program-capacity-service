@@ -155,7 +155,7 @@ Every committed change is published to `capacity.events.v1`. Downstream systems 
 risk, notifications) build on these events instead of polling the API.
 
 **Browse the contract:** <http://localhost:9464/docs/asyncapi> (`make docs-events`) is the
-AsyncAPI 3.1 document rendered in the browser: every topic, message, header and Kafka key, with
+AsyncAPI 3.0 document rendered in the browser: every topic, message, header and Kafka key, with
 an example of each message. It is served from the ops port with no network access, like Swagger
 UI, and `/docs/asyncapi.json` is the raw document. The committed files are
 [`contracts/asyncapi.yaml`](../contracts/asyncapi.yaml) and one JSON Schema (draft-07) per

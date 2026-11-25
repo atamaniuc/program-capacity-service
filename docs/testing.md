@@ -45,7 +45,7 @@ accepts what they say ([ADR 015](adr/015-contracts.md)):
 | --- | --- |
 | Committed files equal what the zod schemas generate | `npm run contracts:check` (`make verify`, CI) and `test/kafka/contracts.test.ts` |
 | Real REST responses match the OpenAPI component schemas | `test/e2e/contract.e2e.test.ts` |
-| The AsyncAPI document is valid AsyncAPI 3.1 (official `@asyncapi/parser`), lists every topic in and out, and every example in it validates | `test/contracts/asyncapi.test.ts` |
+| The AsyncAPI document is valid AsyncAPI 3.0 (official `@asyncapi/parser`), lists every topic in and out, and every example in it validates | `test/contracts/asyncapi.test.ts` |
 | No breaking change against the base commit: oasdiff for OpenAPI, `compare-schemas.ts` for the message and header schemas ([rules](api.md#8-changing-a-contract)) | `npm run contracts:compat` (`make compat`, CI); the rule itself in `test/contracts/compare-schemas.test.ts` |
 | Dead letters carry the published `DlqHeaders` | `test/kafka/treasury-consumer.kafka.test.ts` (AC-11) |
 | Every simulator message validates against the treasury schemas; malformed ones do not | `test/kafka/contracts.test.ts` |
