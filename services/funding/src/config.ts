@@ -9,6 +9,9 @@ const Schema = z.object({
   OAUTH_ISSUER: z.string().min(1),
   OAUTH_AUDIENCE: z.string().min(1).default('funding-service'),
   OAUTH_JWKS_URL: z.string().min(1),
+  INVOICE_MOCK_URL: z.url().default('http://127.0.0.1:3300'),
+  BUYER_MOCK_URL: z.url().default('http://127.0.0.1:3301'),
+  PAYMENTS_MOCK_URL: z.url().default('http://127.0.0.1:3200'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
 

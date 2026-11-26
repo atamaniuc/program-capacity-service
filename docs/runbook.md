@@ -233,12 +233,13 @@ manual release above, using the reservation id found. Not found: nothing was hel
 request `FAILED` with the SQL above. Do not re-drive the saga by hand after 24 h: the key is gone and
 the answer would be `EXISTING`.
 
-### Funding: first boot after the database split (branch `microservices`)
+### Funding: first boot of the Compose POC
 
-The compose PostgreSQL now starts as the bootstrap role `postgres`, and `init-databases.sh`
-creates the `capacity` and `funding` roles and databases once, on an empty data directory. A
-volume from before that change has a superuser `capacity` and no `funding` database, and the
-init script never runs on it. Run `make down` once (it already deletes the stack's volumes; `make down -v` would be read by `make` as its own option), then `make up`.
+`make up` runs `postgres-bootstrap` to create the shared `finverity` database and the two
+private service schemas. Run `make seed` after startup. If a migration fails, start with
+`docker compose -f deploy/compose.yaml logs postgres-bootstrap migrate funding-migrate`.
+The bootstrap assumes the branch's local admin role `postgres`. Existing service databases
+stay in their original volume. `make down` deletes the stack's volumes.
 
 ## Kind cluster (branch `microservices`)
 

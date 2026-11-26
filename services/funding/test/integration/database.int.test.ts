@@ -20,31 +20,28 @@ afterAll(async () => {
   await server.stop();
 });
 
-describe('funding database (ADR 023)', () => {
-  it('FS-14 the capacity role is refused on the funding database', async () => {
-    await expect(connect(server.url('capacity', 'capacity', 'funding'))).rejects.toThrow(
-      /permission denied|not have CONNECT/i,
-    );
-  });
-
-  it('FS-14 the funding role is refused on the capacity database', async () => {
-    await expect(connect(server.url('funding', 'funding', 'capacity'))).rejects.toThrow(
-      /permission denied|not have CONNECT/i,
-    );
-  });
-
-  it('FS-14 neither role is a superuser and the funding tables are not visible from capacity', async () => {
+describe('funding schema isolation', () => {
+  it('FS-14 both roles share a database but can only use their own schema', async () => {
     const capacity = await connect(server.capacityUrl);
+    const funding = await connect(server.fundingUrl);
     try {
       const role = await capacity.query<{ rolsuper: boolean }>(
         "SELECT rolsuper FROM pg_roles WHERE rolname IN ('capacity', 'funding')",
       );
       expect(role.rows.map((row) => row.rolsuper)).toEqual([false, false]);
-      await expect(capacity.query('SELECT 1 FROM funding_request')).rejects.toThrow(
-        /does not exist/,
+      await expect(capacity.query('SELECT 1 FROM funding.funding_request')).rejects.toThrow(
+        /permission denied for schema funding/,
       );
+      const isolation = await funding.query(
+        `SELECT current_database() AS db,
+                current_schema() AS schema,
+                has_schema_privilege('capacity', 'USAGE') AS capacity_access`,
+      );
+      expect(isolation.rows).toEqual([
+        { db: 'finverity', schema: 'funding', capacity_access: false },
+      ]);
     } finally {
-      await capacity.end();
+      await Promise.all([capacity.end(), funding.end()]);
     }
   });
 
@@ -52,7 +49,7 @@ describe('funding database (ADR 023)', () => {
     const funding = await connect(server.fundingUrl);
     try {
       const tables = await funding.query<{ table_name: string }>(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1",
+        'SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY 1',
       );
       expect(tables.rows.map((row) => row.table_name)).toEqual([
         'funding_request',

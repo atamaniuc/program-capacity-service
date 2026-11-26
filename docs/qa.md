@@ -107,7 +107,7 @@ Side effects, used in the "Check also" columns below:
 
 ```bash
 # SQL (the stack's database)
-docker compose -f deploy/compose.yaml exec -T postgres psql -U capacity -d capacity -c "<query>"
+docker compose -f deploy/compose.yaml exec -T postgres psql -U capacity -d finverity -c "<query>"
 
 # outbound events: headers | key | value (Ctrl-C stops)
 make events

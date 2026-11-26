@@ -6,6 +6,7 @@ import type {
 } from '../../../application/funding-requests.js';
 import type { Outcome } from '../../../application/problem.js';
 import { requireScope, type JwtVerifier } from './auth.js';
+import type { FundingGraphql } from './graphql.js';
 import { HttpProblem, PROBLEM_CONTENT_TYPE, problemBody } from './problem.js';
 import { CreateFundingRequestBody, IdempotencyKeyHeader } from './schemas.js';
 
@@ -16,6 +17,7 @@ export interface HttpDependencies {
   readonly verifier: JwtVerifier;
   readonly create: CreateFundingRequest;
   readonly get: GetFundingRequest;
+  readonly graphql?: FundingGraphql;
   readonly onError?: (error: unknown) => void;
 }
 
@@ -63,6 +65,16 @@ export function createHttpServer(deps: HttpDependencies): Server {
     const url = new URL(request.url ?? '/', 'http://localhost');
     const method = request.method ?? 'GET';
     const item = /^\/v1\/funding-requests\/([^/]+)$/.exec(url.pathname);
+
+    if (url.pathname === '/graphql' && deps.graphql !== undefined) {
+      const principal = await deps.verifier.authenticate(request.headers.authorization);
+      if (method !== 'POST') {
+        throw HttpProblem.of('method-not-allowed', 'Use POST.', { Allow: 'POST' });
+      }
+      const payload = await readJson(request);
+      send(response, 200, await deps.graphql(principal, payload));
+      return;
+    }
 
     // ADR 011: every /v1/ request is authenticated before it is routed, so an anonymous caller
     // learns nothing about which routes and methods exist.

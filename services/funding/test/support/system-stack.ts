@@ -154,7 +154,7 @@ export async function startSystemStack(
     deleteOnExit: false,
   });
   const capacityEnv = {
-    DATABASE_URL: 'postgres://capacity:capacity@postgres:5432/capacity',
+    DATABASE_URL: 'postgres://capacity:capacity@postgres:5432/finverity',
     KAFKA_BROKERS: '127.0.0.1:1',
     OAUTH_ISSUER: issuer,
     OAUTH_AUDIENCE: 'capacity-service',

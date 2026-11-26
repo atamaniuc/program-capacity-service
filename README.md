@@ -54,6 +54,9 @@ done correctly once the context is real.
 
 ## What the branch delivers
 
+- **Local funding dashboard.** Submit a request, watch its Saga progress and inspect the
+  aggregated invoice, buyer and payment data. GraphQL uses request-scoped DataLoaders to batch
+  reads. See the [POC walkthrough](docs/microservices-poc.md).
 - **One funding request, end to end, with exactly one effect.** It is submitted over REST,
   reserved in capacity over gRPC and paid on the rail. Each step carries a key derived from the
   request id, so a retry is the same request to the receiver and is applied once.
@@ -72,20 +75,19 @@ done correctly once the context is real.
 - **Kubernetes.** `make kind-up` installs the whole system into a local kind cluster behind
   Envoy Gateway; `make kind-smoke` runs one completed and one compensated request inside it.
   <!-- proof: make kind-smoke -->
-- **All of it in CI**, the kind cluster included, on every push to the branch; green since the
-  first push on 2026-10-31. <!-- proof: test/architecture/ci.test.ts#T23 kind job runs exactly make ki -->
+- **Pact contracts.** `make pact` exercises the GraphQL and payment rail boundaries against
+  local providers. The [POC walkthrough](docs/microservices-poc.md) covers the gRPC plugin test.
 
 ## Limits
 
-- Not built yet ([tasks](specs/0006-funding-saga/tasks.md)): Pact contract tests between the services
-  (tasks T19, T20), the funding event relay to Kafka (task T21), an operator command for
+- Open work ([tasks](specs/0006-funding-saga/tasks.md)): the funding event relay to Kafka (task T21), an operator command for
   `NEEDS_ATTENTION` (task T22; until then the runbook gives the SQL), and funding reading capacity
   events (task T24).
 - gRPC between the services is plaintext HTTP/2 with a JWT on every call; no TLS or mTLS.
 - The payment rail is a mock with fault markers in the invoice id; no real payment system.
 - The kind smoke does not drive the timeout and 5xx faults, a capacity-side compensation or the
   saga through the gateway ([handoff](specs/0006-funding-saga/handoff.md)).
-- Funding and the payments mock use plain `node:http` and zod, not NestJS.
+- Funding serves HTTP through `node:http`; its Saga runs through `@nestjs/workflows`.
 
 ## Try it
 
@@ -94,9 +96,9 @@ Needs Docker with 4 GB of memory, Node 24 and `make`; the cluster also needs `ki
 
 ```bash
 make install                    # check the machine, npm ci, start the stack, seed it
-make demo-funding               # six funding scenarios on the live stack, capacity before and after
-make kind-up && make kind-smoke # the same system in a local kind cluster
-make verify && make test        # every check; make test needs Docker
+open http://127.0.0.1:13300       # funding dashboard
+make demo-funding               # funding scenarios with capacity before and after
+make pact                       # GraphQL and payment rail contracts
 ```
 
 <!-- proof: make install --> <!-- proof: make demo-funding --> <!-- proof: make verify --> <!-- proof: make test -->
@@ -106,6 +108,8 @@ id. <!-- proof: docs/PRD.md -->
 ## Where to read next
 
 - [docs/README.md](docs/README.md): a one-hour reading path, from the business to the SQL.
+- [docs/microservices-poc.md](docs/microservices-poc.md): the dashboard, GraphQL, batching,
+  PostgreSQL schema ownership and the Pact commands.
 - [docs/branch-technical-overview.md](docs/branch-technical-overview.md): each new part, the
   demo scenarios, the cluster and CI, and a summary of the capacity service.
 - [docs/architecture.md](docs/architecture.md#branch-microservices-funding-the-payment-rail-and-the-grpc-hop):

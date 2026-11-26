@@ -1,5 +1,44 @@
 # Handoff — 0006 Funding saga (branch `microservices`)
 
+## 2026-11-25 POC checkpoint
+
+**Resume in `~/work/finverity-microservices` on `microservices`.**
+The user is working in `~/work/finverity`. Leave that checkout and its running Compose project
+alone. `0515b27` merged the local `main` through `14b6ab5`. Four auxiliary worktree directories
+were removed after checking their contents. Branch refs remain available and the unique `ms-docs`
+commit is `9588cee`. Ignored local worktree metadata was preserved in
+`~/work/.finverity-worktrees-D2z34s`.
+
+The current demo scope is a Compose POC. Start with [the English walkthrough](../../docs/microservices-poc.md).
+The local beginner guide is `docs/microservices-poc.ru.md`. Git excludes it.
+
+- Funding enqueues `funding-saga` in the request transaction. The worker uses `@nestjs/workflows`
+  with a PostgreSQL journal and the existing Saga state machine.
+- Funding serves `POST /graphql` on port 13100. Request-scoped DataLoaders batch PostgreSQL and
+  HTTP lookups. Payments, Invoice and Buyer are mocks. The local dashboard is on port 13300.
+- Compose creates the `finverity` database and private `capacity` and `funding` schemas.
+  The workflow package uses its funding-owned `nest_workflows` schema.
+- `make pact` passed four tests across two files, with seven HTTP interactions verified.
+  The separate gRPC Pact run verified `Reserve` and `Release` using protobuf plugin 0.8.1.
+  The focused PostgreSQL workflow test also passed, including rollback and compensation.
+
+**Live evidence.** `make seed` inserted six programs, 12 FX rates and 200 reservations. Chrome
+verified automatic demo login, one `COMPLETED` request and one compensated `FAILED` request.
+The layout fit 375 px and the browser reported zero console errors. A GraphQL query with two
+distinct IDs and one repeated ID observed one SQL batch and one call to each mock. The same query
+without enrichment fields observed one SQL batch and zero mock calls. PostgreSQL role tests denied
+cross-schema reads in both directions. `funding-workflow.int.test.ts` passed on the shared database.
+The declined request wrote `RESERVE +100000` and `RELEASE -100000` to the Capacity ledger.
+Both `ReservationCreated` and `ReservationReleased` were read from `capacity.events.v1` for that
+reservation.
+
+**Resume or repeat.** Run `npx harnessimo brief --track funding-saga` and
+`docker compose -f deploy/compose.yaml ps -a` from this checkout. The branch stack ran with current
+compiled packages over the existing local image bases. The cold Dockerfile build was stopped while
+installing npm dependencies. With the local images present,
+`docker compose -f deploy/compose.yaml up -d --no-build --wait` starts the POC. Use the English
+walkthrough for a fresh setup. Keep checks targeted to the POC.
+
 ## Context
 
 Branch `microservices` is a documented evolution demo, not the submission (`main` is). It

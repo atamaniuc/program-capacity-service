@@ -56,7 +56,7 @@ endif
 step = @printf '$(C_CYAN)▸ %s$(C_RESET)\n' "$(1)"
 done = @printf '$(C_GREEN)✔ %s$(C_RESET)\n' "$(1)"
 
-.PHONY: help targets completion status check doctor install up up-all down ps logs seed token demo demo-funding qa docs \
+.PHONY: help targets completion status check doctor install up up-all down ps logs seed token demo demo-funding pact qa docs \
         docs-events kafka-ui events verify helm-check kind-up kind-seed kind-smoke kind-forward kind-down kind-token compat test test-unit test-int contracts load dlq-replay isolation-live
 
 ## Help
@@ -139,6 +139,9 @@ demo-funding: ## funding saga on the running stack: completed, risk-declined, in
 	@FUNDING_DISBURSE_DEADLINE=15s FUNDING_PAYMENT_TIMEOUT_MS=2000 $(COMPOSE) up -d --wait funding-worker
 	@DEMO_SETTLE_MS=120000 npm run --silent demo:funding; status=$$?; \
 	  $(COMPOSE) up -d --wait funding-worker >/dev/null; exit $$status
+
+pact: ## run the Funding GraphQL and payment rail Pact contracts
+	npm run test:int -w @finverity/funding -- test/integration/graphql.pact.test.ts test/integration/payment-rail.pact.test.ts
 
 qa: ## QA pass: every endpoint and treasury message, with DB/Kafka checks (docs/qa.md)
 	@bash tools/qa/run.sh

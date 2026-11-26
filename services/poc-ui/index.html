@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#141c37" />
+    <title>Finverity · Funding Lab</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="shell topbar-inner">
+        <a class="brand" href="/" aria-label="Finverity Funding Lab">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Finverity <span class="brand-section">/ Funding Lab</span></span>
+        </a>
+        <button id="connect" class="connection" type="button">
+          <span class="dot" aria-hidden="true"></span><span id="connection-label">Подключение</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <h1 id="page-title">От заявки <span>к выплате</span></h1>
+          <p>
+            Запустите финансирование и проследите, как Saga координирует резерв, выплату и
+            компенсацию.
+          </p>
+        </div>
+        <ol class="service-flow" aria-label="Сервисы, участвующие в финансировании">
+          <li><b>Funding</b><span>Координатор Saga</span></li>
+          <li><b>Capacity</b><span>Резерв лимита</span></li>
+          <li><b>Payments</b><span>Симулятор выплат</span></li>
+        </ol>
+      </section>
+
+      <form id="run-form" class="surface run-form" aria-labelledby="run-title">
+        <div class="run-heading">
+          <h2 id="run-title">Новая заявка</h2>
+          <p>Тестовая заявка на 1 000,00 USD</p>
+        </div>
+        <div class="field">
+          <label for="program">Программа</label>
+          <input id="program" value="prg_grand_usd" required maxlength="128" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label for="scenario">Сценарий</label>
+          <select id="scenario">
+            <option value="success">Успешная выплата</option>
+            <option value="decline">Отказ платёжной системы</option>
+          </select>
+        </div>
+        <button id="run" class="primary" type="submit" disabled>
+          Запустить сценарий <span aria-hidden="true">↗</span>
+        </button>
+      </form>
+      <p id="notice" class="notice" role="status" hidden></p>
+
+      <div class="workspace">
+        <section class="surface runs" aria-labelledby="runs-title">
+          <div class="section-head">
+            <div>
+              <h2 id="runs-title">Журнал заявок</h2>
+              <p id="requests-count">Данные Funding API</p>
+            </div>
+            <button id="refresh" class="secondary compact" type="button" disabled>Обновить</button>
+          </div>
+          <ul id="requests" class="request-list"></ul>
+          <div id="requests-empty" class="empty">
+            Заявки появятся после подключения к Funding API.
+          </div>
+        </section>
+
+        <section class="surface details" aria-labelledby="details-title">
+          <div class="section-head">
+            <div>
+              <h2 id="details-title">Маршрут Saga</h2>
+              <p id="request-id">Выберите заявку из журнала</p>
+            </div>
+            <span id="request-state" class="pill" hidden></span>
+          </div>
+          <ol class="timeline" id="timeline">
+            <li data-step="received">
+              <span class="step-mark" aria-hidden="true"></span>
+              <div>
+                <h3>Заявка принята</h3>
+                <p>Funding сохраняет заявку на выплату</p>
+              </div>
+              <span class="step-status"></span>
+            </li>
+            <li data-step="reserve">
+              <span class="step-mark" aria-hidden="true"></span>
+              <div>
+                <h3>Резервирование</h3>
+                <p>Capacity проверяет доступный лимит</p>
+              </div>
+              <span class="step-status"></span>
+            </li>
+            <li data-step="payment">
+              <span class="step-mark" aria-hidden="true"></span>
+              <div>
+                <h3>Выплата</h3>
+                <p>Payments отвечает на запрос выплаты</p>
+              </div>
+              <span class="step-status"></span>
+            </li>
+            <li data-step="release">
+              <span class="step-mark" aria-hidden="true"></span>
+              <div>
+                <h3>Компенсация</h3>
+                <p>Capacity освобождает резерв при отказе</p>
+              </div>
+              <span class="step-status"></span>
+            </li>
+          </ol>
+          <dl id="enrichment" class="enrichment" hidden>
+            <div>
+              <dt>Счёт</dt>
+              <dd id="invoice-detail"></dd>
+            </div>
+            <div>
+              <dt>Покупатель</dt>
+              <dd id="buyer-detail"></dd>
+            </div>
+            <div>
+              <dt>Результат</dt>
+              <dd id="payment-detail"></dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <section class="surface batching" aria-labelledby="batch-title">
+        <div class="section-head">
+          <div>
+            <h2 id="batch-title">Батчи GraphQL</h2>
+            <p id="batch-summary">Число запросов во время последнего чтения журнала</p>
+          </div>
+          <span class="source-label">DataLoader</span>
+        </div>
+        <dl class="metrics">
+          <div>
+            <dt>Funding · SQL</dt>
+            <dd id="fundingDb">—</dd>
+          </div>
+          <div>
+            <dt>Invoices · HTTP</dt>
+            <dd id="invoiceHttp">—</dd>
+          </div>
+          <div>
+            <dt>Buyers · HTTP</dt>
+            <dd id="buyerHttp">—</dd>
+          </div>
+          <div>
+            <dt>Payments · HTTP</dt>
+            <dd id="paymentHttp">—</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <dialog id="auth-dialog" aria-labelledby="auth-title">
+      <form id="auth-form">
+        <h2 id="auth-title">Подключение</h2>
+        <p>Введите JWT для Funding API со scope <code>funding:read funding:write</code>.</p>
+        <div class="field">
+          <label for="token">Bearer token</label>
+          <input id="token" type="password" autocomplete="off" spellcheck="false" required />
+        </div>
+        <p id="auth-error" class="notice error" role="status" hidden></p>
+        <div class="dialog-actions">
+          <button id="cancel-auth" class="secondary" type="button">Закрыть</button>
+          <button id="save-auth" class="primary" type="submit">Подключить JWT</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

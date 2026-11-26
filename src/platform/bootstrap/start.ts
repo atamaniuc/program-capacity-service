@@ -130,8 +130,7 @@ export async function startApp(
       db: async () => {
         // The newest migration file must be recorded, so a half-migrated schema is not ready.
         const { rows } = await sql<{ migrated: boolean }>`
-          SELECT to_regclass('public.schema_migrations') IS NOT NULL
-             AND EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ${latest})
+          SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ${latest})
                  AS migrated`.execute(persistence.db);
         if (rows[0]?.migrated !== true) throw new Error('schema is not migrated');
       },

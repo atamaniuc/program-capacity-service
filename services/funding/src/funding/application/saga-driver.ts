@@ -55,7 +55,7 @@ export class SagaDriver {
     return claims.length;
   }
 
-  async runStep(claim: Claim): Promise<void> {
+  async runStep(claim: Claim): Promise<Transition | undefined> {
     const command = nextCommand(claim.request);
     if (command === undefined) {
       this.hooks.onDropped?.(claim, 'not-due');
@@ -81,6 +81,7 @@ export class SagaDriver {
       }
       this.hooks.onRecorded?.(claim, applied.value);
       if (applied.value.alert) this.hooks.onAlert?.(claim, applied.value);
+      return applied.value;
     } catch (error) {
       // The lease expires and the step runs again from the persisted state.
       this.hooks.onError?.(claim, error);

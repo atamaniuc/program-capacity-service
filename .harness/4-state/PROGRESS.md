@@ -1,5 +1,19 @@
 # PROGRESS
 
+## 2026-11-25 — Funding POC on `microservices`
+
+- Merged local `main` through `14b6ab5` into the POC branch. Retired the four auxiliary worktree
+  directories after preserving their local metadata and refs.
+- Wired Nest workflows, GraphQL batching, Invoice and Buyer mocks, the browser dashboard and
+  schema ownership in a single PostgreSQL database. The English walkthrough is
+  [microservices-poc.md](../../docs/microservices-poc.md).
+- Verified seven HTTP Pact interactions (four tests across two files), two gRPC Pact interactions
+  with the protobuf plugin and one PostgreSQL workflow integration test.
+- Live Compose passed the successful payment and declined payment with compensation in Chrome.
+  GraphQL returned one SQL batch and one HTTP batch per mock for a multi-ID query.
+  The dashboard fit a 375 px viewport. SQL and Kafka confirmed both reserve and release for the
+  declined request. Read the track handoff with `npx harnessimo brief --track funding-saga`.
+
 State carried between sessions. Read this first; update it before you stop.
 
 ## Now

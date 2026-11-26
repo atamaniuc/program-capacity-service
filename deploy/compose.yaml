@@ -3,7 +3,7 @@
 name: program-capacity-ms
 
 x-service-env: &service-env
-  DATABASE_URL: postgres://capacity:capacity@postgres:5432/capacity
+  DATABASE_URL: postgres://capacity:capacity@postgres:5432/finverity
   KAFKA_BROKERS: kafka:9092
   OAUTH_ISSUER: http://localhost:${HOST_PORT_OAUTH:-18081}/default
   OAUTH_AUDIENCE: capacity-service
@@ -40,7 +40,7 @@ x-service: &service
 # Funding (ADR 023, 025): its own images and its own database. Environment names are the ones the
 # services read (src/config.ts, src/worker-config.ts) and the Helm chart sets.
 x-funding-env: &funding-env
-  DATABASE_URL: postgres://funding:funding@postgres:5432/funding
+  DATABASE_URL: postgres://funding:funding@postgres:5432/finverity
   OPS_PORT: 9464
 
 x-funding: &funding
@@ -54,20 +54,29 @@ services:
   postgres:
     image: postgres:18
     environment:
-      # Bootstrap role only; init-databases.sh creates the capacity and funding roles (ADR 023).
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    volumes:
-      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
     ports:
       - '${HOST_PORT_POSTGRES:-15432}:5432'
     healthcheck:
-      # TCP, not the Unix socket: the entrypoint's temporary server has no TCP listener, so the check
-      # cannot pass before init-databases.sh has created the roles.
-      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U funding -d funding']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d postgres']
       interval: 3s
       timeout: 3s
       retries: 20
+
+  postgres-bootstrap:
+    image: postgres:18
+    restart: 'no'
+    entrypoint: ['/bin/sh', '/bootstrap.sh']
+    volumes:
+      - ./postgres/init-databases.sh:/bootstrap.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      POSTGRES_USER: postgres
+      PGPASSWORD: postgres
 
   kafka:
     image: apache/kafka:4.2.0
@@ -139,8 +148,8 @@ services:
     <<: *service
     restart: 'no'
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       disable: true
     command: ['node', 'src/capacity/adapters/out/postgres/migrate.js']
@@ -186,15 +195,38 @@ services:
     ports:
       - '${HOST_PORT_PAYMENTS:-13200}:3200'
 
+  invoice-mock: &enrichment-mock
+    image: node:24-bookworm-slim
+    user: node
+    init: true
+    restart: unless-stopped
+    command: ['node', '/app/server.mjs']
+    volumes:
+      - ../services/enrichment-mock:/app:ro
+    environment:
+      MOCK_KIND: invoice
+      PORT: 3300
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3300/health/live').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+
+  buyer-mock:
+    <<: *enrichment-mock
+    environment:
+      MOCK_KIND: buyer
+      PORT: 3300
+
   funding-migrate:
     <<: *funding
     restart: 'no'
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
     command: ['node', 'src/funding/adapters/out/postgres/migrate.js']
     environment:
-      DATABASE_URL: postgres://funding:funding@postgres:5432/funding
+      DATABASE_URL: postgres://funding:funding@postgres:5432/finverity
 
   funding-api:
     <<: *funding
@@ -210,6 +242,9 @@ services:
       OAUTH_ISSUER: http://localhost:${HOST_PORT_OAUTH:-18081}/default
       OAUTH_AUDIENCE: funding-service
       OAUTH_JWKS_URL: http://oauth:8080/default/jwks
+      INVOICE_MOCK_URL: http://invoice-mock:3300
+      BUYER_MOCK_URL: http://buyer-mock:3300
+      PAYMENTS_MOCK_URL: http://payments:3200
     ports:
       - '${HOST_PORT_FUNDING:-13100}:3100'
       - '${HOST_PORT_FUNDING_OPS:-19466}:9464'
@@ -258,6 +293,32 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+
+  poc-ui:
+    image: node:24-bookworm-slim
+    user: node
+    init: true
+    restart: unless-stopped
+    command: ['node', '/app/server.mjs']
+    volumes:
+      - ../services/poc-ui:/app:ro
+    depends_on:
+      funding-api:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      FUNDING_URL: http://funding-api:3100
+      DEMO_TOKEN_ENABLED: 'true'
+      DEMO_TOKEN_URL: http://oauth:8080/default/token
+      DEMO_TOKEN_HOST: localhost:${HOST_PORT_OAUTH:-18081}
+      DEMO_UI_ORIGINS: 'http://localhost:${HOST_PORT_POC_UI:-13300},http://127.0.0.1:${HOST_PORT_POC_UI:-13300}'
+    ports:
+      - '127.0.0.1:${HOST_PORT_POC_UI:-13300}:8080'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/health/live').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
 
   # --- observability profile (NFR-10): Prometheus, Grafana, Jaeger, Kafka UI --------------------
   # `make up-all` starts the stack with all of them and tracing on.

@@ -9,17 +9,16 @@ const INIT_SCRIPT = fileURLToPath(
 );
 
 export interface FundingPostgres {
-  /** Connection URL of the `funding` database as the `funding` role. */
+  /** Connection URL of the shared database as the `funding` role. */
   readonly fundingUrl: string;
-  /** Connection URL of the `capacity` database as the `capacity` role. */
+  /** Connection URL of the shared database as the `capacity` role. */
   readonly capacityUrl: string;
-  url(user: string, password: string, database: string): string;
   stop(): Promise<void>;
 }
 
 /**
- * One server as in compose: bootstrap role `postgres`, then the same init script the
- * compose stack mounts creates the `capacity` and `funding` roles and databases.
+ * One database as in Compose: the same bootstrap script creates the
+ * `capacity` and `funding` roles and their schemas.
  */
 export async function startFundingPostgres(network?: StartedNetwork): Promise<FundingPostgres> {
   const base = new PostgreSqlContainer(POSTGRES_IMAGE)
@@ -36,12 +35,11 @@ export async function startFundingPostgres(network?: StartedNetwork): Promise<Fu
   const container = await (
     network === undefined ? base : base.withNetwork(network).withNetworkAliases('postgres')
   ).start();
-  const url = (user: string, password: string, database: string): string =>
-    `postgres://${user}:${password}@${container.getHost()}:${container.getPort().toString()}/${database}`;
+  const url = (role: 'capacity' | 'funding'): string =>
+    `postgres://${role}:${role}@${container.getHost()}:${container.getPort().toString()}/finverity`;
   return {
-    fundingUrl: url('funding', 'funding', 'funding'),
-    capacityUrl: url('capacity', 'capacity', 'capacity'),
-    url,
+    fundingUrl: url('funding'),
+    capacityUrl: url('capacity'),
     stop: async () => {
       await container.stop();
     },

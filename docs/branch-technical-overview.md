@@ -1,5 +1,7 @@
 # Branch `microservices`: technical overview
 
+For the dashboard, GraphQL and NestJS Workflows, see the [Funding microservices POC](microservices-poc.md).
+
 The README says why the branch exists. This page is the technical summary that used to sit in
 it: what each new part is, how to run and demo it, the cluster and CI, and the capacity service
 as submitted on `main`. Ports, profiles and every container are in
@@ -30,12 +32,14 @@ flowchart LR
   capworker --> cdb
 ```
 
-- **`funding-service`** (`services/funding/`): `POST` and `GET /v1/funding-requests`, JWT with
-  audience `funding-service`, `Idempotency-Key`, RFC 9457 problems, OpenAPI generated from zod.
-  It owns its own PostgreSQL database and role ([ADR 023](adr/023-funding-context-database-per-service.md)).
+- **`funding-service`** (`services/funding/`) accepts REST funding requests and aggregates
+  reads via `POST /graphql`. Tokens carry audience `funding-service`. REST documents its
+  idempotency key and RFC 9457 problems in OpenAPI generated from zod. Compose assigns
+  Funding a schema and database role in `finverity`. [Funding microservices POC](microservices-poc.md)
 - **A saga** in the funding worker ([ADR 025](adr/025-funding-saga-orchestration.md)): risk
   check, then `Reserve` on capacity over gRPC, then `Disburse` on the rail, and on a definite
-  payment failure a compensating `Release`. State is in PostgreSQL; every step has a
+  payment failure a compensating `Release`. `@nestjs/workflows` runs the saga with state in
+  PostgreSQL. Every step has a
   deterministic idempotency key (`funding:<id>:reserve`, `:disburse`, `:release`), so a retry is
   the same request to the receiver. An unknown outcome of the payment is never compensated: the
   request is parked as `NEEDS_ATTENTION` with the capacity still held, and an alert fires.
@@ -54,7 +58,8 @@ flowchart LR
   workspaces, capacity stays at the repository root; the contracts package
   `packages/contracts` ([ADR 028](adr/028-contracts-package-and-consumer-contracts.md)).
 
-The funding service and the payments mock use plain `node:http` and zod, not NestJS.
+The Funding and Payments HTTP adapters use `node:http` and zod. Funding uses a Nest application
+context for the workflow engine.
 
 ## Status by task
 
@@ -96,7 +101,7 @@ one, and restores the worker. It exits with 1 if any scenario does not end as ex
 By hand, after `make up` and `make seed`:
 
 ```bash
-FTOKEN=$(make -s token TENANT=bank-a SCOPES="funding:write funding:read")
+FTOKEN=$(OAUTH_AUDIENCE=funding-service make -s token TENANT=bank-a SCOPES="funding:write funding:read")
 curl -si -X POST localhost:13100/v1/funding-requests \
   -H "authorization: Bearer $FTOKEN" -H "content-type: application/json" \
   -H "idempotency-key: $(uuidgen)" \
@@ -135,9 +140,9 @@ the lane handoff, `specs/0006-funding-saga/handoff.md`.
 
 ## Not built on this branch
 
-Redis, GraphQL, CQRS, event sourcing, Temporal, a gateway in Compose, a service mesh, a real
-cloud, TLS or mTLS between services, Pact tests and the funding event relay (planned, see the
-status above).
+Redis, CQRS, event sourcing, Temporal, a service mesh, a cloud deployment, TLS or mTLS between
+services, and the funding event relay. The [POC guide](microservices-poc.md) covers the new
+GraphQL endpoint, dashboard and contract checks.
 
 ## The capacity service, as submitted on `main`
 

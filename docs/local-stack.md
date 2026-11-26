@@ -5,8 +5,9 @@ Everything `make up` and `make up-all` start, from one file:
 in the file, the tools have no login.
 
 > **Branch `microservices`.** The Compose project is `program-capacity-ms` (on `main` it is
-> `program-capacity`), every host port is `main`'s plus 10000, and four services are added to the
-> default profile: `payments`, `funding-migrate`, `funding-api` and `funding-worker`. The two
+> `program-capacity`). It uses separate host ports and starts the Funding API and worker,
+> payment, invoice and buyer mocks, and the
+> [funding dashboard](http://127.0.0.1:13300/). The two
 > stacks can run side by side ([ADR 027](adr/027-repository-layout-and-side-by-side-isolation.md),
 > `make isolation-live`). The Kubernetes version of this stack is at the end of this page.
 
@@ -71,7 +72,8 @@ make down              # stop and delete everything (the tools too)
 | URL | What |
 | --- | --- |
 | <http://localhost:13000/v1/…> | Business API (needs a token) |
-| <http://localhost:13100/v1/funding-requests> | Branch only: the funding API (needs a token with a `funding:` scope; no Swagger UI, the contract is `services/funding/contracts/openapi.yaml`) |
+| <http://127.0.0.1:13300/> | Funding POC dashboard with local demo login and Saga history |
+| <http://localhost:13100/v1/funding-requests> | Funding REST API and `POST /graphql` with a Funding JWT |
 | <http://localhost:19466/health/ready>, <http://localhost:19467/health/ready> | Branch only: readiness and `/metrics` of the funding `api` and `worker` |
 | <http://localhost:19464/docs> | Swagger UI: **Authorize** (local OAuth2 login, client id = tenant), then **Try it out** on any endpoint (ops port, local only) |
 | <http://localhost:19464/docs/asyncapi> | AsyncAPI: every Kafka topic the service reads and writes, with headers, keys and an example per message (`make events` tails `capacity.events.v1` live) |
@@ -173,24 +175,18 @@ be moved with its `HOST_PORT_*` variable (see `.env.example`).
 
 PostgreSQL 18, the single source of truth of each service (ADR 002): for capacity the programs,
 reservations, ledger, inbox, outbox and idempotency rows; for funding (branch) the funding
-requests, the attempt log, the outbox and the idempotency rows. One server, two databases, one
-login role each ([ADR 023](adr/023-funding-context-database-per-service.md)): the entrypoint
-runs [`deploy/postgres/init-databases.sh`](../deploy/postgres/init-databases.sh) once, on an
-empty data directory, as the bootstrap role `postgres`, and creates `capacity` and `funding`
-(user, password and database all the same name). Neither role may connect to the other's
-database. Data lives in an anonymous volume that `make down` deletes.
+requests, the attempt log, the outbox and the idempotency rows. The Compose POC uses one
+`finverity` database. The `capacity` and `funding` roles each own a private schema with the
+same name as their role. PostgreSQL also sets each role's default `search_path` to that schema.
+Funding owns the `nest_workflows` journal schema as well.
 
-- Healthy when `pg_isready` answers for the `funding` role, which also proves the init script ran.
-- Look inside:
-  `docker compose -f deploy/compose.yaml exec postgres psql -U capacity -d capacity`, or any
-  client at `postgres://capacity:capacity@localhost:15432/capacity`; the funding database is
-  `psql -U funding -d funding` and `postgres://funding:funding@localhost:15432/funding`.
-- **Old volume.** A volume created before the funding database existed has no `funding` role and
-  the init script never runs on it, so `make up` fails, usually at `funding-migrate` with an
-  authentication or "does not exist" error in its log. Run `make down` once (it already deletes
-  the volume; `make down -v` is not the command, because `make` reads `-v` as its own option,
-  prints its version and does nothing), then `make up`. The same note is in the
-  [runbook](runbook.md#funding-first-boot-after-the-database-split-branch-microservices).
+- The `postgres-bootstrap` job runs [`init-databases.sh`](../deploy/postgres/init-databases.sh)
+  after PostgreSQL accepts TCP connections. Both services wait for that job before applying
+  their own table migrations.
+- Use `docker compose -f deploy/compose.yaml exec postgres psql -U capacity -d finverity`
+  to inspect Capacity or replace `-U capacity` with `-U funding` to inspect Funding.
+- Older `capacity` and `funding` databases in an existing volume remain available under their
+  old names. Use `make seed` to populate the new POC database.
 
 ### kafka
 
@@ -311,7 +307,7 @@ with curl is in [api.md](api.md#funding-api-branch-microservices). There is no S
   recorded.
 - Get a token: `make -s token TENANT=bank-a SCOPES="funding:write funding:read"`.
 - Look inside: `curl -s localhost:19466/metrics`, the logs (one JSON line per event), and
-  `psql -U funding -d funding` (`funding_request`, `saga_step_attempt`).
+  `psql -U funding -d finverity` (`funding_request`, `saga_step_attempt`).
 
 ### funding-worker
 

@@ -2,6 +2,8 @@
 
 ## Understand the repository in one hour
 
+For the Compose dashboard, GraphQL and workflow demo, start with the [Funding microservices POC](microservices-poc.md).
+
 Read in this order. Each step says what you should know after it.
 
 | # | Time | Read | You will know |
@@ -23,6 +25,7 @@ Optional, when you need them: [repository-map.md](repository-map.md) (what every
 | --- | --- |
 | [how-it-works.md](how-it-works.md) | The domain in plain words, with a worked example |
 | [branch-technical-overview.md](branch-technical-overview.md) | Branch only: what each new part is, the funding demo, the cluster and CI, and a summary of the capacity service |
+| [microservices-poc.md](microservices-poc.md) | Branch only: dashboard quick start, Funding workflow, GraphQL aggregation and contract checks |
 | [architecture.md](architecture.md) | C4 context, containers and components; sequence diagrams; data model |
 | [repository-map.md](repository-map.md) | Every folder and file: purpose and layer |
 | [api.md](api.md) | API tour: Swagger UI and curl, error catalogue, the events on Kafka and their AsyncAPI page, and the rules for changing a contract |
@@ -72,9 +75,9 @@ Branch `microservices` only (the evolution demo; `main` keeps ADRs 001 to 022 as
 
 | ADR | Decision |
 | --- | --- |
-| [023](adr/023-funding-context-database-per-service.md) | The new-business-domain trigger of ADR 021 fired: funding as a new service, one database per service |
+| [023](adr/023-funding-context-database-per-service.md) | The original Funding service storage design. The [Compose POC](microservices-poc.md) assigns a schema and role to each service |
 | [024](adr/024-grpc-driving-adapter.md) | Internal gRPC driving adapter for capacity (supersedes 022 here) |
-| [025](adr/025-funding-saga-orchestration.md) | Funding saga: a hand-rolled orchestrator persisted in PostgreSQL |
+| [025](adr/025-funding-saga-orchestration.md) | Funding saga decisions and compensation rules. The [POC](microservices-poc.md) runs it with `@nestjs/workflows` |
 | [026](adr/026-helm-and-kind.md) | Helm charts and a local kind cluster |
 | [027](adr/027-repository-layout-and-side-by-side-isolation.md) | npm workspaces with capacity at the root; side by side with `main` |
 | [028](adr/028-contracts-package-and-consumer-contracts.md) | Contracts package and consumer-driven contracts (Pact); no schema registry |

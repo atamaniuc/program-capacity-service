@@ -2,6 +2,9 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { parseRequest, Rail, type Payment } from './rail.js';
 
+const MAX_BATCH = 50;
+const MAX_BODY_BYTES = 16 * 1024;
+
 function send(res: ServerResponse, status: number, body: unknown, type = 'application/json'): void {
   res.writeHead(status, { 'content-type': type });
   res.end(JSON.stringify(body));
@@ -17,8 +20,14 @@ function view(payment: Payment): Payment {
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let size = 0;
   try {
+    for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+      const buffer = chunk as Buffer;
+      size += buffer.length;
+      if (size > MAX_BODY_BYTES) return undefined;
+      chunks.push(buffer);
+    }
     return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   } catch {
     return undefined;
@@ -33,6 +42,24 @@ export function createApiServer(rail: Rail): Server {
 
 async function handle(rail: Rail, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
+  if (req.method === 'POST' && url.pathname === '/v1/payments/batch') {
+    const body = (await readJson(req)) as { ids?: unknown } | undefined | null;
+    const ids = body?.ids;
+    if (
+      !Array.isArray(ids) ||
+      ids.length > MAX_BATCH ||
+      !ids.every(
+        (id: unknown): id is string => typeof id === 'string' && id.length > 0 && id.length <= 255,
+      )
+    ) {
+      return problem(res, 400, 'Expected at most 50 payment idempotency keys');
+    }
+    const records = [...new Set(ids)].flatMap((key) => {
+      const value = rail.get(key);
+      return value === undefined ? [] : [{ key, value }];
+    });
+    return send(res, 200, { records });
+  }
   if (req.method === 'POST' && url.pathname === '/v1/payments') {
     const key = req.headers['idempotency-key'];
     if (typeof key !== 'string' || key === '') return problem(res, 400, 'Idempotency-Key required');

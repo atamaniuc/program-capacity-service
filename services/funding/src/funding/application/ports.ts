@@ -57,3 +57,8 @@ export interface FundingTransaction {
 export interface UnitOfWork {
   run<T>(work: (tx: FundingTransaction) => Promise<T>): Promise<T>;
 }
+
+export interface FundingRequestReader {
+  byIds(tenantId: string, ids: readonly string[]): Promise<readonly FundingRequestRecord[]>;
+  recent(tenantId: string, limit: number): Promise<readonly FundingRequestRecord[]>;
+}

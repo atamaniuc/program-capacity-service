@@ -21,7 +21,7 @@ import { formatMinor, parseMoney } from '../../src/capacity/domain/index.js';
 const SEED = 20_261_028;
 const DATABASE_URL =
   process.env['DATABASE_URL'] ??
-  `postgres://capacity:capacity@localhost:${process.env['HOST_PORT_POSTGRES'] ?? '15432'}/capacity`;
+  `postgres://capacity:capacity@localhost:${process.env['HOST_PORT_POSTGRES'] ?? '15432'}/finverity`;
 
 export interface SeedProgram {
   readonly tenantId: string;

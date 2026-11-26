@@ -90,8 +90,7 @@ export class PostgresSagaStore implements SagaStore, SagaStatsSource {
   async ping(): Promise<void> {
     const latest = await latestMigration();
     const { rows } = await sql<{ migrated: boolean }>`
-      SELECT to_regclass('public.schema_migrations') IS NOT NULL
-         AND EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ${latest}) AS migrated`.execute(
+      SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ${latest}) AS migrated`.execute(
       this.persistence.db,
     );
     if (rows[0]?.migrated !== true) throw new Error('schema is not migrated');
@@ -128,12 +127,39 @@ export class PostgresSagaStore implements SagaStore, SagaStatsSource {
     return Number(rows[0]?.ms);
   }
 
-  async claimDue(owner: string, leaseMs: number, limit: number): Promise<readonly Claim[]> {
+  async pendingIds(): Promise<string[]> {
+    const { rows } = await sql<{ id: string }>`
+      SELECT id FROM funding_request
+       WHERE state IN ('RECEIVED', 'RESERVING', 'DISBURSING', 'COMPENSATING')
+    `.execute(this.persistence.db);
+    return rows.map(({ id }) => id);
+  }
+
+  async claimRequest(id: string, owner: string, leaseMs: number): Promise<Claim | undefined> {
+    return (await this.claimDue(owner, leaseMs, 1, id))[0];
+  }
+
+  async nextWakeAt(id: string): Promise<number | null> {
+    const { rows } = await sql<{ wake_at: string }>`
+      SELECT ${MS("greatest(next_attempt_at, lease_until, clock_timestamp() + interval '100 milliseconds')")} AS wake_at
+        FROM funding_request
+       WHERE id = ${id} AND state IN ('RECEIVED', 'RESERVING', 'DISBURSING', 'COMPENSATING')
+    `.execute(this.persistence.db);
+    return rows[0] === undefined ? null : Number(rows[0].wake_at);
+  }
+
+  async claimDue(
+    owner: string,
+    leaseMs: number,
+    limit: number,
+    id?: string,
+  ): Promise<readonly Claim[]> {
     return this.transaction(async (trx) => {
       const { rows } = await sql<Row>`
         WITH due AS (
           SELECT id FROM funding_request
           WHERE state IN ('RECEIVED', 'RESERVING', 'DISBURSING', 'COMPENSATING')
+            ${id === undefined ? sql`` : sql`AND id = ${id}`}
             AND next_attempt_at <= now()
             AND (lease_until IS NULL OR lease_until <= now())
           ORDER BY next_attempt_at

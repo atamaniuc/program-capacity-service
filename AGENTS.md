@@ -59,8 +59,10 @@ truth, Kafka for treasury input and outbound events. The requirements live in
 - Do not relitigate: monolith, no Redis, no event sourcing, no Saga, no GraphQL, no Pact, no `@nestjs/swagger`.
 - **Branch `microservices` only** (evolution demo; `main` is the submission): ADRs 023–028
   replace "monolith, no Saga, no Pact, no gRPC" with `funding-service`, an orchestrated saga,
-  gRPC and Pact. Still settled here: capacity is not cut, no Redis, no event sourcing, no
-  GraphQL, no Temporal, no `@nestjs/swagger`. Lane: `specs/0006-funding-saga/`.
+  gRPC and Pact. The Compose POC also uses GraphQL in the Funding API, `@nestjs/workflows`
+  in the worker and one PostgreSQL database with service-owned schemas. Capacity stays whole.
+  No Redis, event sourcing, Temporal or `@nestjs/swagger`. Resume the POC from
+  `npx harnessimo brief --track funding-saga`. Its handoff records the scoped checks and live evidence.
 
 ## Roles
 

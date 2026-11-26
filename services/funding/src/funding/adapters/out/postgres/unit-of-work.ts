@@ -2,6 +2,7 @@ import { sql, type Transaction } from 'kysely';
 import type { FundingState } from '../../../domain/index.js';
 import type { Outcome } from '../../../application/problem.js';
 import type {
+  FundingRequestReader,
   FundingRequestRecord,
   FundingTransaction,
   UnitOfWork,
@@ -39,6 +40,32 @@ function toRecord(row: Selectable<FundingRequestTable>): FundingRequestRecord {
   };
 }
 
+export class PostgresFundingRequestReader implements FundingRequestReader {
+  constructor(private readonly persistence: Persistence) {}
+
+  async byIds(tenantId: string, ids: readonly string[]): Promise<readonly FundingRequestRecord[]> {
+    const rows = await this.persistence.db
+      .selectFrom('funding_request')
+      .select(COLUMNS)
+      .where('tenant_id', '=', tenantId)
+      .where('id', 'in', ids)
+      .execute();
+    return rows.map(toRecord);
+  }
+
+  async recent(tenantId: string, limit: number): Promise<readonly FundingRequestRecord[]> {
+    const rows = await this.persistence.db
+      .selectFrom('funding_request')
+      .select(COLUMNS)
+      .where('tenant_id', '=', tenantId)
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit)
+      .execute();
+    return rows.map(toRecord);
+  }
+}
+
 export interface TransactionTimeouts {
   readonly lockTimeoutMs: number;
   readonly statementTimeoutMs: number;
@@ -46,8 +73,13 @@ export interface TransactionTimeouts {
 
 const DEFAULT_TIMEOUTS: TransactionTimeouts = { lockTimeoutMs: 5_000, statementTimeoutMs: 15_000 };
 
+export type StartFundingWorkflow = (id: string, transaction: Transaction<Database>) => Promise<void>;
+
 class PgFundingTransaction implements FundingTransaction {
-  constructor(private readonly trx: Transaction<Database>) {}
+  constructor(
+    private readonly trx: Transaction<Database>,
+    private readonly startWorkflow: StartFundingWorkflow | undefined,
+  ) {}
 
   async claimKey(tenantId: string, key: string, fingerprint: string): Promise<boolean> {
     const result = await this.trx
@@ -107,7 +139,10 @@ class PgFundingTransaction implements FundingTransaction {
       .onConflict((oc) => oc.columns(['tenant_id', 'program_id', 'invoice_id']).doNothing())
       .returning(COLUMNS)
       .executeTakeFirst();
-    if (inserted !== undefined) return { record: toRecord(inserted), created: true };
+    if (inserted !== undefined) {
+      await this.startWorkflow?.(inserted.id, this.trx);
+      return { record: toRecord(inserted), created: true };
+    }
     const existing = await this.trx
       .selectFrom('funding_request')
       .select(COLUMNS)
@@ -151,6 +186,7 @@ export class PostgresUnitOfWork implements UnitOfWork {
   constructor(
     private readonly persistence: Persistence,
     private readonly timeouts: TransactionTimeouts = DEFAULT_TIMEOUTS,
+    private readonly startWorkflow?: StartFundingWorkflow,
   ) {}
 
   run<T>(work: (tx: FundingTransaction) => Promise<T>): Promise<T> {
@@ -159,7 +195,7 @@ export class PostgresUnitOfWork implements UnitOfWork {
                        set_config('statement_timeout', ${`${this.timeouts.statementTimeoutMs.toString()}ms`}, true)`.execute(
         trx,
       );
-      return work(new PgFundingTransaction(trx));
+      return work(new PgFundingTransaction(trx, this.startWorkflow));
     });
   }
 }

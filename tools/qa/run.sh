@@ -11,7 +11,7 @@ P=prg_qa_$RUN
 DC="docker compose -f deploy/compose.yaml"
 OUT=$(mktemp -d)
 pass=0; fail=0; n=0
-sql() { $DC exec -T postgres psql -U capacity -d capacity -At -F'|' -c "$1"; }
+sql() { $DC exec -T postgres psql -U capacity -d finverity -At -F'|' -c "$1"; }
 check() { # id, description, condition-result (0 = pass), evidence
   if [ "$3" = 0 ]; then pass=$((pass+1)); printf 'PASS %-6s %s | %s\n' "$1" "$2" "$4"; else fail=$((fail+1)); printf 'FAIL %-6s %s | %s\n' "$1" "$2" "$4"; fi
 }
